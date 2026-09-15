@@ -30,8 +30,15 @@ public partial class PoolProbe : Node
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
-        GD.Print("=== PoolProbe: 场景已实例化 ===");
+        // 隔离：情绪变体（P5）会按心情改播 think-happy / think-poor，导致「池内随机」类断言变成随机失败。
+        // 本探针只验「池是否播出对应池的动画」，所以把心情钉在中位（不触发变体），结束再恢复。
+        _原心情 = desktop.script.Soul.StatsTable.当前心情;
+        desktop.script.Soul.StatsTable.探针_设值(60f, desktop.script.Soul.StatsTable.当前精力,
+            desktop.script.Soul.StatsTable.当前亲密);
+        GD.Print("=== PoolProbe: 场景已实例化（心情已钉在中位 60，隔离情绪变体） ===");
     }
+
+    private float _原心情;
 
     public override void _Process(double delta)
     {
@@ -41,6 +48,8 @@ public partial class PoolProbe : Node
         if (i >= 用例.Length)
         {
             GD.Print($"[PL] ===== 失败数 = {_失败} =====");
+            desktop.script.Soul.StatsTable.探针_设值(_原心情, desktop.script.Soul.StatsTable.当前精力,
+                desktop.script.Soul.StatsTable.当前亲密);
             GD.Print(_失败 == 0 ? "[PL] PASS" : "[PL] FAIL");
             GetTree().Quit(_失败 == 0 ? 0 : 1);
             return;

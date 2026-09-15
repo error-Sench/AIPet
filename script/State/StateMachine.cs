@@ -403,7 +403,7 @@ public partial class StateMachine : Node
 
         _空闲秒 += 设置.心跳秒;
 
-        var 目标睡眠 = 是否深夜() ? 设置.深夜睡眠秒 : 设置.睡眠空闲秒;
+        var 目标睡眠 = 是否深夜() ? 设置.深夜睡眠秒 : 有效睡眠空闲秒; // 精力不济时提前入睡（P5 表达耦合）
         if (_空闲秒 >= 目标睡眠)
         {
             入睡();
@@ -455,7 +455,26 @@ public partial class StateMachine : Node
     private static int _走动次数; // 累计走动次数（观测用）
 
     private static float 随机间隔() =>
-        (float)GD.RandRange(设置.走动间隔最小秒, 设置.走动间隔最大秒);
+        (float)GD.RandRange(设置.走动间隔最小秒, 设置.走动间隔最大秒) * 走动间隔倍率;
+
+    /// <summary>
+    /// 心情低落时少自己乱跑（走动间隔倍率）。数值只影响**频率与表现**，绝不改写人格与说话方式。
+    /// 用「纯函数」暴露出来，探针可以直接断言，不用等真实时间流逝。
+    /// </summary>
+    public static float 走动间隔倍率 => Soul.StatsTable.心情低落 ? 1.6f : 1f;
+
+    /// <summary>精力不济时更容易打瞌睡（提前入睡阈值，同样做成可断言的纯函数）。</summary>
+    public static float 有效睡眠空闲秒 =>
+        Soul.StatsTable.精力不济 ? MathF.Min(设置.睡眠空闲秒, 120f) : 设置.睡眠空闲秒;
+
+    /// <summary>按数值挑情绪变体（`think-happy` / `think-poor` …）。返回 "" = 用池内随机（该池没有这个变体）。</summary>
+    private static string 情绪变体(string 池)
+    {
+        if (池 is not ("think" or "say" or "interact")) return "";
+        if (Soul.StatsTable.当前心情 >= 75f) return "happy";
+        if (Soul.StatsTable.当前心情 < 35f) return "poor";
+        return "";
+    }
 
     private static float 首次间隔() =>
         (float)GD.RandRange(设置.首次走动最小秒, 设置.首次走动最大秒);
@@ -682,7 +701,12 @@ public partial class StateMachine : Node
             return;
         }
         if (!_效果表.TryGetValue(state, out var 效果)) 效果 = _效果表[Idle];
-        CharAnim.PlayState(选择池(效果));
+        var 池 = 选择池(效果);
+        // 情绪表达：心情好/糟时优先用该池的对应变体（如 think-happy / think-poor、摸头用 interact-happy）。
+        // 该池没有这个变体就退回池内随机 —— 不硬造。
+        var 变体 = 情绪变体(池);
+        if (变体.Length > 0 && CharAnim.有动画($"{池}-{变体}")) { CharAnim.PlayNamed($"{池}-{变体}"); return; }
+        CharAnim.PlayState(池);
     }
 
     // ================= 节律配置 =================
