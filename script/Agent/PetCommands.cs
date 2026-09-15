@@ -65,7 +65,17 @@ public static class PetCommands
     private static readonly HashSet<string> _激进白名单 = new() { "open_url" };
 
     /// <summary>P3 之前尚未接入实现的命令（接受但明确记「未实现」，不假装成功）。</summary>
-    private static readonly HashSet<string> _未实现 = new() { "set_mood", "soul_get", "soul_set" };
+    private static readonly HashSet<string> _未实现 = new() { "soul_get", "soul_set" };
+
+    /// <summary>`set_mood` 也接受关键词（不同 Agent 偏好不同写法）。</summary>
+    private static readonly Dictionary<string, float> _心情词表 = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["excited"] = 95f, ["兴奋"] = 95f,
+        ["happy"] = 80f, ["开心"] = 80f, ["高兴"] = 80f,
+        ["normal"] = 60f, ["一般"] = 60f, ["平静"] = 60f,
+        ["tired"] = 40f, ["累"] = 40f, ["疲惫"] = 40f,
+        ["sad"] = 20f, ["难过"] = 20f, ["低落"] = 20f,
+    };
 
     /// <summary>键名别名 → 规范名（不同 Agent 写法不一，宽松收进来）。</summary>
     private static readonly Dictionary<string, string> _键别名 = new(StringComparer.OrdinalIgnoreCase)
@@ -269,6 +279,15 @@ public static class PetCommands
                     }
                     if (结果 != null) break;
                     StateMachine.EnqueueChain(steps.ToArray());
+                    break;
+                }
+                case "set_mood":
+                {
+                    var raw = c.取值("mood");
+                    if (string.IsNullOrWhiteSpace(raw)) { 结果 = "缺 mood"; break; }
+                    if (float.TryParse(raw, out var 数)) { Soul.StatsTable.设心情(Math.Clamp(数, 0f, 100f)); break; }
+                    if (!_心情词表.TryGetValue(raw.Trim(), out var 目标)) { 结果 = $"无法识别的 mood「{raw}」"; break; }
+                    Soul.StatsTable.设心情(目标);
                     break;
                 }
                 case "open_url":

@@ -157,6 +157,9 @@ public partial class StateMachine : Node
         if (_重播冷却 > 0f) _重播冷却 -= (float)delta;
         推进保持与兜底((float)delta);
 
+        // —— 数值层（P5）：心情/精力随时间漂移（睡眠中回充），每 30s 自动存盘 ——
+        Soul.StatsTable.心跳((float)delta, CurrentState == Sleep);
+
         // —— 心跳（默认 1s，可配置） ——
         _心跳累加 += delta;
         if (_心跳累加 >= 设置.心跳秒)
@@ -354,6 +357,7 @@ public partial class StateMachine : Node
     public static void 摸摸()
     {
         NotifyInteraction("摸摸");
+        Soul.StatsTable.事件_摸摸(); // 被碰到就是正面互动（即便当时忙、反应被推迟或跳过）
         if (CurrentState is Drag or Think or Speak or Working) return; // 忙时不当成互动
         if (CurrentState == Sleep) return; // 唤醒流程已接管（会走 greet），让招呼播完
         // 不硬切：等当前这次动画播完再进入 interact
@@ -364,6 +368,7 @@ public partial class StateMachine : Node
     public static void 唤醒(string 来源 = "")
     {
         GD.Print($"[StateMachine] 唤醒（{来源}）");
+        Soul.StatsTable.事件_打招呼();
         SetState(Greet);
     }
 
@@ -484,6 +489,7 @@ public partial class StateMachine : Node
             new ChainStep(WalkLoop, 时长, () => { if (CurrentState == WalkLoop) SetState(Idle); }),
             new ChainStep(WalkEnd, 0.25f));
         _走动中 = true;
+        Soul.StatsTable.事件_走动();
     }
 
     private static void 推进走动(float delta)

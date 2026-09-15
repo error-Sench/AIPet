@@ -150,6 +150,9 @@ public partial class AgentBridge : Node
     {
         if (string.IsNullOrEmpty(text)) return false;
 
+        // 数值层（P5）：一次发言就是一次互动
+        Soul.StatsTable.事件_对话();
+
         // 惰性启动
         if (Backend is null)
         {
