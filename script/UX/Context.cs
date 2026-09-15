@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using desktop.script.Asset;
 using desktop.script.Loader;
+using desktop.script.State;
 using desktop.script.logic;
 using desktop.script.Util;
 using Godot;
@@ -26,27 +27,19 @@ public partial class Context : Node
     }
     public override void _UnhandledInput(InputEvent @event)
     {
-        // 1. 处理右键打开菜单
+        // 右键 -> 直接唤出桌宠面板（聊天记录 + 输入行 + 底部横排命令栏）
         if (@event is InputEventMouseButton { Pressed: true } mouseEvent)
         {
             switch (mouseEvent.ButtonIndex)
             {
                 case MouseButton.Right:
-                    ShowMenuAtMouse();
-                    // 标记输入已处理，防止事件继续传递给下层节点
-                    //GetViewport().SetInputAsHandled();
+                    StateMachine.NotifyInteraction("right_click");
+                    ChatBox.显示();
+                    GetViewport().SetInputAsHandled();
                     break;
                 case MouseButton.Left:
-                {
-                    // 2. 优化左键关闭逻辑
-                    // 检查点击位置：只有当点击不在菜单范围内时，才手动隐藏
-                    // PopupMenu 默认点击内部会自动处理，我们只需要处理点击外部的情况
-                    if (右键菜单.Visible && !右键菜单.GetVisibleRect().HasPoint(mouseEvent.Position))
-                    {
-                        右键菜单.Hide();
-                    }
+                    // 点击面板外部不自动隐藏面板（由面板内的 × 关闭）
                     break;
-                }
             }
         }
     }
@@ -104,6 +97,8 @@ public partial class Context : Node
 
         右键菜单.AddIconItem(_单例.IconResource.关机图标,_单例.Tr("close"), 0);
         右键菜单.AddIconItem(_单例.IconResource.取消图标,_单例.Tr("cancel"),114514);
+        // 与 Agent 对话（顶部）
+        右键菜单.AddItem("💬 对话", 114515);
         ShortCutUtil.BindShortCut(右键菜单,0,0);
         //ShortCutUtil.BindShortCut(右键菜单,114514,"Escape");
     }
@@ -116,6 +111,9 @@ public partial class Context : Node
         {
             case 0:
                 CharAnim.播放退出动画();
+                return;
+            case 114515: // 聊天（与 Agent 对话）
+                ChatBox.切换();
                 return;
         }
         var index = (int)id - 1;

@@ -9,6 +9,9 @@ namespace desktop.script.logic;
 // ReSharper disable once InconsistentNaming
 [SuppressMessage("ReSharper", "InconsistentNaming")]
 [SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
+/// <summary>
+/// 对白、语言、音频控制
+/// </summary>
 public partial class IO : Node
 {
     public Dictionary Info = new ();//单例方便dialogue获取

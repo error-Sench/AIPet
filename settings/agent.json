@@ -1,0 +1,9 @@
+{
+  "backend": "hermes-acp",
+  "executable": "C:/Users/sench/AppData/Local/hermes/hermes-agent/venv/Scripts/hermes.exe",
+  "arguments": "acp",
+  "workingDirectory": "",
+  "port": 8765,
+  "aggressiveMode": false,
+  "_comment": "backend 可选: hermes-acp | none | (mod 注册的自定义后端)。executable 留空 = 无 Agent 模式。workingDirectory 留空则用 user:// （必须干净，勿指向含 AGENTS.md 的项目目录，否则工程契约会注入 system prompt）。aggressiveMode: 实验性激进开关，默认 false；为 true 时放宽指令白名单（当前只加 open_url），见 AGENTS.md §6 安全边界。"
+}

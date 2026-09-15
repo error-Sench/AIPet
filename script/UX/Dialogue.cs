@@ -35,16 +35,29 @@ public partial class Dialogue : Node
     }
     // ReSharper disable once MemberCanBePrivate.Global 外部调用
     public static void 延迟显示标题(string 文本) => _单例.CallDeferred("单例显示标题",文本);
-    public static void 显示标题(string 文本) => _单例.单例显示标题(文本);
-    private static int _当前标题序列号;
-    public static async Task 显示临时标题(string 文本,int 显示时间=3000)
+    /// <summary>显示标题。可跨线程调用（内部 marshal 到主线程）。</summary>
+    public static void 显示标题(string 文本)
     {
-        if (string.IsNullOrEmpty(文本))return;
+        if (_单例 == null) return;
+        _单例.CallDeferred(nameof(单例显示标题), 文本);
+    }
+    private static int _当前标题序列号;
+    /// <summary>显示临时标题（延时自动收起）。可跨线程调用（内部 marshal 到主线程）。</summary>
+    public static void 显示临时标题(string 文本, int 显示时间 = 3000)
+    {
+        if (string.IsNullOrEmpty(文本) || _单例 == null) return;
+        _单例.CallDeferred(nameof(单例临时标题入口), 文本, 显示时间);
+    }
+
+    private void 单例临时标题入口(string 文本, int 显示时间) => _ = 单例临时标题协程(文本, 显示时间);
+
+    private async Task 单例临时标题协程(string 文本, int 显示时间)
+    {
         // 每次调用，递增序列号
         var 当前序列 = ++_当前标题序列号;
         try
         {
-            _单例.单例显示标题(文本);
+            单例显示标题(文本);
 
             await Task.Delay(显示时间);
             if (_当前标题序列号 == 当前序列)
@@ -88,6 +101,60 @@ public partial class Dialogue : Node
         _单例.标题.Visible = false;
         _当前文本 = null;
     }
+
+    /// <summary>当前气泡文本（探针/测试可读）——用于验证 Agent 指令 speak 是否真的落到气泡。</summary>
+    public static string 探针_当前标题 => _当前文本 ?? "";
+
+    #region 流式回复（Agent 对话）
+
+    private static readonly System.Text.StringBuilder _流式缓冲 = new();
+    private static bool _流式中;
+
+    /// <summary>开始一轮流式回复：清空缓冲、显示气泡。</summary>
+    private static void 开始流式()
+    {
+        _流式缓冲.Clear();
+        _流式中 = true;
+        CharAnim.PlayState("fidget");
+    }
+
+    /// <summary>追加一个流式块（实时显示，模拟打字）。可跨线程调用（内部 marshal 到主线程）。</summary>
+    public static void 流式追加(string 块)
+    {
+        if (string.IsNullOrEmpty(块)) return;
+        // 后端回调可能不在主线程；UI 操作必须 marshal 回主线程。
+        if (_单例 != null) _单例.CallDeferred(nameof(单例流式追加), 块);
+    }
+
+    private void 单例流式追加(string 块)
+    {
+        if (string.IsNullOrEmpty(块)) return;
+        if (!_流式中) 开始流式();
+        _流式缓冲.Append(块);
+        var t = _单例.标题;
+        t.Visible = true;
+        t.Text = $"[bgcolor=#00000088]{_流式缓冲}[/bgcolor]";
+        t.VisibleCharacters = -1; // 流式已逐块到达，无需打字机
+    }
+
+    /// <summary>流式结束：完成气泡。可跨线程调用。</summary>
+    public static void 结束流式()
+    {
+        if (_单例 == null) { _流式中 = false; return; }
+        _单例.CallDeferred(nameof(单例结束流式));
+    }
+
+    private void 单例结束流式()
+    {
+        _流式中 = false;
+        if (_流式缓冲.Length == 0) return;
+        _当前文本 = _流式缓冲.ToString();
+        // 停留后自动收起（沿用临时标题的序列号机制，避免竞态）
+        显示临时标题(_当前文本, 8000);
+        _流式缓冲.Clear();
+    }
+
+    #endregion
     public static void 关闭指定标题(string text)
     {
         if (_当前文本 == text)

@@ -13,8 +13,29 @@ public partial class Kws : Node
     private static KeywordSpotter _spotter;
     private static OnlineStream _stream;
     private static AudioEffectCapture _effectCapture;
+    private static Kws _单例;
+    private static bool _麦克风已启动;
     public static readonly List<string> 关键词列表 = new();
     public static readonly Dictionary<string, 关键词信息> 关键词映射 = new();
+
+    public override void _Ready() => _单例 = this;
+
+    /// <summary>按需启动麦克风采集（不再靠场景 autoplay，避免无麦克风机器开机即报错）。</summary>
+    private static void 启动麦克风()
+    {
+        if (_麦克风已启动 || _单例 == null) return;
+        _麦克风已启动 = true;
+        try
+        {
+            var 播放器 = _单例.GetParent()?.GetNodeOrNull<AudioStreamPlayer2D>("AudioStreamPlayer2D");
+            if (播放器 != null && !播放器.Playing)
+            {
+                播放器.Play();
+                GD.Print("[Kws] 麦克风采集已启动");
+            }
+        }
+        catch (Exception e) { GD.PrintErr($"[Kws] 麦克风启动失败: {e.Message}"); }
+    }
     public static void TurnOn()
     {        
         var modelPaths = Main.工具路径字典;
@@ -68,7 +89,9 @@ public partial class Kws : Node
         if (_effectCapture == null)
         {
             GD.PrintErr("请在 'Record' 总线上添加 AudioEffectCapture 效果。");
+            return;
         }
+        启动麦克风();
     }
 
     public override void _Process(double delta)
