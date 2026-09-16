@@ -126,5 +126,5 @@ script = ExtResource("15_settings")
 [node name="StatsWindow" type="Window" parent="."]
 visible = false
 title = "状态"
-size = Vector2i(360, 188)
+size = Vector2i(360, 172)
 script = ExtResource("16_stats")

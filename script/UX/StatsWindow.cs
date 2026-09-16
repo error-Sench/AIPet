@@ -16,11 +16,11 @@ namespace desktop.script.UX;
 public partial class StatsWindow : Window
 {
     private const int 面板宽 = 360;
-    private const int 面板高 = 188; // 视觉复核：206 时底部留白偏大、重心偏上
+    private const int 面板高 = 180; // 与 MinSize 对齐（mood 用文字状态显示、不出现任何数字；另留占位行）
 
     private static StatsWindow _单例;
 
-    private readonly List<(ProgressBar 条, Label 数, System.Func<float> 取值)> _行 = new();
+    private readonly List<(Label 值, System.Func<string> 取词, bool 占位)> _行 = new();
     private Label _概览;
 
     public static bool 存在 => _单例 != null;
@@ -100,17 +100,23 @@ public partial class StatsWindow : Window
         分隔.AddThemeStyleboxOverride("separator", MicaTheme.分隔线());
         列.AddChild(分隔);
 
-        // —— 三行数值 ——
-        数值行(列, "心情", 100f, MicaTheme.桌宠说色, () => StatsTable.当前心情);
-        数值行(列, "精力", 100f, MicaTheme.强调, () => StatsTable.当前精力);
-        数值行(列, "亲密", 999f, MicaTheme.亲密色, () => StatsTable.当前亲密);
+        // —— 内容行 ——
+        // 主人指定：mood **用文字状态显示，不出现任何数字**（不做进度条、不显示 62/100）。
+        文字行(列, "心情", () => 心情词(StatsTable.当前心情), 占位: false);
+        // 占位：给后续层留位置（关系层尚未开启、记忆尚未接入）。主人同意先放占位符。
+        文字行(列, "关系", () => "——", 占位: true);
+        文字行(列, "记忆", () => "——", 占位: true);
 
         _概览 = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
         MicaTheme.应用(_概览, 11, 次要: true);
         列.AddChild(_概览);
     }
 
-    private void 数值行(VBoxContainer 列, string 标签, float 上限, Color 色, System.Func<float> 取值)
+    /// <summary>
+    /// 一行「标签 + 文字状态」。**不出现任何数字**（主人明确要求：mood 不做进度条、不显示 62/100）。
+    /// 需要看数值请去 `user://stats.json`（数值层与界面解耦）。
+    /// </summary>
+    private void 文字行(VBoxContainer 列, string 标签, System.Func<string> 取词, bool 占位)
     {
         var 行 = new HBoxContainer();
         行.AddThemeConstantOverride("separation", 8);
@@ -124,41 +130,34 @@ public partial class StatsWindow : Window
         MicaTheme.应用(标签节点, 12, 次要: true);
         行.AddChild(标签节点);
 
-        var 条 = new ProgressBar
+        var 值 = new Label
         {
-            MaxValue = 上限,
-            ShowPercentage = false,
-            CustomMinimumSize = new Vector2(0, 16),
             SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-            SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
-        };
-        条.AddThemeStyleboxOverride("background", MicaTheme.控件());
-        条.AddThemeStyleboxOverride("fill", MicaTheme.数值填充(色));
-        行.AddChild(条);
-
-        var 数 = new Label
-        {
-            // 视觉复核：字号调到 13 且用主文字色，让数值成为视觉重心；固定最小宽度防「999 / 999」顶到边界
-            CustomMinimumSize = new Vector2(76, 0),
-            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        MicaTheme.应用(数, 13);
-        行.AddChild(数);
+        // 占位行压暗一档，视觉上不跟真实内容抢注意力
+        MicaTheme.应用(值, 13, 次要: 占位);
+        行.AddChild(值);
 
         列.AddChild(行);
-        _行.Add((条, 数, 取值));
+        _行.Add((值, 取词, 占位));
     }
 
-    /// <summary>把当前数值刷进控件（显示窗打开时每帧刷新，漂移也看得见）。</summary>
+    /// <summary>心情 → 文字状态（分级词，代替数字；边界与 §5 数值规则一致）。</summary>
+    private static string 心情词(float 心情) => 心情 switch
+    {
+        >= 85f => "超开心",
+        >= 70f => "心情不错",
+        >= 50f => "平平静静",
+        >= 35f => "有点蔫",
+        >= 20f => "不太开心",
+        _ => "很低落",
+    };
+
+    /// <summary>把当前状态刷进控件（显示窗打开时每帧刷新，漂移也看得见）。</summary>
     private void 刷新()
     {
-        foreach (var (条, 数, 取值) in _行)
-        {
-            var 值 = 取值();
-            条.Value = 值;
-            数.Text = $"{值:0} / {条.MaxValue:0}";
-        }
+        foreach (var (值, 取词, _) in _行) 值.Text = 取词();
         if (_概览 != null) _概览.Text = 概览文本();
     }
 
@@ -183,9 +182,12 @@ public partial class StatsWindow : Window
     public static Vector2I 探针_窗口尺寸 => _单例?.Size ?? Vector2I.Zero;
     public static string 探针_概览文本 => _单例?._概览?.Text ?? "";
 
-    /// <summary>探针：窗口里三行数值的显示文本（用于断言「显示值 == StatsTable 值」）。</summary>
+    /// <summary>探针：窗口里所有行的显示文本（用于断言「文字状态」「不出现数字」）。</summary>
     public static string 探针_数值文本 =>
-        _单例 == null ? "" : string.Join(" | ", _单例._行.ConvertAll(r => r.数.Text));
+        _单例 == null ? "" : string.Join(" | ", _单例._行.ConvertAll(r => r.值.Text));
+
+    /// <summary>探针：窗口全部可见文本（含标题与概览），用于「一个数字都没有」的整体断言。</summary>
+    public static string 探针_全部文本 => 探针_数值文本 + " || " + 探针_概览文本;
 
     /// <summary>探针：把窗口区域截图存到 user://（供视觉复核）。</summary>
     public static void 探针_截图(string 文件名)

@@ -59,21 +59,23 @@ public partial class StatsWindowProbe : Node
             var 尺 = StatsWindow.探针_窗口尺寸;
             GD.Print($"[SW] 状态窗位置={位} 尺寸={尺}");
             断言(尺.X > 200 && 尺.Y > 120, $"窗口尺寸合理（{尺}）");
-            断言(StatsWindow.探针_数值文本.Contains("72") && StatsWindow.探针_数值文本.Contains("88") &&
-                 StatsWindow.探针_数值文本.Contains("156"),
-                $"窗口里显示的数值与 StatsTable 一致（{StatsWindow.探针_数值文本}）");
+            断言(!System.Text.RegularExpressions.Regex.IsMatch(StatsWindow.探针_全部文本, "[0-9]"),
+                $"主人指定：**一个数字都不出现**（实际「{StatsWindow.探针_全部文本}」）");
+            断言(StatsWindow.探针_数值文本.Contains("心情不错") && StatsWindow.探针_数值文本.Contains("——"),
+                $"心情 72 → 文字状态「心情不错」，另两行是占位（{StatsWindow.探针_数值文本}）");
         }
         else if (_帧 == 70)
         {
-            // 数值变化后窗口应跟着变（每帧刷新）
-            StatsTable.探针_设值(30f, 12f, 156f);
+            // 数值变化后窗口应跟着变（每帧刷新）—— 只动 mood，让文字状态跟着换
+            // 注意边界：心情低落 = mood < 30（严格小于），用 30 会踩在界上
+            StatsTable.探针_设值(29f, 80f, 156f);
         }
         else if (_帧 == 85)
         {
-            断言(StatsWindow.探针_数值文本.Contains("30") && StatsWindow.探针_数值文本.Contains("12"),
-                $"数值变化后窗口自动刷新（{StatsWindow.探针_数值文本}）");
-            断言(StatsWindow.探针_概览文本.Contains("困了"),
-                $"概览随状态切换（精力 12 → 「{StatsWindow.探针_概览文本}」）");
+            断言(StatsWindow.探针_数值文本.Contains("不太开心"),
+                $"mood 30 → 文字状态跟着变（{StatsWindow.探针_数值文本}）");
+            断言(StatsWindow.探针_概览文本.Contains("有点"),
+                $"概览随状态切换（{StatsWindow.探针_概览文本}）");
             StatsWindow.探针_截图("stats_window.png");
             GD.Print("[SW] 截图已存，保持 8 秒供视觉复核");
         }
