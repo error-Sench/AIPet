@@ -12,9 +12,9 @@ namespace desktop.script.Audio;
 /// <summary>
 /// 语音输出（TTS）—— 两个引擎：**edge**（Edge 在线语音，默认 `zh-CN-XiaoxiaoNeural` 晓晓，自然；需网络）与 **sapi**（Windows 自带，离线但机械）。
 /// <para>
-/// **设计决策（主人 2026-09-16）：不内置任何模型/语音库**。主人原话「Windows 的合成语音听得我要窒息了」→ 默认改用 edge；
-/// edge 不可用（没装 edge-tts / 断网）时**自动回退 SAPI**，两者都没有（或非 Windows）时
-/// **静默降级**（只出气泡、不出声，绝不报错卡住）。
+/// **设计决策（主人 2026-09-16 → 后修订）：不内置任何模型/语音库**。主人原话「Windows 的合成语音听得我要窒息了」→ 默认用 edge；
+/// edge 不可用（没装 edge-tts / 断网 / 合成失败）时**不出声** —— **不自动回退系统语音**（主人嫌它难听，回退目标＝无语音）；
+/// sapi 只是**手动选项**（把 `config/tts.json` 的 引擎 改成 sapi）。任何异常都静默降级：只出气泡、不出声，绝不报错卡住。
 /// </para>
 /// <para>
 /// **说什么**：桌宠的**气泡**（`Dialogue.显示临时标题`）—— 它"冒出来"的话就念出来；聊天面板里的长篇回复**不念**
@@ -52,9 +52,10 @@ public static class Tts
     private static string 语音目录 => ProjectSettings.GlobalizePath("user://tts");
     private static bool _初始化失败;
     private static string _已选声音 = "";
+    private static bool _探针_禁Edge;
 
-    /// <summary>有没有能用的语音（Windows + 至少一个已启用语音 + 合成器初始化成功）。</summary>
-    public static bool 可用 => (引擎 == "edge" && !string.IsNullOrEmpty(Edge路径)) || (_合成器 != null && !_初始化失败);
+    /// <summary>当前引擎是否可用：edge＝找到 edge-tts；sapi＝合成器初始化成功。（不再表示「任一引擎可用」—— 回退已取消）</summary>
+    public static bool 可用 => 引擎 == "edge" ? !string.IsNullOrEmpty(Edge路径) : (_合成器 != null && !_初始化失败);
 
     /// <summary>探针：最近一次实际交给语音合成器的文本（清洗后的）。</summary>
     public static string 最近一次文本 { get; private set; } = "";
@@ -102,11 +103,17 @@ public static class Tts
         if (最大字数 > 0 && 念念.Length > 最大字数) { 最近跳过原因 = $"超过最大字数（{念念.Length} > {最大字数}）"; return false; }
 
         最近一次文本 = 念念;
-        if (引擎 == "edge" && !string.IsNullOrEmpty(Edge路径)) { 用Edge念(念念); return true; }
+        if (引擎 == "edge")
+        {
+            if (!string.IsNullOrEmpty(Edge路径)) { 用Edge念(念念); return true; }
+            最近跳过原因 = "edge 不可用（没装 edge-tts / 找不到）→ 不出声";
+            GD.Print("[Tts] 跳过：edge 不可用 → 不出声（不自动回退系统语音）");
+            return false;
+        }
         return 用Sapi念(念念);
     }
 
-    /// <summary>系统语音（SAPI5）分支 —— 也是 edge 失败时的回退。</summary>
+    /// <summary>系统语音（SAPI5）分支 —— **仅手动把引擎设为 sapi 时使用**；edge 失败不再回退到这里。</summary>
     private static bool 用Sapi念(string 念念)
     {
         if (!初始化()) { 最近跳过原因 = "没有可用语音（edge 不可用，系统语音也没有）"; return false; }
@@ -145,7 +152,7 @@ public static class Tts
             {
                 _edge查找过 = true;
                 _edge路径 = 找Edge();
-                GD.Print(_edge路径 != null ? $"[Tts] edge-tts: {_edge路径}" : "[Tts] 没找到 edge-tts → 用系统语音（config/tts.json 的 edge命令 可指定路径）");
+                GD.Print(_edge路径 != null ? $"[Tts] edge-tts: {_edge路径}" : "[Tts] 没找到 edge-tts → 语音将不出声（config/tts.json 的 edge命令 可指定路径；想用系统语音就把 引擎 改成 sapi）");
             }
             return _edge路径;
         }
@@ -153,6 +160,7 @@ public static class Tts
 
     private static string 找Edge()
     {
+        if (_探针_禁Edge) return null;   // 探针模拟「没装 edge」
         var 候选 = new List<string>();
         if (!string.IsNullOrWhiteSpace(Edge命令)) 候选.Add(Edge命令.Trim());
         var 本地 = System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData);
@@ -172,7 +180,7 @@ public static class Tts
 
     /// <summary>
     /// 用 Edge 合成后播放：**后台线程合成 MP3 → 主线程播放**（不卡渲染）。
-    /// 每轮 `_序号++`：新泡泡来了旧结果直接丢弃（不排队念小作文）；失败自动回退系统语音。
+    /// 每轮 `_序号++`：新泡泡来了旧结果直接丢弃（不排队念小作文）；失败**不出声**（不回退系统语音）。
     /// </summary>
     private static void 用Edge念(string 文本)
     {
@@ -211,8 +219,8 @@ public static class Tts
             }
             else
             {
-                GD.PrintErr("[Tts] edge 合成失败（网络/命令）→ 回退系统语音");
-                Callable.From(() => 用Sapi念(文本)).CallDeferred();
+                GD.PrintErr("[Tts] edge 合成失败（网络/命令）→ 不出声（不自动回退系统语音）");
+                最近跳过原因 = "edge 合成失败 → 不出声";
             }
         });
     }
@@ -257,8 +265,8 @@ public static class Tts
 
     private static bool 初始化()
     {
-        // 注意：这里**不能**用 可用 做短路 —— 可用 表示「任一引擎可用」（edge 也算），
-        // 会在还没建 SAPI 合成器时就返回 true → 回退路径 SpeakAsync 直接空引用（探针抓到过一次）。
+        // 注意：这里**不能**用 可用 做短路 —— 可用 反映的是「当前引擎」，与 SAPI 合成器是否建好无关
+        //（曾在还没建合成器时就返回 true → SpeakAsync 空引用，探针抓到过一次）。
         if (_合成器 != null) return true;
         if (_初始化失败) return false;
         if (!OperatingSystem.IsWindows()) { GD.Print("[Tts] 非 Windows 平台 → 不做语音输出（静默降级）"); _初始化失败 = true; return false; }
@@ -315,16 +323,24 @@ public static class Tts
         catch { return new List<string>(); }
     }
 
-    /// <summary>探针：`说()` 会走哪个分支（edge / sapi）—— 纯判定，不发声。</summary>
-    public static string 探针_引擎分支 => (引擎 == "edge" && !string.IsNullOrEmpty(Edge路径)) ? "edge" : "sapi";
+    /// <summary>探针：`说()` 会走哪个分支（edge / sapi / silent）—— 纯判定，不发声。</summary>
+    public static string 探针_引擎分支 => 引擎 == "edge" ? (string.IsNullOrEmpty(Edge路径) ? "silent" : "edge") : "sapi";
 
     /// <summary>探针：临时切换引擎（测分支用，不发声）。</summary>
     public static void 探针_设引擎(string 名) => 引擎 = (名 ?? "").Trim().ToLowerInvariant();
 
-    /// <summary>探针：临时替换/清空 edge 命令（测回退用）；传 null 清空。</summary>
+    /// <summary>探针：临时替换/清空 edge 命令（测查找链用）；传 null 清空。</summary>
     public static void 探针_设Edge命令(string 命令)
     {
         Edge命令 = 命令 ?? "";
+        _edge查找过 = false;
+        _edge路径 = null;
+    }
+
+    /// <summary>探针：强制「找不到 edge」（模拟没装），验证「不出声」路径；false 恢复查找。</summary>
+    public static void 探针_禁Edge(bool 禁)
+    {
+        _探针_禁Edge = 禁;
         _edge查找过 = false;
         _edge路径 = null;
     }

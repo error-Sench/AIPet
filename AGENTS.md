@@ -26,7 +26,7 @@
 | 模式层：办公 / 游戏切换接口 | `script/Mode/README.md` |
 | 回归探针：有哪些、怎么跑、探针方法论（怎么写出不骗自己的断言） | `tests/README.md` |
 | 资产导入：VPet → mods 的导入器规则与踩坑 | `tools/README.md`（见该文件） |
-| 设计补充（Why/What）、阶段计划与施工记录 | `document/idea.md`、`document/plan.md` |
+| 设计补充（Why/What）、施工记录、待办 | `document/idea.md`、`document/开发历史记录.md`、`document/Plan表.md`（待办）|
 
 **定位**：AGENTS.md = 总纲（**How 的框架**）；各层 README = 该层的**细节与踩坑**；`document/idea.md` = 设计补充（Why/What）。
 
@@ -82,11 +82,10 @@ D:/Games/Github/AIPet/
 │   ├── pet.json           #   外观（缩放）
 │   ├── panel.json         #   面板（隐藏指令名单）
 │   ├── tts.json           #   语音输出（引擎/声音/语速/音量）
-│   ├── widget.json        #   小组件外观（网速气泡）
 │   └── soul_template.md   #   人格模板（首次运行据此落 soul.md 到 user://）
 ├── mods/                  # ★ 行为层内容（mod 协议：每个子目录 = 一个 mod；只加不改）
 │   ├── main_command/ main_txt/ main_file/ main_anim/ workshop/   # 原项目
-│   └── toolbar/           #   工具栏小组件（删目录即移除、`_` 前缀即禁用）
+│   └── toolbar/           #   工具栏小组件（删目录即移除、`_` 前缀即禁用；**组件自带 config/state**，自包含）
 ├── script/                # ★ C# 源码（按层）
 │   ├── Logic/             #   总控与数据流（Main / IO / FileDrop / ClipboardRead…）
 │   ├── Loader/            #   加载管线（ModLoader / AnimLoader / CommandLoader…）
@@ -101,11 +100,11 @@ D:/Games/Github/AIPet/
 │   ├── package.sh         #   打包（构建→导出→组装→打 zip）
 │   ├── run_probes.sh/.ps1 #   一键回归
 │   └── install_edge_tts.ps1   # Edge 语音依赖安装
-├── document/              # 项目文档（plan / idea / 打包审计 / 隐私模型 / 新用户上手 / img）
+├── document/              # 项目文档（plan / idea / 打包审计 / 隐私模型 / 新用户上手）
 ├── dist/                  # 对外交付物（skill + 灵魂模板 + 用户 README）
 ├── licenses/              # 第三方许可
 ├── addons/                # Godot 插件（dialogue_manager）
-└── font/ icon/ resource/  # Godot 素材（字体/图标/资源；原项目）
+└── font/ icon/            # Godot 素材（字体 / 菜单图标；原项目）
 ```
 
 **三个常见疑问**：
@@ -155,7 +154,8 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 - **人格与数据的获取方式 = Agent 自主读取（硬规则，主人三次强调 2026-09-16 定稿）**：桌宠**不做任何主动注入**——
   不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent），
   Agent 按 skill 指引自己读 `soul.md` / `stats.json` / `profile.md` / `memory.jsonl`。skill 与模板**在项目完工时才写**（P8）。
-- **上下文组装照做，形态是接口**：`ContextTable` 把「人格 + 数值 + 画像 + 最近记忆 + 指令通道 + 源文件路径」组装成 `user://context.md`（启动 + 30s 刷新，文件头标只读），
+- **上下文组装照做，形态是接口**：`ContextTable` 把「人格 + 数值 + 画像 + 最近记忆 + 指令通道 + 源文件路径」组装成 `user://context.md`（启动 + 数据变更时刷新〔事件/存盘，约 2s 节流〕+ 30s 兜底；文件头标只读）；
+  另有 **MCP 工具 `pet_context`**（`dist/aipet-mcp/`，Agent 调用即当场读盘、永远最新）。
   Agent **读这一份就够**、不必到处翻文件；要深挖再顺路径去读源文件。
 
 ---

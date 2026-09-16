@@ -1,5 +1,0 @@
-{
-  "name": "任务管理器",
-  "action": "command:task",
-  "desc": "打开系统任务管理器（taskmgr）。来自旧指令 mods/main_command/command/1task-manager。"
-}

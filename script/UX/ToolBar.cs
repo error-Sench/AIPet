@@ -40,6 +40,14 @@ public partial class ToolBar : Window
         return false;
     }
 
+    /// <summary>声明该动作的 mod 目录（找不到＝null）—— 小组件用它在自己的目录里读配置 / 写状态（自包含约定）。</summary>
+    public static string 动作目录(string 动作名)
+    {
+        foreach (var (_, 目录, 动作, _) in 扫描工具())
+            if (动作 == 动作名) return 目录;
+        return null;
+    }
+
     public static bool 存在 => _单例 != null;
 
     /// <summary>工具栏是否可见（供状态机判断「主人正在跟我们互动」，属「不打扰」约束）。</summary>

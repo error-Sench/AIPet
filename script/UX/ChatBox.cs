@@ -205,17 +205,20 @@ public partial class ChatBox : Window
             _命令栏.AddChild(b);
         }
 
+        // 「工具栏」：核心按钮（不依赖旧 mod 系统的 "tool" 组 —— 旧工具删除后按钮依然在）
+        var 工具栏按钮 = 新命令按钮(Tr("toolbar"), null);
+        工具栏按钮.TooltipText = "打开工具栏（小组件）";
+        工具栏按钮.Pressed += ToolBar.显示;
+        _命令栏.AddChild(工具栏按钮);
+
         foreach (var key in CommandLoader.直接指令组脚本映射.Keys)
         {
             if (!CommandLoader.直接指令组映射.TryGetValue(key, out var 组)) continue;
             if (隐藏表.Contains(组.name)) continue;
             var 捕获key = key;
-            var b = key == "tool"
-                ? 新命令按钮(Tr("toolbar"), 组.IconImg)
-                : 新命令按钮(Tr(组.name), 组.IconImg);
+            var b = 新命令按钮(Tr(组.name), 组.IconImg);
             b.Pressed += () =>
             {
-                if (捕获key == "tool") { ToolBar.显示(); return; }
                 if (捕获key == "config") { SettingsWindow.显示(); return; }
                 显示选项(CommandLoader.直接指令组脚本映射[捕获key], Tr(组.ask));
             };

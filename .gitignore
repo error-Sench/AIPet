@@ -22,7 +22,8 @@ mono_crash.*.json
 
 # 打包产物（dist/ 里的交付物要提交，导出与压缩包不要）
 dist/export/
-dist/AIPet-*/
+# 导出/解包目录（版本号开头）；勿写成 AIPet-* —— Windows 下大小写不敏感，会误吞 aipet-mcp/
+dist/AIPet-[0-9]*/
 dist/*.zip
 bin/
 obj/
@@ -32,3 +33,6 @@ obj/
 *.DotSettings.user
 steam_api64.dll
 *.tmp
+
+# 小组件运行状态（随组件目录，不入库）
+mods/toolbar/*/state.json

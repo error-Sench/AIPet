@@ -3,7 +3,13 @@
 这个目录是 AIPet 桌宠**对外交付**的成果：给用户 Agent 的 **skill**、给用户的**灵魂模板**，外加这份说明。
 
 ## 语音（可选）
-默认用 Edge 在线语音（晓晓，好听，需要网络）。想开：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`。不装也没关系——会回退到 Windows 自带语音（机械但能用）；不想让它说话就把 `config/tts.json` 的 `启用` 改成 `false`。
+默认用 Edge 在线语音（晓晓，好听，需要网络）。想开：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`。不装也没关系——**它就不出声**（不报错）；想用本机声音就把 `config/tts.json` 的 `引擎` 改成 `sapi`（机械）；不想让它说话就把 `启用` 改成 `false`。
+
+## MCP 工具（可选，但推荐）
+
+`aipet-mcp/aipet_mcp.py` 是一个 **stdio MCP 服务**（纯 Python 标准库，无依赖）。注册给你的 Agent 后，它会多出工具 **`pet_context`**：每次调用**当场读盘**，一次拿到最新的人格 / 数值 / 画像 / 记忆 / 事件。
+
+注册示例（Hermes）：`hermes mcp add aipet -- python "<交付目录>\aipet-mcp\aipet_mcp.py"`；其它 Agent 按其 MCP 文档添加 stdio server。不注册也没关系 —— Agent 直接读 `context.md` 同样能工作。
 
 ## 这是什么（为什么是这两个文件）
 
@@ -17,6 +23,7 @@ AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 | 交付物 | 文件 | 给谁 |
 |---|---|---|
 | skill | `skill/SKILL.md` | **给用户的 Agent**（告诉它去哪读、怎么指挥桌宠、怎么写记忆） |
+| MCP 工具 | `aipet-mcp/aipet_mcp.py` | 给用户的 Agent（支持 MCP 时注册后，一次调用拿到**实时**上下文） |
 | 灵魂模板 | `soul_template.md` | 给用户（人格文件的结构与写法；现有 `config/soul_template.md` 的改进版） |
 
 > 本目录只**新增文件**，不改动仓库里的任何代码与文档。`soul_template.md` 是 `config/soul_template.md` 的**改进版**（多了「说话风格」「口头禅与禁忌」「与数值的关系」三节），要不要替换原文件由项目主进程决定。
@@ -50,7 +57,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 
 | 文件 | 谁写 | 说明 |
 |---|---|---|
-| `context.md` | **程序**（启动 + 每 30s） | 只读入口：人格全文 + 数值摘要 + 画像 + 最近 12 条记忆 + 待处理事件 + 指令说明 + 全部源文件路径 |
+| `context.md` | **程序**（启动 + 数据变化时；30s 兜底） | 只读入口：人格全文 + 数值摘要 + 画像 + 最近 12 条记忆 + 待处理事件 + 指令说明 + 全部源文件路径 |
 | `soul/soul.md` | 主人 / Agent | 人格（prompt 资产） |
 | `soul/profile.md` | **Agent** | 用户画像，≤ 5000 字符 |
 | `soul/memory.jsonl` | **Agent** | 记忆流水（短期 6 → 中期 6 → 永久 20 的提炼链） |
@@ -59,14 +66,14 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 
 ## 怎么改人格
 
-1. 打开 `...\desktop\soul\soul.md`（不存在时会自动落一份模板）。
+1. 打开 `...\AIPet\soul\soul.md`（不存在时会自动落一份模板）。
 2. 按 `soul_template.md` 的结构写：frontmatter（`version` / `name`）+ 正文（我是谁 / 性格 / 说话风格 / 口头禅与禁忌 / 原则 / 思维范式 / 情绪表达 / 与数值的关系）。
 3. **只放人格**：数值归 `stats.json`，记忆归 `soul/memory.jsonl`，画像归 `soul/profile.md`，游戏进度归 `game/save.json`。
-4. 改结构时把 `version` +1。保存即可 —— 桌宠每 30 秒会重新生成 `context.md`，Agent 下次读取就是新内容（重启桌宠同样生效；目前没有接线热重载）。
+4. 改结构时把 `version` +1。保存即可 —— 桌宠会在数据变化时（最迟 30 秒内）重新生成 `context.md`，Agent 下次读取就是新内容（重启桌宠同样生效；目前没有接线热重载）。
 
 ## 已知事项（写给接手的人）
 
-- ⚠️ **`play_anim` 的参数键与自动生成的 `context.md` 示例不一致**：`ContextTable.cs` 生成的示例文本写的是 `{"cmd":"play_anim","name":"…"}`，而 `PetCommands.cs` 只读 `anim`（别名 `animation`）。用 `name` 的那条会被丢弃、动画不播。**建议主进程把 `ContextTable.cs` 里那句示例改成 `anim`**（本包未改代码）。
+- ✅ **`play_anim` 示例键名已对齐**：`context.md` 生成的示例是 `{"cmd":"play_anim","anim":"…"}`（与 `PetCommands.cs` 一致；旧包里「写成 name 会被丢弃」的提示已过时）。
 - `soul_get` / `soul_set` 在白名单里但**未实现**，会被跳过并记日志（改人格请直接编辑 `soul.md`）。
 - `open_url` 仅在 `config/agent.json` 的 `aggressiveMode=true` 时可用；默认关闭。项目**刻意不提供**任何「执行本地命令」能力。
 - 事件池 500 行为上限（自动裁最旧）；ack 是否算数取决于 `ref` 与事件的 `t` **完全一致**。

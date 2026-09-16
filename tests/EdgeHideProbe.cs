@@ -5,7 +5,7 @@ namespace desktop.tests;
 
 /// <summary>
 /// 贴边隐藏素材探针（headless，P2 剩余）：12 段是否都真的载入且可播（对方是否镜像、帧数是否正确）。
-/// 注意：本探针只验**素材层**；行为接线（何时贴边、窗口怎么移）尚未实现，见 plan.md 待办。
+/// 注意：本探针只验**素材层**；行为接线（何时贴边、窗口怎么移）见 `script/State/README.md`。
 /// 用法：Godot_..._console.exe --headless --path D:/Games/Github/AIPet res://tests/EdgeHideProbe.tscn
 /// </summary>
 public partial class EdgeHideProbe : Node

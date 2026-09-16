@@ -1,6 +1,6 @@
 ---
 name: aipet-desktop-pet
-description: "Use when 用户的桌面上跑着 AIPet 桌宠（一个 Godot 桌宠程序，通过 ACP 把主人的聊天转发给你）。按本 skill 自主读取它的 soul.md / stats.json / profile.md / memory.jsonl / events.jsonl，用 pet 围栏块下发白名单指令，维护它的记忆与画像，并遵守「不打扰」原则；桌宠不做任何注入，信息全靠你自己去读。"
+description: "Use when 用户的桌面上跑着 AIPet 桌宠（一个 Godot 桌宠程序，通过 ACP 把主人的聊天转发给你）。按本 skill 自主读取它的 soul.md / stats.json / profile.md / memory.jsonl / events.jsonl（支持 MCP 时优先用 pet_context 工具拿实时上下文），用 pet 围栏块下发白名单指令，维护它的记忆与画像，并遵守「不打扰」原则；桌宠不做任何注入，信息全靠你自己去读。"
 ---
 
 # AIPet 桌宠：与桌面上的它相处
@@ -12,7 +12,7 @@ description: "Use when 用户的桌面上跑着 AIPet 桌宠（一个 Godot 桌�
 ## 0. 30 秒摘要
 
 - 你 = 脑，桌宠 = 身体。主人通过桌宠的聊天窗跟你说话，你的回复文本原样显示在那里。
-- 想了解它：**读 `context.md` 一份就够**（人格全文 + 数值 + 画像 + 最近记忆 + 待处理事件 + 全部源文件路径）。
+- 想了解它：**有 MCP 就先调 `pet_context` 工具**（随包交付的 `aipet-mcp/`，每次调用当场读盘、永远最新）；没有就**读 `context.md` 一份也够**（人格全文 + 数值 + 画像 + 最近记忆 + 待处理事件 + 全部源文件路径）。
 - 想指挥它：在回复里内嵌 **`pet` 围栏块**（三个反引号 + 语言标记 `pet`），一行一条指令（白名单 + 每轮最多 6 条）。
 - 想让它记得：往 `soul/memory.jsonl` 追加一行 JSON；长期结论进 `soul/profile.md`；改人格改 `soul/soul.md`。
 - 事件池里 `owner=agent` 的事件处理完，**追加一条 ack 行**。
@@ -29,7 +29,7 @@ description: "Use when 用户的桌面上跑着 AIPet 桌宠（一个 Godot 桌�
 
 ## 2. 数据文件在哪
 
-桌宠的 `user://` 在 Windows 上落在 Godot 的用户目录（它的项目名是 `desktop`）：
+桌宠的 `user://` 在 Windows 上落在 Godot 的用户目录（它的项目名是 `AIPet`）：
 
 ```
 C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
@@ -49,6 +49,14 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 
 ## 3. 自主读取：什么时候读哪个文件
 
+### 首选：MCP 工具 `pet_context`（你的 Agent 支持 MCP 时）
+
+随包交付了一个 stdio MCP 服务（`aipet-mcp/aipet_mcp.py`，纯 Python 标准库）。注册后你会多一个工具 **`pet_context`**：每次调用都**当场读盘**组装（人格 / 数值 / 画像 / 最近记忆 / 待处理事件 / 最近事件 / 指令说明），**永远是最新状态**，不受桌面程序刷新节奏影响。
+
+注册示例（Hermes）：`hermes mcp add aipet -- python "<交付目录>/aipet-mcp/aipet_mcp.py"`；其它 Agent 按其 MCP 文档添加一个 stdio server（命令 `python`，参数为脚本路径）。数据目录可用环境变量 `AIPET_DATA` 覆盖。
+
+**有它就优先用它**；没有 / 没法注册 MCP 时按下面读文件 —— 两条路拿到的信息一致。
+
 | 时机 | 读什么 |
 |---|---|
 | 会话开始、或话题涉及桌宠本身 / 它的感受 | **`context.md`**（首选；含人格全文、数值摘要、画像、最近 12 条记忆、待处理事件、指令说明） |
@@ -61,7 +69,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 
 读文件时的注意：
 
-- **不要每轮通读所有文件**：`context.md` 是入口，其余按需下钻。数值每 30s 才刷新一次，同一次对话里反复读没意义。
+- **不要每轮通读所有文件**：`context.md` 是入口，其余按需下钻。它启动时生成、数据变化时（事件/互动/存盘）会尽快刷新（约 2 秒节流），另有 30 秒兜底；要绝对最新且有 MCP 就用 `pet_context`。
 - 首次运行时文件里可能是占位文本（如「（还没写。）」「（没有待你处理的事件）」），这不是错误。
 - `context.md` 标了**只读**：它每次生成都会覆盖，不要在它上面写任何东西。
 - 读之前先确认文件存在；路径异常时按第 2 节的提示定位。
@@ -177,6 +185,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 |---|---|
 | 指令没生效 | 是否在白名单内；参数键名是否正确（尤其 `play_anim` 用 `anim`）；是否超过每轮 6 条；`set_state` 的状态是否在那 10 个里 |
 | `speak` 没冒泡 | 文本是否为空、是否超 200 字 |
+| 想拿最新状态 | 有 MCP → 调 `pet_context`（当场读盘）；没有 → 读 `context.md` + `stats.json`（可能滞后几秒，属正常） |
 | 文件找不到 | 先确认 `%APPDATA%\Godot\app_userdata\` 下的项目目录名；`context.md` 里写着所有源文件的绝对路径 |
 | 写不进去 | 用 UTF-8、追加模式；`context.md` 和 `stats.json` 是只读的，别写 |
 | 事件处理完仍被列出 | ack 的 `ref` 是否与原事件的 `t` 完全相同 |

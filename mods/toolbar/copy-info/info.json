@@ -1,5 +1,0 @@
-{
-  "name": "复制",
-  "action": "command:copy-info",
-  "desc": "把桌宠的信息复制到剪贴板（选择要复制的一项）。来自旧指令 3copy-info。"
-}

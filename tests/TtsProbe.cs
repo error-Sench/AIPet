@@ -87,7 +87,7 @@ public partial class TtsProbe : Node
 
     private void D组_系统语音()
     {
-        GD.Print("--- D 组：系统语音（Windows 自带，不内置模型）---");
+        GD.Print("--- D 组：系统语音（sapi 手动选项，不再作自动回退）---");
         var 列表 = Tts.探针_可用声音列表();
         断言(列表.Count > 0, $"系统里有可用语音 {列表.Count} 个：{string.Join(" / ", 列表)}");
         断言(Tts.探针_当前声音.Length > 0, $"自动挑中：{Tts.探针_当前声音}");
@@ -116,9 +116,9 @@ public partial class TtsProbe : Node
         GD.Print("--- G 组：Edge 在线语音（主人指定 zh-CN-XiaoxiaoNeural）---");
         断言(Tts.引擎 == "edge", $"默认引擎 edge（当前 {Tts.引擎}）");
         var 路径 = Tts.探针_Edge路径;
-        断言(路径 != null, $"edge-tts 已找到：{路径 ?? "（没找到 → 会回退系统语音）"}");
-        断言(Tts.可用, "至少有一个可用引擎（edge 或 系统语音）");
-        断言(Tts.探针_引擎分支 == (路径 != null ? "edge" : "sapi"), $"分支判定与查找结果一致（{Tts.探针_引擎分支}）");
+        断言(路径 != null, $"edge-tts 已找到：{路径 ?? "（没找到 → 语音将静默）"}");
+        断言(Tts.可用 == (路径 != null), $"可用判定跟随 edge 引擎（可用={Tts.可用}）");
+        断言(Tts.探针_引擎分支 == (路径 != null ? "edge" : "silent"), $"分支判定与查找结果一致（{Tts.探针_引擎分支}）");
 
         if (路径 != null)
         {
@@ -140,9 +140,18 @@ public partial class TtsProbe : Node
 
         // ② 引擎切到系统语音 → 分支判定跟着切（不发声，只判分支）
         Tts.探针_设引擎("sapi");
-        断言(Tts.探针_引擎分支 == "sapi", "引擎=sapi → 分支走系统语音");
+        断言(Tts.探针_引擎分支 == "sapi", "引擎=sapi → 分支走系统语音（手动选项）");
         Tts.探针_设引擎("edge");
-        断言(Tts.探针_引擎分支 == "edge", "引擎=edge → 分支走 Edge");
+        断言(Tts.探针_引擎分支 == (Tts.探针_Edge路径 != null ? "edge" : "silent"), "引擎=edge → 分支走 Edge（没装则 silent）");
+
+        // ③ 模拟「没装 edge」→ 回退目标＝**无语音**（主人定：不回退系统语音）
+        Tts.探针_禁Edge(true);
+        断言(Tts.探针_引擎分支 == "silent", "没装 edge → 分支 silent（不回退）");
+        Tts.探针_设配置(true, 80);
+        var 念了 = Tts.说("这句不该被念出来");
+        断言(!念了 && Tts.最近跳过原因.Contains("不出声"), $"edge 缺失时不念（{Tts.最近跳过原因}）");
+        Tts.探针_禁Edge(false);
+        断言(Tts.探针_Edge路径 != null, "恢复后 edge 查找恢复正常");
     }
 
     private void F组_与气泡联动()

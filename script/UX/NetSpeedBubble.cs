@@ -11,7 +11,7 @@ namespace desktop.script.UX;
 /// 网速监测**桌面气泡**（主人指定形态：不是面板窗，是浮在桌面上的气泡）。
 /// <para>
 /// 形态：无边框 + 半透明圆角胶囊，两行数字（↓下载 / ↑上传）+ 最近 60 秒迷你曲线。
-/// 交互：**左键拖**挪位置、**右键关**（位置与开关状态记在 `user://netspeed.json`，下次还在那）；
+/// 交互：**左键拖**挪位置、**右键关**（位置与开关状态记在**组件目录**的 `state.json` 里 —— 配置与数据随组件走，删组件即一并删）；
 /// 开关入口＝**工具栏**「网速监控」小组件（`mods/toolbar/netspeed`：点按开/关；删目录或加 `_` 前缀＝移除/禁用）。
 /// 启动时按上次状态恢复：enabled=true 且工具栏入口仍在 → 自动显示。
 /// </para>
@@ -43,33 +43,37 @@ public partial class NetSpeedBubble : Window
     private bool _拖动中;
     private Vector2I _拖动起点差;
 
-    private static string 配置文件 => 探针_配置路径覆写 ?? ProjectSettings.GlobalizePath("user://netspeed.json");
+    /// <summary>组件目录（`mods/toolbar/netspeed`；mod 被删/禁用时为 null）—— 小组件自包含：外观配置与状态数据都放这里。</summary>
+    private static string 组件目录 => ToolBar.动作目录("netspeed");
+
+    /// <summary>状态文件 = 组件目录里的 `state.json`（随组件目录；组件不在时没有可写的地方 → 静默跳过）。</summary>
+    private static string 配置文件 => 探针_配置路径覆写 ?? (组件目录 is { Length: > 0 } 目录 ? Path.Combine(目录, "state.json") : null);
 
     /// <summary>探针：覆写配置路径（避免探针写真实用户数据，见打包审计 B6）；null＝真实路径。</summary>
     public static string 探针_配置路径覆写;
 
-    // 外观可调（config/widget.json，缺省内置）：主人可自己微调大小/透明度，不用改代码
+    // 外观可调（**组件目录**的 config.json，缺省内置）：主人可自己微调大小/透明度，不用改代码
     private static int 字号 = 10;
     private static int 边距 = 2;
-    private static float 透明度 = 0.62f;   // 更透（主人反馈「透明区域不是那么透」）；config/widget.json 可调 0.3-1.0
+    private static float 透明度 = 0.62f;   // 更透（主人反馈「透明区域不是那么透」）；组件目录 config.json 可调 0.3-1.0
 
     public static void 载入外观配置()
     {
-        foreach (var 路径 in Util.ConfigFile.候选("widget.json").Concat(Util.ConfigFile.候选("config/widget.json")))
+        // 外观配置**随组件目录**（mods/toolbar/netspeed/config.json）—— 删组件即连同配置一起删
+        try
         {
-            try
-            {
-                if (!System.IO.File.Exists(路径)) continue;
-                using var 文档 = JsonDocument.Parse(System.IO.File.ReadAllText(路径));
-                var 根 = 文档.RootElement;
-                if (根.TryGetProperty("气泡字号", out var a) && a.TryGetInt32(out var av)) 字号 = Math.Clamp(av, 8, 22);
-                if (根.TryGetProperty("气泡边距", out var b) && b.TryGetInt32(out var bv)) 边距 = Math.Clamp(bv, 2, 20);
-                if (根.TryGetProperty("气泡透明度", out var c) && c.TryGetSingle(out var cv)) 透明度 = Math.Clamp(cv, 0.3f, 1f);
-                GD.Print($"[NetSpeed] 外观: 字号={字号} 边距={边距} 透明度={透明度}");
-                break;
-            }
-            catch (Exception e) { GD.PrintErr($"[NetSpeed] 读外观配置失败 {路径}: {e.Message}"); }
+            var 目录 = 组件目录;
+            if (string.IsNullOrEmpty(目录)) return;
+            var 路径 = Path.Combine(目录, "config.json");
+            if (!System.IO.File.Exists(路径)) return;
+            using var 文档 = JsonDocument.Parse(System.IO.File.ReadAllText(路径));
+            var 根 = 文档.RootElement;
+            if (根.TryGetProperty("气泡字号", out var a) && a.TryGetInt32(out var av)) 字号 = Math.Clamp(av, 8, 22);
+            if (根.TryGetProperty("气泡边距", out var b) && b.TryGetInt32(out var bv)) 边距 = Math.Clamp(bv, 2, 20);
+            if (根.TryGetProperty("气泡透明度", out var c) && c.TryGetSingle(out var cv)) 透明度 = Math.Clamp(cv, 0.3f, 1f);
+            GD.Print($"[NetSpeed] 外观: 字号={字号} 边距={边距} 透明度={透明度}（{路径}）");
         }
+        catch (Exception e) { GD.PrintErr($"[NetSpeed] 读外观配置失败: {e.Message}"); }
     }
 
     public static bool 存在 => _单例 != null;
@@ -105,7 +109,7 @@ public partial class NetSpeedBubble : Window
         try
         {
             var 路径 = 配置文件;
-            if (!File.Exists(路径)) return;
+            if (string.IsNullOrEmpty(路径) || !File.Exists(路径)) return;
             using var 文档 = JsonDocument.Parse(File.ReadAllText(路径));
             if (!文档.RootElement.TryGetProperty("enabled", out var e) || !e.GetBoolean()) return;
             if (!ToolBar.动作存在("netspeed"))
@@ -268,14 +272,23 @@ public partial class NetSpeedBubble : Window
     {
         try
         {
-            if (!File.Exists(配置文件)) { 摆到默认位(); return; }
-            using var 文档 = JsonDocument.Parse(File.ReadAllText(配置文件));
-            var 根 = 文档.RootElement;
-            if (根.TryGetProperty("x", out var x) && 根.TryGetProperty("y", out var y) && x.TryGetInt32(out var xv) && y.TryGetInt32(out var yv))
-                Position = new Vector2I(xv, yv);
-            else 摆到默认位();
+            var 文件 = 配置文件;
+            if (!string.IsNullOrEmpty(文件) && File.Exists(文件)) { 读位置自(文件); return; }
+            // 迁移：旧版本把位置记在 user://netspeed.json —— 读一次，下次保存就落到组件目录
+            var 旧文件 = ProjectSettings.GlobalizePath("user://netspeed.json");
+            if (File.Exists(旧文件)) { 读位置自(旧文件); return; }
+            摆到默认位();
         }
         catch { 摆到默认位(); }
+    }
+
+    private void 读位置自(string 文件)
+    {
+        using var 文档 = JsonDocument.Parse(File.ReadAllText(文件));
+        var 根 = 文档.RootElement;
+        if (根.TryGetProperty("x", out var x) && 根.TryGetProperty("y", out var y) && x.TryGetInt32(out var xv) && y.TryGetInt32(out var yv))
+            Position = new Vector2I(xv, yv);
+        else 摆到默认位();
     }
 
     /// <summary>保存位置与开关状态（enabled 供下次启动恢复）。</summary>
@@ -283,7 +296,9 @@ public partial class NetSpeedBubble : Window
     {
         try
         {
-            File.WriteAllText(配置文件,
+            var 文件 = 配置文件;
+            if (string.IsNullOrEmpty(文件)) return;   // 组件目录不在（mod 已删）→ 没有可写的地方
+            File.WriteAllText(文件,
                 JsonSerializer.Serialize(new { x = Position.X, y = Position.Y, enabled = Visible }));
         }
         catch (Exception e) { GD.PrintErr($"[NetSpeed] 保存状态失败: {e.Message}"); }

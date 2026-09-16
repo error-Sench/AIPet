@@ -20,6 +20,7 @@ public partial class Context : Node
     public override void _Ready()
     {
         _单例 = this;
+        IconResource ??= desktop.script.Asset.IconResource.默认;   // resource/icon.tres 已删除：图标改由代码直接加载
         // 清理并添加选项
         右键菜单.AddThemeConstantOverride("icon_max_width", 24);
         右键菜单.AddThemeFontSizeOverride("font_size", 24);

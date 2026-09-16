@@ -24,6 +24,7 @@ public partial class Dialogue : Node
     private static string _当前文本;
     public override void _Ready()
     {
+        IconResource ??= desktop.script.Asset.IconResource.默认;   // resource/icon.tres 已删除：图标改由代码直接加载
         // 清理并添加选项
         选项菜单.Clear();
         选项菜单.AddThemeConstantOverride("icon_max_width", 24);

@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3 uid="uid://bijuvf6qjvh7l"]
+[gd_scene load_steps=19 format=3 uid="uid://bijuvf6qjvh7l"]
 
 [ext_resource type="Script" uid="uid://cf0h0dtbopy88" path="res://script/UX/Context.cs" id="4_7jktm"]
 [ext_resource type="Script" path="res://script/UX/ChatBox.cs" id="11_chatbox"]
@@ -11,7 +11,6 @@
 [ext_resource type="Script" uid="uid://18fs4wa17lvf" path="res://script/Logic/ClipboardRead.cs" id="6_hve3p"]
 [ext_resource type="Script" uid="uid://bo1bs0tbllods" path="res://script/UX/WindowHide.cs" id="6_j5wjh"]
 [ext_resource type="Script" uid="uid://cis2a0filoirf" path="res://script/Logic/FileDrop.cs" id="6_vef74"]
-[ext_resource type="Resource" uid="uid://ic3t0ys3qxm1" path="res://resource/icon.tres" id="8_vef74"]
 [ext_resource type="Script" uid="uid://206qit1gpyuh" path="res://script/UX/PopupMenuShortUpHandle.cs" id="9_mfdv2"]
 [ext_resource type="Script" uid="uid://1l0nnfmcpqp" path="res://script/UX/Dialogue.cs" id="9_vef74"]
 [ext_resource type="Script" uid="uid://d3uhavew72r2p" path="res://script/Audio/Kws.cs" id="11_iotsf"]
@@ -48,7 +47,6 @@ script = ExtResource("6_hve3p")
 [node name="Context" type="Node" parent="." node_paths=PackedStringArray("右键菜单")]
 script = ExtResource("4_7jktm")
 "右键菜单" = NodePath("PopupMenu")
-IconResource = ExtResource("8_vef74")
 
 [node name="PopupMenu" type="PopupMenu" parent="Context"]
 oversampling_override = 1.0
@@ -61,7 +59,6 @@ script = ExtResource("9_mfdv2")
 script = ExtResource("9_vef74")
 "选项菜单" = NodePath("PopupMenu")
 "标题" = NodePath("RichTextLabel")
-IconResource = ExtResource("8_vef74")
 
 [node name="RichTextLabel" type="RichTextLabel" parent="Dialogue"]
 offset_right = 512.0

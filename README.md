@@ -15,9 +15,9 @@
 
 ## 它现在能做什么
 
-- **会说话**（默认开）：桌宠冒出的气泡会被念出来，默认用 **Edge 在线语音（晓晓）**，声音自然；不想联网就改 `config/tts.json` 的 `引擎` 为 `sapi`（Windows 自带，本机、机械）。装语音：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；没装/断网会自动回退，不会报错。
+- **会说话**（默认开）：桌宠冒出的气泡会被念出来，默认用 **Edge 在线语音（晓晓）**，声音自然；不想联网就改 `config/tts.json` 的 `引擎` 为 `sapi`（Windows 自带，本机、机械）。装语音：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；没装/断网就**不出声**（不会报错）；想用本机自带声音就把 `config/tts.json` 的 `引擎` 改成 `sapi`。
 
-- **网速监测气泡**（桌面气泡样式）：工具栏点「网速监控」→ 桌面右上角出现一行小胶囊 `↓1.2MB/s ↑340KB/s`，左键拖动、右键关闭。嫌大/嫌不透改 `config/widget.json`（字号 8-22、边距 0-3、透明度 0.3-1.0）。
+- **网速监测气泡**（桌面气泡样式）：工具栏点「网速监控」→ 桌面右上角出现一行小胶囊 `↓1.2MB/s ↑340KB/s`，左键拖动、右键关闭。嫌大/嫌不透改组件目录里的配置 `mods/toolbar/netspeed/config.json`（字号 8-22、边距 0-3、透明度 0.3-1.0；**配置与数据随组件目录走**，删组件即一并删）。
 
 | 层 | 能力 |
 |---|---|
@@ -69,7 +69,8 @@ bash tools/run_probes.sh                            # 一键跑全部 headless �
 | 文件 | 内容 |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | **工程契约（主文档）**：六层架构、开发约定、踩坑清单索引 |
-| [`document/plan.md`](document/plan.md) | 路线图 + **待办唯一权威清单**（含主人已拍板的决策与「不做」清单）|
+| [`document/开发历史记录.md`](document/开发历史记录.md) | 开发历史记录（施工过程 + 已拍板决策与「不做」清单）|
+| [`document/Plan表.md`](document/Plan表.md) | **待办唯一清单**（主人继续补充）|
 | [`document/idea.md`](document/idea.md) | 设计意图（Why / What）|
 | `script/*/README.md` | 各层分册：灵魂 / 状态 / UX / Agent / 音频（细节与踩坑都在这里）|
 | [`document/新用户上手.md`](document/新用户上手.md) · [`document/隐私与权限模型.md`](document/隐私与权限模型.md) · [`document/打包审计.md`](document/打包审计.md) | 面向用户与分发 |
@@ -89,7 +90,7 @@ bash tools/run_probes.sh                            # 一键跑全部 headless �
 
 ## 说明
 
-* **项目现状**：学习 Godot 时顺手做的项目，历史代码里有较多面条与 AI 生成代码，正在按 `document/plan.md` 逐层重构。
+* **项目现状**：学习 Godot 时顺手做的项目，历史代码里有较多面条与 AI 生成代码，正在按 `document/开发历史记录.md` 记录的路线逐层重构。
 * **素材致谢**：角色美术来自开源项目 [VPet](https://github.com/LorisYounger/VPet)（**Apache-2.0**）。
 * **文档**：`AGENTS.md` 是工程契约，`document/` 是设计与交付文档，`script/*/README.md` 是各层分册。
 

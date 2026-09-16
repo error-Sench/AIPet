@@ -12,7 +12,7 @@ namespace desktop.script.State;
 /// `-peek` 探出 / `-unpeek` 缩回。
 /// </para>
 /// <para>
-/// 设计（主人授权「你自己定吧」定的默认，见 `document/plan.md`）：
+/// 设计（主人授权「你自己定吧」定的默认，见 `script/State/README.md`）：
 /// 触发 = 拖拽结束且窗口距屏边 ≤ 阈值；隐藏 = 移出屏外只留 `可见比例`；交互 = 悬停探出 / 移开缩回；
 /// 复位 = 点击 / 拖拽 / 面板打开 / 退出。
 /// </para>
