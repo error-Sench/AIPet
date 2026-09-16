@@ -65,6 +65,10 @@
 
 **规则**：灵魂**只放人格**；数值归 `stats.json`（易变、机器读写、可做可视化面板）；记忆/画像归独立文件（生命周期不同）。三者**互不混写**。
 
+**可视化（P5，入口在命令栏）**：命令栏「状态」按钮 → `script/UX/StatsWindow.cs`（独立窗口）。
+**mood 用文字状态显示，界面上不出现任何数字**（超开心 / 心情不错 / 平平静静 / 有点蔫 / 不太开心 / 很低落）；
+另留占位行（关系 / 记忆，尚未接入）。**数值层与界面解耦**：想看数字去 `user://stats.json`。
+
 ### 2.2 思维范式（「不漂移」的核心）
 按事件类型给**思维链示例**，模型照着演：
 ```
@@ -244,10 +248,37 @@ StateMachine.EnqueueChain(
 | `走动速度像素每秒` | 90 | 窗口位移速度 |
 | `每小时主动上限` | 8 | 主动行为（walk/greet）滑动 1 小时窗口预算；设 0 只关主动行为 |
 | `持续态兜底秒` | 120 | Agent 不回 `end_turn` 时防止永远卡在 think/speak |
+| `环境感知启用` | **false** | **P6 开关**：不开就完全不感知（一次也不查、不读任何环境数据） |
+| `离开阈值秒` | 300 | 空闲多久算「主人离开了」（用于「欢迎回来」边沿） |
+| `全屏静默` | true | 全屏（游戏/视频/演示）时是否完全静默 |
 
 **「不打扰」硬约束（主动行为闸门，任一命中即禁止）**：面板可见 / 鼠标悬停在桌宠身上 / 入场未完成 / 当前非 idle / 每小时主动数超上限。
 
 **交互入口统一口径**：任何交互都调 `StateMachine.NotifyInteraction(来源)`（重置空闲 + 睡醒打招呼）。已接入点：左键单击（`WindowDrag` 松手且未越拖动阈值 = `摸摸()`）、拖拽开始/结束、右键（`Context`）、滚轮（`WindowScale`）、任务执行（`Main.选择脚本` / `执行函数完成`，一处覆盖右键菜单/对话框/粘贴/拖入/语音/面板命令栏全部入口）、对话提交与流式（`ChatBox`）。
+
+### 3.3 环境感知（P6，**默认关闭**）
+
+感知主人是否在用电脑，让「不打扰」更聪明。**开关在 `settings/behavior.json`，默认关**——不开就一次也不查。
+
+**隐私边界（硬约束，实现里写死）**：
+
+| 只做 | 绝不做 |
+|---|---|
+| 只在本机读**两个数**：空闲秒数、前台是否全屏 | 不读窗口标题、不读进程名、不记录使用轨迹 |
+| 未启用时**一次也不查**（`空闲秒` 恒 0） | 不落盘、不发给 Agent、不出本机 |
+
+**实现**：`script/State/EnvironmentSense.cs`（Win32 P/Invoke）
+- 空闲秒：`GetLastInputInfo` + `System.Environment.TickCount` 对齐（32 位回绕用 `unchecked`；**必须全限定名**，见 §10 坑 #16）
+- 全屏：`GetWindowRect` 与 `MonitorFromWindow`/`GetMonitorInfo` 的显示器矩形比对（容差 2px，覆盖无边框全屏游戏的 1~2px 差）
+
+**两处接线**（都受开关约束）：
+
+| 位置 | 作用 |
+|---|---|
+| `StateMachine.允许主动()` | 全屏中 + `全屏静默` → 主动行为（走动/搭话）一律拦下 |
+| `StateMachine.心跳()` | 「闲→忙」边沿：主人离开超过阈值后又回来 → 打招呼（**60s 节流** + 受每小时主动预算约束） |
+
+**验证**：`EnvProbe`（16 断言）——默认关得住、真实读数可用（活的时钟）、闸门生效、边沿与节流正确。
 
 ---
 
@@ -279,18 +310,19 @@ StateMachine.EnqueueChain(
 ```
 D:/Games/Github/AIPet/
 ├── project.godot          # Godot 4.7.2 .NET (GL Compatibility)
-├── desktop.csproj         # C# 项目（SDK 4.5.1，见「开发约定」）
+├── desktop.csproj         # C# 项目（SDK 4.7.2 —— Godot 4.7.2 编辑器打开时自动升级，保留）
 ├── script/
 │   ├── Logic/             # Main.cs(总控) IO.cs(Info/Global 双字典) 等
 │   ├── Loader/            # ModLoader / AnimLoader / CommandLoader / ... 加载管线
-│   ├── State/             #  身体层状态机 (StateMachine.cs)
-│   ├── Soul/              # 🆕 灵魂层 (SoulTable.cs: 读 soul.md)
+│   ├── State/             #  身体层状态机 (StateMachine.cs) + 环境感知 (EnvironmentSense.cs, P6 默认关)
+│   ├── Soul/              # 🆕 灵魂/数值层 (SoulTable.cs 读 soul.md；StatsTable.cs 心情/精力/亲密)
 │   ├── Agent/             #  能力层 (IAgentBackend 抽象 / AgentBackendRegistry 注册表 /
 │   │                      #     AcpClient / NullAgentBackend / AgentBridge)
 │   ├── Mode/              #  模式层 (ModeManager.cs)
 │   ├── Audio/             # Kws.cs 语音关键词 (Sherpa-onnx)
 │   ├── Steam/             # SteamNode / WorkShop（工坊分发，保留）
-│   └── UX/ Asset/ Util/   # 现有辅助 + ChatBox.cs(聊天框)
+│   ── UX/ Asset/ Util/   # 现有辅助 + ChatBox.cs(聊天框) / ToolBar.cs(工具栏) /
+│                          #   SettingsWindow.cs(配置窗) / StatsWindow.cs(状态窗) / MicaTheme.cs(云母样式)
 ├── mods/                  # 行为层：main_command / main_txt / main_file / main_anim / workshop（不动）
 ├── settings/              # ⚠️ 可被 Godot 读取（config/ 有 .gdignore 会被忽略）
 │   ├── agent.json         # 后端配置（backend/executable/工作目录）
@@ -483,6 +515,18 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 15. **探针要隔离它不测的那一层**。情绪变体（P5）会按心情改播 `think-happy/poor`，于是 `PoolProbe` 里
     「池内随机」类断言会随主人存档心情**随机失败**。→ 探针先把自己不测的那层状态**钉死**（如心情钉中位 60），结束再恢复。
 
+16. **两个「与 BCL 同名」的坑，一律写全限定名**：
+    - `Environment`：`Godot.Environment` vs `System.Environment`（用 `TickCount` 必炸）→ `System.Environment.TickCount`。
+    - `FileAccess`：`Godot.FileAccess` vs `System.IO.FileAccess`。
+    规律：Godot 的 C# 命名空间里有一批与 BCL 同名的类型，凡是用「名字很通用」的 BCL 类型，一律全限定。
+
+17. **断言现实世界的读数时，别假设自己（后台进程）会影响那个世界**。`EnvProbe` 首版断言「探针刚跑过，
+    系统空闲秒应该很小」，实测读到 **413.6 秒**——探针跑在后台**不算**用户输入，**读数是对的、断言是错的**。
+    → 改成验证「两次读数构成活的时钟」（前进=无人操作，归零=刚有输入）。
+
+18. **边界值先看清是「<」还是「≤」再写断言**。`心情低落 = mood < 30` 是严格小于，探针用 `mood=30` 正好踩在界上，
+    概览文案没切到「低落」分支 → 断言失败。凡是拿阈值数字当测试输入，先确认边界方向，或干脆避开设成 ±1。
+
 **视觉复核通道**：本机 `auxiliary.vision` 可用（模型已支持图片输入）。截图 + 视觉复核是 UI 改动的一等验证手段，不要只靠 headless 断言。
 
 ### 10.1 探针清单（改到相关代码就跑对应的那个）
@@ -504,5 +548,7 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 | `CommandE2E` | headless | **真实 Agent** 下发指令 → 解析 → 执行 → 回复与历史都无残留。会真实调用一次 LLM |
 | `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并删测试存档） |
 | `MoodProbe` | headless | 数值驱动表达：情绪变体择档（think-happy/poor）+ 行为耦合（走动倍率、睡眠阈值）+ 无变体池的降级安全 |
+| `EnvProbe` | headless | 环境感知：默认关得住、真实 Win32 读数（活的时钟）、全屏闸门、离开/回来边沿与节流 |
+| `StatsWindowProbe` | **非 headless** | 状态窗：命令栏入口存在 → 点击弹出 → **一个数字都不出现** → 文字状态随 mood 变化（并截图供视觉复核） |
 
 **踩坑：验节律必须在场景实例化「之前」写配置。** `StateMachine._Ready` 会读 `user://behavior.json` 并用它算好 `_走动倒计时`；之后再改内存里的 `设置` 字段已经晚了（探针曾因此在 20s 内一次走动都触发不了）。`WalkProbe` 的做法：`_Ready` 里先写临时 `user://behavior.json` → 再实例化场景 → 结束时删除。

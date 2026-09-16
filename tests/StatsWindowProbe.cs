@@ -24,6 +24,28 @@ public partial class StatsWindowProbe : Node
         GD.Print("=== StatsWindowProbe: 场景已实例化 ===");
     }
 
+    /// <summary>摆位纯函数：四种情形（下方放得下 / 下方放不下翻上方 / 左越界 / 右越界）。</summary>
+    private void 摆位纯函数组()
+    {
+        GD.Print("--- 摆位（纯函数）---");
+        var 屏 = new Rect2I(0, 0, 1920, 1040);
+        var 宠尺 = new Vector2I(282, 282);
+        var 面 = new Vector2I(360, 180);
+
+        var 下 = PanelPlacement.计算(new Vector2I(900, 500), 宠尺, 面, 屏);
+        断言(下.Y == 500 + 282 + 8 && 下.X == 900 + (282 - 360) / 2,
+            $"A 桌宠下方放得下 → 摆下方、水平居中（{下}）");
+
+        var 上 = PanelPlacement.计算(new Vector2I(900, 900), 宠尺, 面, 屏);
+        断言(上.Y == 900 - 180 - 8, $"B 下方放不下 → 翻到上方（{上}）");
+
+        var 左 = PanelPlacement.计算(new Vector2I(0, 0), 宠尺, 面, 屏);
+        断言(左.X == PanelPlacement.贴边间距, $"C 桌宠贴左边缘 → X 被夹进屏内（{左}）");
+
+        var 右 = PanelPlacement.计算(new Vector2I(1900, 500), 宠尺, 面, 屏);
+        断言(右.X == 1920 - 360 - PanelPlacement.贴边间距, $"D 桌宠贴右边缘 → X 被夹进屏内（{右}）");
+    }
+
     private void 断言(bool 条件, string 描述)
     {
         if (条件) GD.Print($"[SW] PASS  {描述}");
@@ -48,6 +70,7 @@ public partial class StatsWindowProbe : Node
         }
         else if (_帧 == 40)
         {
+            摆位纯函数组();
             var 有状态按钮 = ChatBox.探针_命令栏有按钮("状态");
             断言(有状态按钮, "命令栏里找到「状态」按钮");
             StatsWindow.显示();
@@ -59,6 +82,18 @@ public partial class StatsWindowProbe : Node
             var 尺 = StatsWindow.探针_窗口尺寸;
             GD.Print($"[SW] 状态窗位置={位} 尺寸={尺}");
             断言(尺.X > 200 && 尺.Y > 120, $"窗口尺寸合理（{尺}）");
+            // 首版只有上面那条尺寸断言 → 摆位缺失（窗口落 (0,0)）没拦住。位置必须断言。
+            var 宠位 = DisplayServer.WindowGetPosition();
+            var 宠尺 = DisplayServer.WindowGetSize();
+            var 屏 = DisplayServer.ScreenGetUsableRect(DisplayServer.WindowGetCurrentScreen());
+            GD.Print($"[SW] 状态窗={位} {尺}；桌宠={宠位} {宠尺}；可用屏={屏}");
+            断言(位 != Vector2I.Zero, "位置不是 (0,0)（摆位生效，不再跑屏幕左上角）");
+            断言(位.X >= 屏.Position.X && 位.X + 尺.X <= 屏.End.X &&
+                位.Y >= 屏.Position.Y && 位.Y + 尺.Y <= 屏.End.Y,
+                $"窗口完整落在可用屏幕区内（{位}+{尺} ⊂ {屏}）");
+            var 竖直距离 = Mathf.Abs(位.Y - 宠位.Y);
+            断言(竖直距离 <= 宠尺.Y + 尺.Y + 40,
+                $"窗口紧邻桌宠（竖直距离 {竖直距离} ≤ 桌宠高 {宠尺.Y} + 面板高 {尺.Y} + 40）");
             断言(!System.Text.RegularExpressions.Regex.IsMatch(StatsWindow.探针_全部文本, "[0-9]"),
                 $"主人指定：**一个数字都不出现**（实际「{StatsWindow.探针_全部文本}」）");
             断言(StatsWindow.探针_数值文本.Contains("心情不错") && StatsWindow.探针_数值文本.Contains("——"),

@@ -59,6 +59,8 @@ public partial class StatsWindow : Window
         if (_单例 == null) return;
         _单例.Size = new Vector2I(面板宽, 面板高);
         _单例.刷新();
+        // 摆位：**必须做**。首版漏了这行 → 窗口落在屏幕 (0,0)（主人实机发现：「跑到屏幕左上角」）
+        PanelPlacement.摆在桌宠旁(_单例);
         _单例.Show();
     }
 
