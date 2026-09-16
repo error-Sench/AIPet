@@ -62,6 +62,13 @@ public static class SoulTable
 
     private static string ReadTemplate()
     {
+        // 优先 exe 同目录（分发包形态）→ user:// → res://（开发期；`Godot.FileAccess` 能读 pck 里的资源）
+        try
+        {
+            var 外部 = Util.ConfigFile.找("settings/soul_template.md");
+            if (!string.IsNullOrEmpty(外部)) return File.ReadAllText(外部, Encoding.UTF8);
+        }
+        catch { /* 忽略，继续走 pck 资源 */ }
         if (Godot.FileAccess.FileExists(TemplateResPath))
         {
             using var f = Godot.FileAccess.Open(TemplateResPath, Godot.FileAccess.ModeFlags.Read);

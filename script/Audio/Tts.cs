@@ -52,11 +52,7 @@ public static class Tts
 
     public static void 载入配置()
     {
-        foreach (var 路径 in new[]
-                 {
-                     ProjectSettings.GlobalizePath("user://tts.json"),
-                     ProjectSettings.GlobalizePath("res://settings/tts.json"),
-                 })
+        foreach (var 路径 in Util.ConfigFile.候选("tts.json").Concat(Util.ConfigFile.候选("settings/tts.json")))
         {
             try
             {

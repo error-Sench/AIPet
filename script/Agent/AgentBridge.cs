@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -73,12 +74,8 @@ public partial class AgentBridge : Node
 
     private static void LoadConfig()
     {
-        // 优先 user://agent.json（可与代码分离、分发时替换）；再退 res://settings/agent.json
-        var candidates = new[]
-        {
-            ProjectSettings.GlobalizePath("user://agent.json"),
-            ProjectSettings.GlobalizePath("res://settings/agent.json"),
-        };
+        // 优先 user://agent.json（可与代码分离、分发时替换）；再退 exe 同目录 → res://settings/agent.json
+        var candidates = Util.ConfigFile.候选("agent.json").Concat(Util.ConfigFile.候选("settings/agent.json"));
         foreach (var path in candidates)
         {
             try

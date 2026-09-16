@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
@@ -302,11 +303,7 @@ public partial class ChatBox : Window
     private static HashSet<string> 读取隐藏指令()
     {
         var 结果 = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var 路径 in new[]
-                 {
-                     ProjectSettings.GlobalizePath("user://panel.json"),
-                     ProjectSettings.GlobalizePath("res://settings/panel.json"),
-                 })
+        foreach (var 路径 in Util.ConfigFile.候选("panel.json").Concat(Util.ConfigFile.候选("settings/panel.json")))
         {
             try
             {

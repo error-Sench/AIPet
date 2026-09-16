@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -859,11 +860,7 @@ public partial class StateMachine : Node
 
         public static void 加载()
         {
-            foreach (var 路径 in new[]
-                     {
-                         ProjectSettings.GlobalizePath("user://behavior.json"),
-                         ProjectSettings.GlobalizePath("res://settings/behavior.json"),
-                     })
+            foreach (var 路径 in Util.ConfigFile.候选("behavior.json").Concat(Util.ConfigFile.候选("settings/behavior.json")))
             {
                 try
                 {

@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using desktop.script.logic;
 using desktop.script.State;
@@ -39,11 +40,7 @@ public partial class CharAnim : AnimatedSprite2D
     private static void 应用外观配置()
     {
         _缩放 = 0.5f;   // **对齐官方内部 ZoomRatio = 0.5**（官方设置界面显示 1.0）；后续动画都按这个显示标准做
-        foreach (var 路径 in new[]
-                 {
-                     ProjectSettings.GlobalizePath("user://pet.json"),
-                     ProjectSettings.GlobalizePath("res://settings/pet.json"),
-                 })
+        foreach (var 路径 in Util.ConfigFile.候选("pet.json").Concat(Util.ConfigFile.候选("settings/pet.json")))
         {
             try
             {
