@@ -42,6 +42,11 @@ public static class EdgeHide
     /// <summary>探出/缩回的滑行速度（更慢：让「逐渐探出」看得见，而不是瞬间到位 —— 主人反馈「悬浮没有动画效果」）。</summary>
     public static float 探出滑行速度 { get; set; } = 130f;
 
+    /// <summary>每侧微调偏移（像素）：正 = 往屏内多推，负 = 往屏外多推。
+    /// 用途：导入时按**包围盒中心**对齐，左右两套姿势的质量分布不同 → 观感不对称，用这个校。</summary>
+    public static int 左偏移像素 { get; set; }
+    public static int 右偏移像素 { get; set; }
+
     private static Vector2I _原位;        // 隐藏前的屏内位置（复位目标）
     private static Vector2I _目标位置;    // 当前滑动目标
     private static float _悬停离开计时;
@@ -96,7 +101,7 @@ public static class EdgeHide
 
         当前侧 = 侧.Value;
         _原位 = DisplayServer.WindowGetPosition();
-        _目标位置 = new Vector2I(隐藏位置X(当前侧, 屏, 窗口宽(), 可见比例), _原位.Y);
+        _目标位置 = new Vector2I(隐藏位置X(当前侧, 屏, 窗口宽(), 可见比例) + 该侧偏移(), _原位.Y);
         当前相 = 相.缩进中;
         StateMachine.SetState(StateMachine.EdgeHideState);
         GD.Print($"[EdgeHide] 贴{当前侧}边 → 缩进（目标 X={_目标位置.X}）");
@@ -187,7 +192,8 @@ public static class EdgeHide
                 播(静止动画());   // 静止姿势单帧重播 = 稳定保持
                 break;
             case 相.探出中:
-                当前相 = 相.已探出; // 停住（不重播）：探出动作的末帧就是「探出后」的姿势
+                当前相 = 相.已探出;
+                播(探出动画());   // 循环播探出动作：**不能停帧**（停帧 = 静止画面，主人反馈「没动画」）
                 break;
             case 相.缩回中:
                 当前相 = 相.隐藏;
@@ -203,14 +209,14 @@ public static class EdgeHide
     private static void 探出()
     {
         当前相 = 相.探出中;
-        _目标位置 = new Vector2I(探出位置X(当前侧, 可用屏(), 窗口宽(), 探出可见比例), _目标位置.Y);
+        _目标位置 = new Vector2I(探出位置X(当前侧, 可用屏(), 窗口宽(), 探出可见比例) + 该侧偏移(), _目标位置.Y);
         播($"{前缀()}-peek");
     }
 
     private static void 缩回()
     {
         当前相 = 相.缩回中;
-        _目标位置 = new Vector2I(隐藏位置X(当前侧, 可用屏(), 窗口宽(), 可见比例), _目标位置.Y);
+        _目标位置 = new Vector2I(隐藏位置X(当前侧, 可用屏(), 窗口宽(), 可见比例) + 该侧偏移(), _目标位置.Y);
         播($"{前缀()}-unpeek");
     }
 
@@ -222,14 +228,20 @@ public static class EdgeHide
             case 相.缩进中: 播($"{前缀()}-in"); break;
             case 相.隐藏:   播(静止动画()); break;
             case 相.探出中: 播($"{前缀()}-peek"); break;
-            case 相.已探出: 播(静止动画()); break;   // 探出后停在同一姿势
+            case 相.已探出: 播(探出动画()); break;   // 循环探出动作（保持「活在探头」的状态）
             case 相.缩回中: 播($"{前缀()}-unpeek"); break;
             case 相.退出中: 播($"{前缀()}-out"); break;
         }
     }
 
-    private static string 静止动画() => $"{前缀()}-hold";
+    private static string 静止动画() => $"{前缀()}-keep";   // 4 帧微动循环（不是 -hold 单帧：那是静止画面，主人反馈「没动画」）
+    private static string 探出动画() => $"{前缀()}-peek";   // 4 帧探出动作，循环播 = 「一直在探头」的活状态
     private static string 前缀() => 当前侧 == 侧.左 ? "edge_hide-left" : "edge_hide-right";
+
+    /// <summary>该侧的微调偏移（修左右不对称）。
+    /// 语义统一为「**正 = 往屏内多推**（露更多）、负 = 往屏外多推（藏更多）」：
+    /// 左侧往屏内是 +X，右侧往屏内是 −X，所以右侧取负。</summary>
+    private static int 该侧偏移() => 当前侧 == 侧.左 ? 左偏移像素 : -右偏移像素;
 
     private static void 播(string 动画名)
     {

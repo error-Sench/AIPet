@@ -768,10 +768,12 @@ public partial class StateMachine : Node
         public static bool 贴边隐藏启用 = true;
         public static int 贴边阈值像素 = 20;
         public static float 隐藏可见比例 = 0.55f;   // 对齐 VPet 官方观感：贴着边但看得见半个身子（原 0.30 太像「被推出屏外」）
-        public static float 探出可见比例 = 0.82f;
+        public static float 探出可见比例 = 0.65f;   // 原 0.82 → 实测角色露出 90%+（主人反馈「整个人飞出来了」）
         public static float 缩回延迟秒 = 1f;
         public static float 贴边滑行速度 = 360f;
         public static float 探出滑行速度 = 130f;   // 探出/缩回更慢，让动作看得见
+        public static int 贴边左偏移像素 = 0;      // 微调：正=往屏内多推，负=往屏外多推（左右不对称就调这俩）
+        public static int 贴边右偏移像素 = 0;
 
         public static void 加载()
         {
@@ -814,6 +816,8 @@ public partial class StateMachine : Node
                     缩回延迟秒 = 取浮点(根, "缩回延迟秒", 缩回延迟秒);
                     贴边滑行速度 = 取浮点(根, "贴边滑行速度", 贴边滑行速度);
                     探出滑行速度 = 取浮点(根, "探出滑行速度", 探出滑行速度);
+                    贴边左偏移像素 = 取整数(根, "贴边左偏移像素", 贴边左偏移像素);
+                    贴边右偏移像素 = 取整数(根, "贴边右偏移像素", 贴边右偏移像素);
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
@@ -836,6 +840,8 @@ public partial class StateMachine : Node
             EdgeHide.缩回延迟秒 = Math.Max(0.1f, 缩回延迟秒);
             EdgeHide.滑行速度像素每秒 = Math.Max(60f, 贴边滑行速度);
             EdgeHide.探出滑行速度 = Math.Max(20f, 探出滑行速度);
+            EdgeHide.左偏移像素 = Math.Clamp(贴边左偏移像素, -400, 400);
+            EdgeHide.右偏移像素 = Math.Clamp(贴边右偏移像素, -400, 400);
         }
 
         private static bool 取布尔(JsonElement 根, string 键, bool 兜底) =>
