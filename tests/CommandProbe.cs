@@ -62,6 +62,12 @@ public partial class CommandProbe : Node
         断言(指令4.Count == 0, $"A4a 非 pet 围栏（```json）不被当成指令（实际 {指令4.Count} 条）");
         断言(显示4.Contains("delete_everything"), "A4b 普通代码块照常显示");
 
+        // A6 注入的状态行剥离（回放历史时用）
+        断言(PetCommands.去掉状态行("你好呀\n\n[桌宠状态] 心情 62/100 · 精力 78/100 · 亲密 34/999（它此刻的感受）") == "你好呀",
+            "A6 回放历史时能剥掉注入给 Agent 的状态行");
+        断言(PetCommands.去掉状态行("普通一句话") == "普通一句话",
+            "A6 没有状态行时原样返回（不误伤）");
+
         // A5 坏 JSON 行不炸，只是忽略
         var (_, 指令5) = PetCommands.解析("```pet\n{坏JSON\nset_state state=idle\n```");
         断言(指令5.Count == 1 && 指令5[0].Cmd == "set_state", "A5 坏 JSON 行被忽略，同块其它行仍生效");

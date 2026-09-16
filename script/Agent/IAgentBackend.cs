@@ -65,4 +65,10 @@ public sealed class AgentOptions
     /// 见 AGENTS.md §6 安全边界。注意：**刻意不实现**任何「执行本地命令」能力——那需要一个专门设计与主人明确授权。
     /// </summary>
     public bool AggressiveMode { get; set; }
+
+    /// <summary>
+    /// 是否在发给 Agent 的文本后附一行「桌宠当前状态」（P5 数值层 → 能力层）。默认 true。
+    /// **只加数据，不加人格**：人格由 Agent 自己的 SOUL.md 决定。关掉即完全不注入。
+    /// </summary>
+    public bool InjectStats { get; set; } = true;
 }

@@ -116,6 +116,18 @@ public partial class StatsProbe : Node
             var n4 = PetCommands.执行(c4, out var log4);
             断言(n4 == 0 && log4[0].Contains("未实现"), $"D4 soul_set 仍记「未实现」（P3）（日志 {log4[0]}）");
 
+            // D5/D6 状态摘要进 Agent 上下文（P5 第三切片）
+            StatsTable.探针_设值(80f, 40f, 7f);
+            AgentBridge.Options.InjectStats = true;
+            var 提示 = AgentBridge.组装提示("帮我看看这个文件");
+            断言(提示.Contains("帮我看看这个文件") && 提示.Contains("心情 80") &&
+            提示.Contains("精力 40") && 提示.Contains("亲密 7"),
+            $"D5 状态摘要注入（{提示.Replace("\n", " ")}）");
+            AgentBridge.Options.InjectStats = false;
+            断言(AgentBridge.组装提示("帮我看看这个文件") == "帮我看看这个文件",
+                            "D6 关掉 injectStats 后原样发送（完全不注入）");
+            AgentBridge.Options.InjectStats = true;
+
             GD.Print("--- E 组：存盘与离线补算 ---");
             StatsTable.探针_设值(70f, 50f, 12f);
             StatsTable.存盘();

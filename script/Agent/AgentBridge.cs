@@ -98,6 +98,8 @@ public partial class AgentBridge : Node
                     Options.AggressiveMode = ag.GetBoolean();
                     if (Options.AggressiveMode) GD.Print("[AgentBridge] ⚠ 激进模式已开启（白名单放宽：open_url）");
                 }
+                if (root.TryGetProperty("injectStats", out var inj) && inj.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                    Options.InjectStats = inj.GetBoolean();
                 GD.Print($"[AgentBridge] 配置已读: {path} -> backend={BackendName}（惰性连接，未启动）");
                 return;
             }
@@ -153,6 +155,9 @@ public partial class AgentBridge : Node
         // 数值层（P5）：一次发言就是一次互动
         Soul.StatsTable.事件_对话();
 
+        // P5 → 能力层：把「桌宠当前状态」附在主人原话后面（可关，见 agent.json 的 injectStats）
+        var 发送 = 组装提示(text);
+
         // 惰性启动
         if (Backend is null)
         {
@@ -162,13 +167,30 @@ public partial class AgentBridge : Node
         if (Backend.IsReady)
         {
             ReplyBuffer.Clear();
-            return Backend.Ask(text);
+            return Backend.Ask(发送);
         }
 
         // 后端尚未握手完成：排队，就绪后自动发出（见 _Process）
-        _待发文本 = text;
+        _待发文本 = 发送;
         GD.Print("[AgentBridge] 后端连接中，发言已排队");
         return true;
+    }
+
+    /// <summary>
+    /// 组装实际发给 Agent 的文本：主人原话 + 一行「桌宠当前状态」。
+    /// <para>
+    /// 设计边界：**只加数据，不加人格**——人格归 Agent 自己的 SOUL.md（见 idea.md 人格注入原则），
+    /// 桌宠只负责告诉它「我现在什么状态」。这一行也**不进聊天界面**（界面显示的始终是主人原话）。
+    /// 主人可在 `settings/agent.json` 里把 `injectStats` 设为 false 完全关掉。
+    /// </para>
+    /// 做成**纯函数**（不改状态、不依赖后端）以便探针直接断言，不用真的调 LLM。
+    /// </summary>
+    public static string 组装提示(string 用户文本)
+    {
+        if (!Options.InjectStats) return 用户文本;
+        return 用户文本 +
+               $"\n\n[桌宠状态] 心情 {Soul.StatsTable.心情整}/100 · 精力 {Soul.StatsTable.精力整}/100 · " +
+               $"亲密 {Soul.StatsTable.亲密整}/999（它此刻的感受，供你参考，不必复述）";
     }
 
     public static bool IsCommandSupported(string cmd) => _whitelistCommands.Contains(cmd);

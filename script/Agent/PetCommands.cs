@@ -134,6 +134,18 @@ public static class PetCommands
     /// </summary>
     public static string 过滤显示(string 原文) => 解析(原文, false).显示文本;
 
+    /// <summary>
+    /// 剥掉注入给 Agent 的「桌宠状态」行（回放历史时用）。
+    /// hermes 存的是**我们实际发出去的文本**（含状态行），恢复会话时不过滤就会在「你」的气泡里露出这行。
+    /// </summary>
+    public static string 去掉状态行(string 文本)
+    {
+        if (string.IsNullOrEmpty(文本)) return 文本;
+        // 注入时是 "\n\n[桌宠状态]…"，直接按标记切并 TrimEnd —— 否则会留下一个空行（实测踩过）
+        var i = 文本.IndexOf("[桌宠状态]", StringComparison.Ordinal);
+        return i < 0 ? 文本 : 文本[..i].TrimEnd();
+    }
+
     private static bool 是围栏开头(string 修剪)
         => 修剪.StartsWith("```", StringComparison.Ordinal) &&
            修剪[3..].Trim().Equals(围栏标记, StringComparison.OrdinalIgnoreCase);
