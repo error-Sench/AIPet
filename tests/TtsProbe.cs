@@ -17,6 +17,7 @@ public partial class TtsProbe : Node
     private int _帧;
     private int _失败;
     private readonly string _临时Wav = Path.Combine(Path.GetTempPath(), "aipet_tts_probe.wav");
+    private readonly string _临时Mp3 = Path.Combine(Path.GetTempPath(), "aipet_tts_probe.mp3");
 
     private void 断言(bool 条件, string 描述)
     {
@@ -39,10 +40,12 @@ public partial class TtsProbe : Node
             case 30: C组_门控(); break;
             case 40: D组_系统语音(); break;
             case 50: E组_真合成(); break;
+            case 55: G组_Edge(); break;
             case 60: F组_与气泡联动(); break;
             case 70:
                 Tts.探针_设配置(true, 80);
                 try { if (File.Exists(_临时Wav)) File.Delete(_临时Wav); } catch { /* 忽略 */ }
+                try { if (File.Exists(_临时Mp3)) File.Delete(_临时Mp3); } catch { /* 忽略 */ }
                 GD.Print($"[TTS] ===== 失败数 = {_失败} =====");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
                 break;
@@ -106,6 +109,40 @@ public partial class TtsProbe : Node
             断言(头[0] == (byte)'R' && 头[1] == (byte)'I' && 头[2] == (byte)'F' && 头[3] == (byte)'F',
                 "文件头是 RIFF（标准 WAV）");
         }
+    }
+
+    private void G组_Edge()
+    {
+        GD.Print("--- G 组：Edge 在线语音（主人指定 zh-CN-XiaoxiaoNeural）---");
+        断言(Tts.引擎 == "edge", $"默认引擎 edge（当前 {Tts.引擎}）");
+        var 路径 = Tts.探针_Edge路径;
+        断言(路径 != null, $"edge-tts 已找到：{路径 ?? "（没找到 → 会回退系统语音）"}");
+        断言(Tts.可用, "至少有一个可用引擎（edge 或 系统语音）");
+        断言(Tts.探针_引擎分支 == (路径 != null ? "edge" : "sapi"), $"分支判定与查找结果一致（{Tts.探针_引擎分支}）");
+
+        if (路径 != null)
+        {
+            var 大小 = Tts.探针_合成到文件_Edge("测试一下，我是小萝。", _临时Mp3);
+            断言(大小 > 2000, $"edge 真合成出 MP3（{大小} 字节）");
+            if (大小 > 0 && File.Exists(_临时Mp3))
+            {
+                var 头 = Godot.FileAccess.GetFileAsBytes(_临时Mp3);
+                var 是Mp3 = 头.Length > 2 && ((头[0] == (byte)'I' && 头[1] == (byte)'D' && 头[2] == (byte)'3')
+                                             || (头[0] == 0xFF && (头[1] & 0xE0) == 0xE0));
+                断言(是Mp3, $"文件头是合法 MP3（{头[0]:X2} {头[1]:X2} {头[2]:X2}）");
+            }
+        }
+
+        // ① 配置里手滑写错路径 → 查找链继续兜底（不该因为一笔配置就废掉语音）
+        Tts.探针_设Edge命令("C:/不存在的目录/edge-tts.exe");
+        断言(Tts.探针_Edge路径 != null, $"配置写错路径仍能自动找到 edge（{Tts.探针_Edge路径}）");
+        Tts.探针_设Edge命令(null);
+
+        // ② 引擎切到系统语音 → 分支判定跟着切（不发声，只判分支）
+        Tts.探针_设引擎("sapi");
+        断言(Tts.探针_引擎分支 == "sapi", "引擎=sapi → 分支走系统语音");
+        Tts.探针_设引擎("edge");
+        断言(Tts.探针_引擎分支 == "edge", "引擎=edge → 分支走 Edge");
     }
 
     private void F组_与气泡联动()

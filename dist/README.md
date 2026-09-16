@@ -2,6 +2,9 @@
 
 这个目录是 AIPet 桌宠**对外交付**的成果：给用户 Agent 的 **skill**、给用户的**灵魂模板**，外加这份说明。
 
+## 语音（可选）
+默认用 Edge 在线语音（晓晓，好听，需要网络）。想开：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`。不装也没关系——会回退到 Windows 自带语音（机械但能用）；不想让它说话就把 `settings/tts.json` 的 `启用` 改成 `false`。
+
 ## 这是什么（为什么是这两个文件）
 
 AIPet 的产品硬规则：**桌宠不做任何主动注入。**

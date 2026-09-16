@@ -15,6 +15,8 @@
 
 ## 它现在能做什么
 
+- **会说话**（默认开）：桌宠冒出的气泡会被念出来，默认用 **Edge 在线语音（晓晓）**，声音自然；不想联网就改 `settings/tts.json` 的 `引擎` 为 `sapi`（Windows 自带，本机、机械）。装语音：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；没装/断网会自动回退，不会报错。
+
 - **网速监测气泡**（桌面气泡样式）：命令栏点「网速」→ 桌面右上角出现一行小胶囊 `↓1.2MB/s ↑340KB/s`，左键拖动、右键关闭。嫌大/嫌不透改 `settings/widget.json`（字号 8-22、边距 0-3、透明度 0.3-1.0）。
 
 | 层 | 能力 |
