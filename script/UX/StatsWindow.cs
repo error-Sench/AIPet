@@ -145,16 +145,8 @@ public partial class StatsWindow : Window
         _行.Add((值, 取词, 占位));
     }
 
-    /// <summary>心情 → 文字状态（分级词，代替数字；边界与 §5 数值规则一致）。</summary>
-    private static string 心情词(float 心情) => 心情 switch
-    {
-        >= 85f => "超开心",
-        >= 70f => "心情不错",
-        >= 50f => "平平静静",
-        >= 35f => "有点蔫",
-        >= 20f => "不太开心",
-        _ => "很低落",
-    };
+    /// <summary>心情 → 文字状态（分级词，代替数字）。映射统一在 `StatsTable.心情文字`（UI 与上下文接口共用一份，避免漂移）。</summary>
+    private static string 心情词(float 心情) => Soul.StatsTable.心情文字(心情);
 
     /// <summary>把当前状态刷进控件（显示窗打开时每帧刷新，漂移也看得见）。</summary>
     private void 刷新()

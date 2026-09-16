@@ -37,6 +37,8 @@ public partial class Main:Node
 
 		LoadUtil.初始化();
 		SoulTable.Load();
+		ContextTable.确保数据文件();   // 画像/记忆两个数据文件（只创建、不覆盖）
+		ContextTable.生成();           // 上下文接口文件 user://context.md（Agent 自主读取，见 Soul/README.md 硬规则）
 		ModLoader.加载模组();
 		
 		Kws.TurnOn();

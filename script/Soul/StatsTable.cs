@@ -140,6 +140,7 @@ public static class StatsTable
         {
             _存盘累计 = 0;
             存盘();
+            上下文刷新();
         }
     }
 
@@ -205,6 +206,23 @@ public static class StatsTable
 
     /// <summary>当前是否「心情低落」（供状态机降低主动行为频率用）。</summary>
     public static bool 心情低落 => 当前心情 < 30f;
+
+    /// <summary>心情 → 文字状态（界面上不出现任何数字 —— 主人决策）。UI 与上下文接口共用这一份，避免两处漂移。</summary>
+    public static string 心情文字(float 值) => 值 switch
+    {
+        >= 85f => "超开心",
+        >= 70f => "心情不错",
+        >= 50f => "平平静静",
+        >= 35f => "有点蔫",
+        >= 20f => "不太开心",
+        _ => "很低落",
+    };
+
+    /// <summary>当前心情的文字状态。</summary>
+    public static string 当前心情文字 => 心情文字(当前心情);
+
+    /// <summary>数值存盘时顺手刷新上下文接口文件（`user://context.md`，Agent 自主读取用）。</summary>
+    private static void 上下文刷新() => ContextTable.生成();
 
     /// <summary>当前是否「精力不济」。</summary>
     public static bool 精力不济 => 当前精力 < 20f;

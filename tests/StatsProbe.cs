@@ -116,17 +116,21 @@ public partial class StatsProbe : Node
             var n4 = PetCommands.执行(c4, out var log4);
             断言(n4 == 0 && log4[0].Contains("未实现"), $"D4 soul_set 仍记「未实现」（P3）（日志 {log4[0]}）");
 
-            // D5/D6 状态摘要进 Agent 上下文（P5 第三切片）
+            // D5 数值的获取方式：**落在 JSON 文件里，Agent 按 skill 自主读取**（主人硬规则：不做主动注入）
             StatsTable.探针_设值(80f, 40f, 7f);
-            AgentBridge.Options.InjectStats = true;
-            var 提示 = AgentBridge.组装提示("帮我看看这个文件");
-            断言(提示.Contains("帮我看看这个文件") && 提示.Contains("心情 80") &&
-            提示.Contains("精力 40") && 提示.Contains("亲密 7"),
-            $"D5 状态摘要注入（{提示.Replace("\n", " ")}）");
-            AgentBridge.Options.InjectStats = false;
-            断言(AgentBridge.组装提示("帮我看看这个文件") == "帮我看看这个文件",
-                            "D6 关掉 injectStats 后原样发送（完全不注入）");
-            AgentBridge.Options.InjectStats = true;
+            StatsTable.存盘();
+            var 数值文件 = StatsTable.探针_存盘路径;
+            var 数值文本 = System.IO.File.ReadAllText(数值文件);
+            using (var 文档 = System.Text.Json.JsonDocument.Parse(数值文本))
+            {
+                var 根 = 文档.RootElement;
+                断言(根.TryGetProperty("mood", out var m5) && System.Math.Abs(m5.GetSingle() - 80f) < 0.01f &&
+                    根.TryGetProperty("energy", out var e5) && System.Math.Abs(e5.GetSingle() - 40f) < 0.01f &&
+                    根.TryGetProperty("affection", out var i5) && System.Math.Abs(i5.GetSingle() - 7f) < 0.01f,
+                    $"D5 数值落在 JSON 文件里、Agent 可自行读取（{数值文件}）");
+            }
+            断言(!数值文本.Contains("供你参考") && !数值文本.Contains("复述"),
+                "D6 文件里只有数据、没有写给 Agent 的「提示句」（我们只提供信息，不代替用户说话）");
 
             GD.Print("--- E 组：存盘与离线补算 ---");
             StatsTable.探针_设值(70f, 50f, 12f);

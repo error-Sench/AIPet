@@ -131,6 +131,8 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 - **人格与数据的获取方式 = Agent 自主读取（硬规则，主人三次强调 2026-09-16 定稿）**：桌宠**不做任何主动注入**——
   不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent），
   Agent 按 skill 指引自己读 `soul.md` / `stats.json` / `profile.md` / `memory.jsonl`。skill 与模板**在项目完工时才写**（P8）。
+- **上下文组装照做，形态是接口**：`ContextTable` 把「人格 + 数值 + 画像 + 最近记忆 + 指令通道 + 源文件路径」组装成 `user://context.md`（启动 + 30s 刷新，文件头标只读），
+  Agent **读这一份就够**、不必到处翻文件；要深挖再顺路径去读源文件。
 
 ---
 

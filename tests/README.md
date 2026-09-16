@@ -49,6 +49,7 @@
 | `CommandProbe` | headless | 指令通道三组：解析（未闭合块/非 pet 围栏不误伤/坏 JSON 容忍）、执行（越权与超限的拒绝）、显示（跨 chunk 拼接不漏围栏） |
 | `CommandE2E` | headless | **真实 Agent** 下发指令 → 解析 → 执行 → 回复与历史都无残留。会真实调用一次 LLM |
 | `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并删测试存档） |
+| `ContextProbe` | headless | 上下文接口（`user://context.md`）：组装内容 / 脚手架只建不覆盖 / 只读不推送 |
 | `MoodProbe` | headless | 数值驱动表达：情绪变体择档（think-happy/poor）+ 行为耦合（走动倍率、睡眠阈值）+ 无变体池的降级安全 |
 | `EnvProbe` | headless | 环境感知：默认关得住、真实 Win32 读数（活的时钟）、全屏闸门、离开/回来边沿与节流 |
 | `StatsWindowProbe` | **非 headless** | 状态窗：命令栏入口存在 → 点击弹出 → **一个数字都不出现** → 文字状态随 mood 变化（并截图供视觉复核） |
