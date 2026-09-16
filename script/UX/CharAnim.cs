@@ -38,7 +38,7 @@ public partial class CharAnim : AnimatedSprite2D
     /// **大小只在启动时定**：滚轮缩放已删除（主人决策：缩放会破坏动画链 —— 素材偏移/贴边比例都是按固定缩放导入调好的）。</summary>
     private static void 应用外观配置()
     {
-        _缩放 = 0.43f;   // 对齐 VPet 官方比例（实测官方角色高 ≈210px，我们 0.55 时 ≈280px → 0.55×0.75≈0.41，取 0.43）
+        _缩放 = 0.5f;   // **对齐官方内部 ZoomRatio = 0.5**（官方设置界面显示 1.0）；后续动画都按这个显示标准做
         foreach (var 路径 in new[]
                  {
                      ProjectSettings.GlobalizePath("user://pet.json"),
