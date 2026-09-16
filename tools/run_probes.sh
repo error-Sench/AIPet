@@ -79,33 +79,69 @@ to_win() {
 
 now_ms() { date +%s%3N 2>/dev/null || printf '%s000\n' "$(date +%s)"; }
 
-# 杀掉整棵进程树：*_console.exe 是启动器，只 kill 它会给真实窗口留孤儿进程
+# 超时清场用的「场景标记」：清场时只杀命令行里带这个标记的 Godot 进程，
+# 免得误伤编辑器 / 别的项目（每个探针开跑前设置）。
+SCENE_MARKER=""
+
+# 按命令行精确清场（超时兜底）。
+# 为什么需要它：MSYS 下子进程会被「重新挂父」，taskkill /T 可能漏杀真正的 Godot 进程；
+# 这里用 CIM 查进程自己的命令行，只杀 `res://tests/<本探针>.tscn` 的那个。
+sweep_scene_procs() {
+  local ps_exe='' marker="$SCENE_MARKER"
+  [ -n "$marker" ] || return 0
+  if command -v powershell.exe >/dev/null 2>&1; then ps_exe='powershell.exe'
+  elif command -v pwsh >/dev/null 2>&1; then ps_exe='pwsh'; fi
+  [ -n "$ps_exe" ] || return 0
+  "$ps_exe" -NoProfile -NonInteractive -Command "Get-CimInstance Win32_Process -Filter \"Name like '%godot%'\" | Where-Object { \$_.CommandLine -like '*$marker*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" >/dev/null 2>&1 || true
+}
+
+# 杀掉整棵进程树。
+# 三个坑：
+#   1) MSYS/Cygwin 的 PID ≠ Windows PID，必须用 /proc/<msyspid>/winpid 转成真 PID，
+#      否则 taskkill 会打到一个完全无关的 Windows 进程上。
+#   2) *_console.exe 是启动器（会另起真正的 Godot 进程），只杀它 = 屏幕上留个孤儿窗口，
+#      所以必须 /T（连子进程一起杀）。
+#   3) 斜杠写法跟「MSYS 路径转换」开关有关：转换开着要写 //F，关着要写 /F，两种都试，
+#      再兜底走 cmd.exe。
 kill_tree() {
-  local pid="$1"
-  if command -v taskkill >/dev/null 2>&1; then
-    taskkill //F //T //PID "$pid" >/dev/null 2>&1 \
-      || taskkill /F /T /PID "$pid" >/dev/null 2>&1 \
+  local pid="$1" winpid
+  winpid="$(cat "/proc/$pid/winpid" 2>/dev/null || true)"
+  if [ -n "$winpid" ]; then
+    taskkill //F //T //PID "$winpid" >/dev/null 2>&1 \
+      || taskkill /F /T /PID "$winpid" >/dev/null 2>&1 \
+      || cmd.exe /c "taskkill /F /T /PID $winpid" >/dev/null 2>&1 \
       || true
+  else
+    printf '\n  [warn] 拿不到 WINPID（/proc/%s/winpid），只能杀直接子进程\n' "$pid" >&2
   fi
+  sweep_scene_procs
   kill -9 "$pid" >/dev/null 2>&1 || true
 }
 
 RC=0
-# run_with_timeout <秒> <日志文件> <命令...>；结束时 exit code 落在全局 RC（124 = 超时）
+# run_with_timeout <秒> <日志文件> <命令...>；结束时 exit code 落在全局 RC
+#   0..127 = 探针自己的退出码；124 = 超时杀掉；125 = 超时且没杀干净
 run_with_timeout() {
   local secs="$1" log="$2"; shift 2
-  local flag="$log.timeout" pid watchdog start_ms end_ms
+  local flag="$log.timeout" pid watchdog start_ms end_ms i=0
   rm -f "$flag"
   start_ms="$(now_ms)"
   "$@" >"$log" 2>&1 &
   pid=$!
-  ( sleep "$secs"; : >"$flag"; kill_tree "$pid" ) >/dev/null 2>&1 &
+  ( sleep "$secs"; : >"$flag"; kill_tree "$pid" ) >/dev/null &
   watchdog=$!
-  wait "$pid"; RC=$?
+  # 有界等待：万一杀不干净，别把脚本自己挂死（最多再等 15s）
+  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 150 ]; do sleep 0.1; i=$((i + 1)); done
+  if [ "$i" -ge 150 ]; then
+    RC=125
+    printf '\n  [warn] 进程 %s 杀不掉，屏幕上可能残留一个窗口；继续跑下一个\n' "$pid" >&2
+  else
+    wait "$pid" 2>/dev/null; RC=$?   # 2>/dev/null 屏蔽 bash 的 "Killed" 噪声
+  fi
   end_ms="$(now_ms)"
   # 只有「跑满超时时间」且哨兵被写下才算真超时（防收尾边界误判）
   if [ -f "$flag" ] && [ $((end_ms - start_ms)) -ge $((secs * 1000)) ]; then
-    RC=124
+    [ "$RC" = 125 ] || RC=124
   fi
   kill "$watchdog" >/dev/null 2>&1 || true
   wait "$watchdog" 2>/dev/null || true
@@ -219,7 +255,7 @@ if [ "$LIST_ONLY" = 1 ]; then
 fi
 
 # --- 选定本次要跑的探针 ---
-SEL_NAMES=(); SEL_MODES=(); SKIPPED=()
+SEL_NAMES=(); SEL_MODES=(); SKIPPED=(); SKIPPED_NH=(); SKIPPED_AGENT=()
 if [ "${#ONLY[@]}" -gt 0 ]; then
   for raw in "${ONLY[@]}"; do
     [ -n "$raw" ] || continue
@@ -230,8 +266,13 @@ if [ "${#ONLY[@]}" -gt 0 ]; then
   done
 else
   for p in "${ALL_PROBES[@]}"; do
-    if [ "$MODE" != "all" ] && is_non_headless "$p"; then SKIPPED+=("$p"); continue; fi
-    if [ "$SKIP_AGENT" = 1 ] && in_list "$p" "${AGENT_PROBES[@]}"; then SKIPPED+=("$p"); continue; fi
+    if [ "$MODE" != "all" ] && is_non_headless "$p"; then
+      SKIPPED+=("$p"); SKIPPED_NH+=("$p"); continue
+    fi
+    if [ "$SKIP_AGENT" = 1 ] && in_list "$p" "${AGENT_PROBES[@]}"; then
+      SKIPPED+=("$p"); SKIPPED_AGENT+=("$p"); continue
+    fi
+    if is_non_headless "$p"; then SEL_MODES+=("window"); else SEL_MODES+=("headless"); fi
     SEL_NAMES+=("$p")
   done
 fi
@@ -261,8 +302,14 @@ printf '超时   : 单个 %ss（超时按失败计，taskkill 整棵进程树）
 printf '日志   : %s\n' "$(to_win "$LOG_DIR")"
 [ "${#EXTRA_ARGS[@]}" -gt 0 ] && printf '透传   : %s\n' "${EXTRA_ARGS[*]}"
 if [ "${#SKIPPED[@]}" -gt 0 ]; then
-  printf '跳过   : %s\n' "${SKIPPED[*]}"
-  printf '         （非 headless 要 --all 才跑；单个可用 --only <名字>）\n'
+  if [ "${#SKIPPED_NH[@]}" -gt 0 ]; then
+    printf '跳过   : %s\n' "${SKIPPED_NH[*]}"
+    printf '         （非 headless：要 --all 才会跑；单个可用 --only <名字>）\n'
+  fi
+  if [ "${#SKIPPED_AGENT[@]}" -gt 0 ]; then
+    printf '跳过   : %s\n' "${SKIPPED_AGENT[*]}"
+    printf '         （需要真实 Agent：去掉 --no-agent 就会跑）\n'
+  fi
 fi
 printf '\n'
 
@@ -283,14 +330,16 @@ for i in "${!SEL_NAMES[@]}"; do
   log="$LOG_DIR/$name.log"
   printf '[%2d/%2d] %-22s %-10s ' "$idx" "$total" "$name" "($mode_label)"
   start_ms="$(now_ms)"
+  SCENE_MARKER="res://tests/$name.tscn"   # 超时清场只杀这个场景的 Godot 进程
   run_with_timeout "$TIMEOUT_SECS" "$log" "${CMD[@]}"
+  SCENE_MARKER=""
   rc="$RC"
   end_ms="$(now_ms)"
   secs=$(( (end_ms - start_ms) / 1000 ))
   fails="$(count_fails "$log")"
   [ -n "$fails" ] || fails=0
 
-  if [ "$rc" = 124 ]; then
+  if [ "$rc" = 124 ] || [ "$rc" = 125 ]; then
     result='TIMEOUT'; N_TIMEOUT=$((N_TIMEOUT + 1)); N_FAIL=$((N_FAIL + 1)); FAILED_LOGS+=("$log")
   elif [ "$rc" = 0 ] && [ "$fails" = 0 ]; then
     result='PASS'; N_PASS=$((N_PASS + 1))

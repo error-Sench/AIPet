@@ -14,7 +14,9 @@
 #   powershell ... -File tools\run_probes.ps1 -NoAgent           # skip Agent/LLM probes
 #   powershell ... -File tools\run_probes.ps1 -Timeout 300
 #   powershell ... -File tools\run_probes.ps1 -Godot <exe> -Logs <dir>
-#   powershell ... -File tools\run_probes.ps1 -Only SessionProbe -- read   # passthrough
+#   powershell ... -File tools\run_probes.ps1 -Only SessionProbe -ProbeArgs read
+#     (PS 5.1 cannot use the bare '--' separator the bash script accepts; the
+#      '--' Godot needs is added for you - write -ProbeArgs read, not -- read)
 #
 # Verdict rules (same as the bash script / tests\README.md):
 #   * exit code 0 = pass, non-zero = fail; 124 is this script's timeout sentinel
@@ -97,18 +99,90 @@ function Get-ProbeNote([string]$name) {
     }
 }
 
-# Kill the whole tree: Godot_*_console.exe is a launcher, so killing it alone
-# would leave an orphaned real window behind.
-function Stop-FullTree([int]$ProcId) {
+# Kill a whole process tree: Godot_*_console.exe is a launcher, so killing it
+# alone would leave an orphaned real window behind; /T takes the children too.
+function Stop-Tree([int]$ProcId) {
     try { & taskkill.exe /F /T /PID $ProcId 2>$null | Out-Null } catch { }
     try { Stop-Process -Id $ProcId -Force -ErrorAction SilentlyContinue } catch { }
+}
+
+# Extra safety net for timeouts: kill any Godot process whose own command line
+# mentions this probe scene. Only that scene is touched - never the editor and
+# never another project.
+function Stop-SceneProcs([string]$Marker) {
+    if ([string]::IsNullOrEmpty($Marker)) { return }
+    try {
+        Get-CimInstance Win32_Process -Filter "Name like '%godot%'" |
+            Where-Object { $_.CommandLine -like ('*' + $Marker + '*') } |
+            ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    } catch { }
+}
+
+# Run one probe. Returns a hashtable: rc (124 = timeout) and timedOut.
+# Note: Start-Process -PassThru cannot report ExitCode on PS 5.1 (it comes back
+# empty), so the process is driven through .NET directly; that also lets us
+# stream stdout/stderr into files without a pipe deadlock.
+function Invoke-Probe([string]$Name, [bool]$Headless, [string]$LogBase, [string[]]$ExtraArgs) {
+    $outFile = "$LogBase.out.log"
+    $errFile = "$LogBase.err.log"
+    Remove-Item -LiteralPath $outFile, $errFile -ErrorAction SilentlyContinue
+
+    $argList = @()
+    if ($Headless) { $argList += '--headless' }
+    $argList += @('--path', $ProjectWin, ("res://tests/{0}.tscn" -f $Name))
+    if ($ExtraArgs.Count -gt 0) { $argList += $ExtraArgs }
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $Godot
+    $psi.Arguments = (($argList | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ')
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+
+    $pr = New-Object System.Diagnostics.Process
+    $pr.StartInfo = $psi
+    $fsOut = [System.IO.File]::Create($outFile)
+    $fsErr = [System.IO.File]::Create($errFile)
+
+    $rc = -1
+    $timedOut = $false
+    try {
+        $null = $pr.Start()
+    } catch {
+        Write-Host ''
+        Write-Host ("           | cannot start: {0}" -f $_.Exception.Message)
+        $fsOut.Dispose(); $fsErr.Dispose()
+        return @{ rc = -1; timedOut = $false; secs = 0 }
+    }
+
+    $tOut = $pr.StandardOutput.BaseStream.CopyToAsync($fsOut)
+    $tErr = $pr.StandardError.BaseStream.CopyToAsync($fsErr)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while (-not $pr.HasExited) {
+        if ($sw.Elapsed.TotalSeconds -ge $Timeout) { $timedOut = $true; break }
+        Start-Sleep -Milliseconds 100
+    }
+    if ($timedOut) {
+        Stop-Tree $pr.Id
+        Stop-SceneProcs ("res://tests/{0}.tscn" -f $Name)
+        try { $pr.WaitForExit(10000) | Out-Null } catch { }
+        $rc = 124
+    } else {
+        try { if ($pr.HasExited) { $rc = $pr.ExitCode } } catch { $rc = -1 }
+    }
+    try { $pr.StandardOutput.Close(); $pr.StandardError.Close() } catch { }
+    try { $tOut.Wait(5000) | Out-Null; $tErr.Wait(5000) | Out-Null } catch { }
+    $fsOut.Dispose(); $fsErr.Dispose()
+    $sw.Stop()
+    return @{ rc = $rc; timedOut = $timedOut; secs = [int]$sw.Elapsed.TotalSeconds }
 }
 
 if ($env:AIPET_PROJECT) { $DefaultProject = $env:AIPET_PROJECT } else { $DefaultProject = '' }
 if ([string]::IsNullOrEmpty($Project)) {
     if ([string]::IsNullOrEmpty($DefaultProject)) {
         # default: the parent folder of this script's folder
-        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+        $scriptDir = $PSScriptRoot
+        if ([string]::IsNullOrEmpty($scriptDir)) { $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
         if ([string]::IsNullOrEmpty($scriptDir)) { $scriptDir = (Get-Location).Path }
         $Project = Split-Path -Parent $scriptDir
     } else {
@@ -166,6 +240,8 @@ if ($List) {
 $SelNames = @()
 $SelModes = @()
 $Skipped = @()
+$SkippedNh = @()
+$SkippedAgent = @()
 
 if ($Only.Count -gt 0) {
     foreach ($raw in $Only) {
@@ -180,8 +256,8 @@ if ($Only.Count -gt 0) {
     }
 } else {
     foreach ($p in $AllProbes) {
-        if ((-not $All) -and (Test-In $p $NonHeadless)) { $Skipped += $p; continue }
-        if ($NoAgent -and (Test-In $p $AgentProbes)) { $Skipped += $p; continue }
+        if ((-not $All) -and (Test-In $p $NonHeadless)) { $Skipped += $p; $SkippedNh += $p; continue }
+        if ($NoAgent -and (Test-In $p $AgentProbes)) { $Skipped += $p; $SkippedAgent += $p; continue }
         if (Test-In $p $NonHeadless) { $SelModes += 'window' } else { $SelModes += 'headless' }
         $SelNames += $p
     }
@@ -201,10 +277,13 @@ try {
     Fail-Env "cannot create log folder: $Logs"
 }
 
-# Passthrough args: PowerShell eats the literal '--' terminator, so re-add it
-# before the user args (Godot exposes them through OS.GetCmdlineUserArgs()).
+# Passthrough args: Godot wants the literal '--' before user args (they arrive in
+# OS.GetCmdlineUserArgs()). PS 5.1 rejects the bare '--' separator on script files,
+# so the separator is added here unless the caller already supplied it.
 $Extra = @()
-if ($ProbeArgs.Count -gt 0) { $Extra = @('--') + $ProbeArgs }
+if ($ProbeArgs.Count -gt 0) {
+    if ($ProbeArgs[0] -eq '--') { $Extra = $ProbeArgs } else { $Extra = @('--') + $ProbeArgs }
+}
 
 Write-Host '=== AIPet probe regression ==='
 Write-Host ("project : {0}" -f $ProjectWin)
@@ -217,9 +296,13 @@ if ($All) {
 Write-Host ("timeout : {0}s per probe (timeout counts as failure, whole process tree is killed)" -f $Timeout)
 Write-Host ("logs    : {0}" -f (ConvertTo-Native $Logs))
 if ($Extra.Count -gt 0) { Write-Host ("passthru: {0}" -f ($Extra -join ' ')) }
-if ($Skipped.Count -gt 0) {
-    Write-Host ("skipped : {0}" -f ($Skipped -join ' '))
-    Write-Host '          (non-headless need -All; a single one can be run with -Only <name>)'
+if ($SkippedNh.Count -gt 0) {
+    Write-Host ("skipped : {0}" -f ($SkippedNh -join ' '))
+    Write-Host '          (non-headless: run with -All; a single one with -Only <name>)'
+}
+if ($SkippedAgent.Count -gt 0) {
+    Write-Host ("skipped : {0}" -f ($SkippedAgent -join ' '))
+    Write-Host '          (need a live Agent: drop -NoAgent to run them)'
 }
 Write-Host ''
 
@@ -232,47 +315,17 @@ for ($i = 0; $i -lt $SelNames.Count; $i++) {
     $kind = $SelModes[$i]
     $idx = $i + 1
 
-    $argList = @()
-    if ($kind -eq 'window') { $modeLabel = 'window' } else { $modeLabel = 'headless'; $argList += '--headless' }
-    $argList += @('--path', $ProjectWin, ("res://tests/{0}.tscn" -f $name))
-    if ($Extra.Count -gt 0) { $argList += $Extra }
-
-    # Start-Process cannot send stdout and stderr to the same file, so use two.
+    if ($kind -eq 'window') { $modeLabel = 'window'; $headless = $false } else { $modeLabel = 'headless'; $headless = $true }
     $logBase = Join-Path $Logs $name
-    $outFile = "$logBase.out.log"
-    $errFile = "$logBase.err.log"
 
     Write-Host ('[{0,2}/{1,2}] {2,-22} {3,-10} ' -f $idx, $SelNames.Count, $name, "($modeLabel)") -NoNewline
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $timedOut = $false
-    $rc = -1
-    try {
-        $proc = Start-Process -FilePath $Godot -ArgumentList $argList -NoNewWindow -PassThru `
-            -RedirectStandardOutput $outFile -RedirectStandardError $errFile
-        while (-not $proc.HasExited) {
-            if ($sw.Elapsed.TotalSeconds -ge $Timeout) {
-                $timedOut = $true
-                Stop-FullTree $proc.Id
-                break
-            }
-            Start-Sleep -Milliseconds 200
-        }
-        if (-not $proc.HasExited) {
-            try { $proc.WaitForExit(10000) | Out-Null } catch { }
-        }
-        if ($proc.HasExited) { $rc = $proc.ExitCode } else { $rc = -1 }
-    } catch {
-        Write-Host ''
-        Write-Host ("           | start failed: {0}" -f $_.Exception.Message)
-        $rc = -1
-    }
-    $sw.Stop()
-    $secs = [int]$sw.Elapsed.TotalSeconds
-    if ($timedOut) { $rc = 124 }
+    $r = Invoke-Probe -Name $name -Headless $headless -LogBase $logBase -ExtraArgs $Extra
+    $rc = $r.rc
+    $secs = $r.secs
 
     # Failed asserts: 'FAIL  ' (FAIL + two spaces) in stdout or stderr.
     $fails = 0
-    foreach ($f in @($outFile, $errFile)) {
+    foreach ($f in @("$logBase.out.log", "$logBase.err.log")) {
         if (Test-Path -LiteralPath $f) {
             $txt = Get-Content -LiteralPath $f -Raw -ErrorAction SilentlyContinue
             if ($txt) { $fails += ([regex]::Matches($txt, 'FAIL  ')).Count }
@@ -292,7 +345,7 @@ for ($i = 0; $i -lt $SelNames.Count; $i++) {
 
     if ($result -ne 'PASS') {
         $failLines = @()
-        foreach ($f in @($outFile, $errFile)) {
+        foreach ($f in @("$logBase.out.log", "$logBase.err.log")) {
             if (Test-Path -LiteralPath $f) {
                 $failLines += @(Select-String -LiteralPath $f -Pattern 'FAIL  ' -ErrorAction SilentlyContinue |
                     Select-Object -First 12 | ForEach-Object { $_.Line })
@@ -303,8 +356,8 @@ for ($i = 0; $i -lt $SelNames.Count; $i++) {
             if ($fails -gt 12) { Write-Host ("           | ... {0} more, see the log" -f ($fails - 12)) }
         } else {
             Write-Host '           | tail of log (no FAIL line, look here):'
-            if (Test-Path -LiteralPath $outFile) {
-                @(Get-Content -LiteralPath $outFile -ErrorAction SilentlyContinue | Select-Object -Last 8) |
+            if (Test-Path -LiteralPath "$logBase.out.log") {
+                @(Get-Content -LiteralPath "$logBase.out.log" -ErrorAction SilentlyContinue | Select-Object -Last 8) |
                     ForEach-Object { Write-Host ("           | {0}" -f $_) }
             }
         }
