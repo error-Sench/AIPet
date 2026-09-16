@@ -50,6 +50,7 @@
 | `CommandE2E` | headless | **真实 Agent** 下发指令 → 解析 → 执行 → 回复与历史都无残留。会真实调用一次 LLM |
 | `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并删测试存档） |
 | `ContextProbe` | headless | 上下文接口（`user://context.md`）：组装内容 / 脚手架只建不覆盖 / 只读不推送 |
+| `DegradeProbe` | headless | 降级路径：配了 Agent 起不来 → 提醒主人（气泡人话+事件池）；没配 Agent = 本地模式不打扰 |
 | `TtsProbe` | headless | 语音输出：配置/清洗/门控/系统语音枚举与挑选/**真合成到 WAV**/与气泡联动（探针不发声）|
 | `EventProbe` | headless | 行为事件：事件池读写/ack/保留策略/隐私字段 + 久坐提醒触发与冷却 + 升级为 Agent 事件 + 进上下文接口 |
 | `MoodProbe` | headless | 数值驱动表达：情绪变体择档（think-happy/poor）+ 行为耦合（走动倍率、睡眠阈值）+ 无变体池的降级安全 |

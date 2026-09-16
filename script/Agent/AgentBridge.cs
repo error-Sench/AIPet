@@ -4,6 +4,8 @@ using System.IO;
 using System.Text.Json;
 using Godot;
 
+using desktop.script.State;
+
 namespace desktop.script.Agent;
 
 /// <summary>
@@ -132,7 +134,11 @@ public partial class AgentBridge : Node
             GD.Print($"[AgentBridge] 回复结束({reason}): {干净}");
             TurnEnded?.Invoke(干净);
         };
-        Backend.OnError += msg => GD.PrintErr($"[AgentBridge] {msg}");
+        Backend.OnError += msg =>
+        {
+            GD.PrintErr($"[AgentBridge] {msg}");
+            提醒降级(msg);   // 配置了 Agent 却出错 → 跟主人说一声（只提醒一次）
+        };
 
         // 把后端事件接到 UI（聊天记录 + 动画）
         desktop.script.UX.AgentEvents.Bind(Backend);
@@ -142,7 +148,38 @@ public partial class AgentBridge : Node
             Options.WorkingDirectory = ProjectSettings.GlobalizePath("user://");
 
         GD.Print($"[AgentBridge] 惰性启动后端: {BackendName}");
-        return Backend.Start(Options);
+        bool 成功;
+        try { 成功 = Backend.Start(Options); }
+        catch (Exception e) { 成功 = false; GD.PrintErr($"[AgentBridge] 后端启动异常: {e.Message}"); }
+        if (!成功) 提醒降级($"后端 {BackendName} 启动失败（{Options.Executable}）");
+        return 成功;
+    }
+
+    // ================= 降级：Agent 不可用时提醒主人 =================
+    // 设计（idea §9.3）：Agent 挂了 → **提醒主人并退回「本地桌宠模式」，不卡死**。
+    // 注意区分两种情况：① 没配 Agent（本地模式）= 正常状态，只记日志不打扰；② 配了却连不上/断了 = 要提醒。
+
+    private static bool _降级已提醒;
+
+    /// <summary>探针：直接指定后端与可执行文件（模拟「配了 Agent 却起不来」）。</summary>
+    public static void 探针_设后端(string 后端名, string 可执行文件)
+    {
+        BackendName = 后端名;
+        Options.Executable = 可执行文件;
+        _降级已提醒 = false;
+    }
+
+    /// <summary>探针：是否已经提醒过降级。</summary>
+    public static bool 探针_降级已提醒 => _降级已提醒;
+
+    /// <summary>降级提醒（只提醒一次，不刷屏）：气泡 + 事件池记录。</summary>
+    private static void 提醒降级(string 原因)
+    {
+        if (_降级已提醒) return;
+        _降级已提醒 = true;
+        GD.PrintErr($"[AgentBridge] 降级为本地桌宠模式：{原因}");
+        EventPool.记("Agent不可用", EventPool.归属.程序, $"降级为本地模式：{原因}");
+        UX.Dialogue.延迟显示标题("唔…我连不上「大脑」了，先自己待着；你随时可以再叫我～");
     }
 
     /// <summary>用户发言入口（右键框 / 粘贴 / 语音 最终都走这里）。首次调用会惰性启动后端。</summary>

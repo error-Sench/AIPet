@@ -34,7 +34,13 @@ public partial class Dialogue : Node
         _单例 = this;
     }
     // ReSharper disable once MemberCanBePrivate.Global 外部调用
-    public static void 延迟显示标题(string 文本) => _单例.CallDeferred("单例显示标题",文本);
+    public static void 延迟显示标题(string 文本)
+    {
+        探针_最近请求文本 = 文本 ?? "";
+        Audio.Tts.说(文本);                       // 与气泡一致：延迟显示的话也念（TTS）
+        if (_单例 == null) return;                 // 没有 Dialogue 节点（探针/无 UI 场景）→ 只记不发
+        _单例.CallDeferred("单例显示标题", 文本);
+    }
     /// <summary>显示标题。可跨线程调用（内部 marshal 到主线程）。</summary>
     public static void 显示标题(string 文本)
     {
