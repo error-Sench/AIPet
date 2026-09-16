@@ -32,6 +32,9 @@ public partial class StateMachine : Node
     public const string Sleep = "sleep";
     public const string Greet = "greet";
 
+    /// <summary>贴边隐藏（P2 行为层）：表现由 EdgeHide 自管，状态机只当「锁定持续态」占位。见 script/State/README.md。</summary>
+    public const string EdgeHideState = "edge_hide";
+
     // —— 行为链状态（不映射固定动画，语义化） ——
     public const string WalkStart = "walk_start";
     public const string WalkLoop = "walk_loop";
@@ -75,6 +78,8 @@ public partial class StateMachine : Node
         [Working] = new 状态效果 { 目标池 = "work", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
         [Sleep] = new 状态效果 { 目标池 = "sleep", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0 },
         [Greet] = new 状态效果 { 目标池 = "greet", 兼容池 = "celerate", 持续 = false, 锁定 = false, 秒 = 2.5f },
+        // 贴边隐藏：持续 + 锁定；表现不走「池内随机」，由 EdgeHide.应用表现() 按阶段精确播（见应用表现）
+        [EdgeHideState] = new 状态效果 { 目标池 = "edge_hide", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0 },
     };
 
     /// <summary>
@@ -160,6 +165,9 @@ public partial class StateMachine : Node
         // —— 数值层（P5）：心情/精力随时间漂移（睡眠中回充），每 30s 自动存盘 ——
         Soul.StatsTable.心跳((float)delta, CurrentState == Sleep);
 
+        // —— 贴边隐藏（P2 行为层）：滑行到位 + 悬停探出/缩回 ——
+        EdgeHide.每帧((float)delta);
+
         // —— 心跳（默认 1s，可配置） ——
         _心跳累加 += delta;
         if (_心跳累加 >= 设置.心跳秒)
@@ -190,6 +198,9 @@ public partial class StateMachine : Node
             state = Idle;
             效果 = _效果表[Idle];
         }
+
+        // 别人抢状态 → 贴边隐藏让位（窗口先回原位；复位/缩进时自己会切到 edge_hide，不受影响）
+        if (state != EdgeHideState && EdgeHide.占用中) EdgeHide.让位();
 
         var 变化 = CurrentState != state;
         CurrentState = state;
@@ -240,6 +251,8 @@ public partial class StateMachine : Node
         _重播冷却 = 0.05f;
         // 交互序列：播完一段就推进到下一段（最后一段播完 → 回 idle）
         if (_当前序列 != null) { 推进序列(); return; }
+        // 贴边隐藏：阶段推进由 EdgeHide 自管（缩进→静止→探出→缩回→退出）
+        if (CurrentState == EdgeHideState) { EdgeHide.动画播完(); return; }
         if (!_效果表.TryGetValue(CurrentState, out var 效果)) return;
         CharAnim.PlayState(选择池(效果));
     }
@@ -333,6 +346,7 @@ public partial class StateMachine : Node
     public static void 准备退出()
     {
         接管中 = false;
+        EdgeHide.让位();   // 退出前把宠从屏外拉回来，别让它烂在边上
         _chainRunning = false;
         _chainQueue.Clear();
         _activeCallback = null;
@@ -710,6 +724,8 @@ public partial class StateMachine : Node
             return;
         }
         if (!_效果表.TryGetValue(state, out var 效果)) 效果 = _效果表[Idle];
+        // 贴边隐藏：表现由 EdgeHide 按阶段精确播（不走池内随机）
+        if (state == EdgeHideState) { EdgeHide.应用表现(); return; }
         var 池 = 选择池(效果);
         // 情绪表达：心情好/糟时优先用该池的对应变体（如 think-happy / think-poor、摸头用 interact-happy）。
         // 该池没有这个变体就退回池内随机 —— 不硬造。
@@ -746,6 +762,14 @@ public partial class StateMachine : Node
         public static float 离开阈值秒 = 300f;
         public static bool 全屏静默 = true;
 
+        // —— P2 贴边隐藏（行为层；**默认开**：桌宠惯例行为，且让它更不打扰） ——
+        public static bool 贴边隐藏启用 = true;
+        public static int 贴边阈值像素 = 20;
+        public static float 隐藏可见比例 = 0.30f;
+        public static float 探出可见比例 = 0.72f;
+        public static float 缩回延迟秒 = 1f;
+        public static float 贴边滑行速度 = 420f;
+
         public static void 加载()
         {
             foreach (var 路径 in new[]
@@ -780,6 +804,12 @@ public partial class StateMachine : Node
                     环境感知启用 = 取布尔(根, "环境感知启用", 环境感知启用);
                     离开阈值秒 = 取浮点(根, "离开阈值秒", 离开阈值秒);
                     全屏静默 = 取布尔(根, "全屏静默", 全屏静默);
+                    贴边隐藏启用 = 取布尔(根, "贴边隐藏启用", 贴边隐藏启用);
+                    贴边阈值像素 = 取整数(根, "贴边阈值像素", 贴边阈值像素);
+                    隐藏可见比例 = 取浮点(根, "隐藏可见比例", 隐藏可见比例);
+                    探出可见比例 = 取浮点(根, "探出可见比例", 探出可见比例);
+                    缩回延迟秒 = 取浮点(根, "缩回延迟秒", 缩回延迟秒);
+                    贴边滑行速度 = 取浮点(根, "贴边滑行速度", 贴边滑行速度);
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
@@ -793,6 +823,14 @@ public partial class StateMachine : Node
             EnvironmentSense.启用 = 环境感知启用;
             EnvironmentSense.离开阈值秒 = Math.Max(30f, 离开阈值秒);
             EnvironmentSense.全屏静默 = 全屏静默;
+
+            // 把 P2 贴边隐藏参数交给行为层（含夹取，避免配置写坏导致窗口跑到屏外回不来）
+            EdgeHide.启用 = 贴边隐藏启用;
+            EdgeHide.贴边阈值像素 = Math.Max(1, 贴边阈值像素);
+            EdgeHide.可见比例 = Math.Clamp(隐藏可见比例, 0.10f, 0.90f);
+            EdgeHide.探出可见比例 = Math.Clamp(探出可见比例, EdgeHide.可见比例, 1f);
+            EdgeHide.缩回延迟秒 = Math.Max(0.1f, 缩回延迟秒);
+            EdgeHide.滑行速度像素每秒 = Math.Max(60f, 贴边滑行速度);
         }
 
         private static bool 取布尔(JsonElement 根, string 键, bool 兜底) =>

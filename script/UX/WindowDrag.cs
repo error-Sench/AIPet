@@ -101,6 +101,8 @@ public partial class WindowDrag : Node
                 // 准备中：检查移动距离是否达标
                 if (currentMousePos.DistanceTo(_pressOrigin) > DragThreshold)
                 {
+                    // 贴边隐藏中开始拖拽 → 先复位（把窗口拉回屏内再拖，避免拖着一半屏外的东西走）
+                    if (EdgeHide.占用中) EdgeHide.复位("拖拽");
                     _dragging = true;
                     _isPreparing = false;
                     // 正式锁定 Offset
@@ -122,8 +124,11 @@ public partial class WindowDrag : Node
             //    注意：本分支只在真正的松手路径执行；「面板接管指针」的早退路径不经过这里，
             //    因此不会在操作面板时产生假摸摸。
             var 单击 = _isPreparing && !_dragging;
+            var 拖过 = _dragging;   // 必须在 取消桌宠拖拽() 之前取：它会把标志复位
             取消桌宠拖拽();
             if (单击) StateMachine.摸摸();
+            // 拖拽结束（非单击）→ 检查是否贴到屏幕边缘：贴中就缩进隐藏（P2 行为层）
+            else if (拖过) EdgeHide.检查贴边();
         }
 
         // 探针只读状态（供 DragProbe 断言起手判定）
