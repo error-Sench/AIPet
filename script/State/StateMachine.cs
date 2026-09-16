@@ -65,7 +65,8 @@ public partial class StateMachine : Node
         public string 兼容池;
         public bool 持续;   // true = 保持到显式切换（配合锁定/兜底）；false = 定时回 idle
         public bool 锁定;   // true = 接管中（CharAnim 让位）
-        public float 秒;    // 持续态 = 兜底超时（0 = 不超时）；非持续态 = 保持时长
+        public float 秒;    // 非持续态 = 保持时长；**持续态的秒值是死值**——SetState 传 -1 时统一用 `设置.持续态兜底秒`（默认 120s），
+                            // 只有 `免兜底=true`（贴边隐藏）才是真正无限期。别再往持续态写「超时秒数」，它是不会被读的（子 Agent 核对时发现）
         public bool 免兜底; // true = 真·无限期持续态（贴边隐藏用）：不吃「持续态兜底」，否则 2 分钟被踢回 idle（实测 bug）
     }
 
@@ -76,7 +77,7 @@ public partial class StateMachine : Node
         [Drag] = new 状态效果 { 目标池 = "drag", 兼容池 = "drag", 持续 = true, 锁定 = false, 秒 = 0 },
         [Think] = new 状态效果 { 目标池 = "think", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
         [Speak] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
-        [Listen] = new 状态效果 { 目标池 = "listen", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 60f },
+        [Listen] = new 状态效果 { 目标池 = "listen", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },  // 秒值不生效，见字段注释
         [Working] = new 状态效果 { 目标池 = "work", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
         [Sleep] = new 状态效果 { 目标池 = "sleep", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0 },
         [Greet] = new 状态效果 { 目标池 = "greet", 兼容池 = "celerate", 持续 = false, 锁定 = false, 秒 = 2.5f },

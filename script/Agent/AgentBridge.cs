@@ -144,6 +144,20 @@ public partial class AgentBridge : Node
         if (string.IsNullOrWhiteSpace(Options.WorkingDirectory))
             Options.WorkingDirectory = ProjectSettings.GlobalizePath("user://");
 
+        // 启动自检（打包审计残余风险）：cwd 下若有这些文件，Agent 会把它们当项目上下文注入提示词/人格。
+        // 默认 cwd 是 user://（干净）；此处防的是「手动把 cwd 指回仓库根」这类配置。
+        foreach (var 敏感 in new[] { "AGENTS.md", ".hermes.md", "CLAUDE.md", ".cursorrules" })
+        {
+            try
+            {
+                if (!File.Exists(Path.Combine(Options.WorkingDirectory, 敏感))) continue;
+                GD.PrintErr($"[AgentBridge] ⚠ cwd 下存在 {敏感} → 会被 Agent 当项目上下文注入（污染人格）。建议 workingDirectory 指向干净目录（默认 user://）。");
+                EventPool.记("配置警告", EventPool.归属.程序, $"Agent cwd 含 {敏感}，可能污染上下文");
+                break;
+            }
+            catch { /* 忽略 */ }
+        }
+
         GD.Print($"[AgentBridge] 惰性启动后端: {BackendName}");
         bool 成功;
         try { 成功 = Backend.Start(Options); }

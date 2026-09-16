@@ -70,6 +70,8 @@ public partial class ContextProbe : Node
         断言(文本.Contains(SoulTable.RawText.Trim()) || SoulTable.RawText.Trim().Length == 0,
             "A5 人格全文（soul.md）已带进上下文");
         断言(文本.Contains("## 最近记忆"), "A6 记忆段落存在");
+        断言(文本.Contains("\"anim\"") && !文本.Contains("play_anim\",\"name"),
+            "A7a 指令示例用对了键名（play_anim 的键是 anim，写 name 会被丢弃 —— 子 Agent 核对时抓到的）");
         断言(文本.Contains("```pet") && 文本.Contains("set_state") && 文本.Contains("set_mood"),
             "A7 指令通道说明（它能指挥桌宠做什么）");
         断言(!文本.Contains("供你参考") && !文本.Contains("它此刻的感受") && !文本.Contains("不必复述"),

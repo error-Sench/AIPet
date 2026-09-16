@@ -123,7 +123,7 @@ public static class ContextTable
         sb.AppendLine("在你的回复文本里内嵌一个 ```pet 围栏块，块内每行一条 JSON 指令，桌宠会执行并把围栏块从聊天里隐藏：");
         sb.AppendLine("- `{\"cmd\":\"set_state\",\"state\":\"think|idle|sleep|working|speak…\"}` —— 切状态");
         sb.AppendLine("- `{\"cmd\":\"speak\",\"text\":\"…\"}` —— 让它冒个气泡（≤200 字，别复述你正文）");
-        sb.AppendLine("- `{\"cmd\":\"play_anim\",\"name\":\"…\"}` —— 播指定动画（如 `walk-left`、`edge_hide-left-keep`）");
+        sb.AppendLine("- `{\"cmd\":\"play_anim\",\"anim\":\"…\"}` —— 播指定动画（如 `walk-left`、`edge_hide-left-keep`；键名是 **anim**，不是 name）");
         sb.AppendLine("- `{\"cmd\":\"set_mood\",\"mood\":65}` —— 改心情（0–100，或 happy / tired / sad…）");
         sb.AppendLine("- 每轮最多 6 条；写错了会被忽略并记日志。");
         return sb.ToString();
