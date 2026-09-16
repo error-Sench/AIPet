@@ -81,45 +81,56 @@ public partial class EdgeHideBehaviorProbe : Node
                 GD.Print($"[EB] 模拟 130s 后: 状态={StateMachine.CurrentState} 相={EdgeHide.探针_相} X={宠X}");
                 断言(StateMachine.CurrentState == StateMachine.EdgeHideState && EdgeHide.探针_相 != EdgeHide.相.无,
                     "回归①：贴边 130 秒后仍保持隐藏（免兜底生效，不会自己变待机挪回屏内）");
-                断言(宠X < 屏.Position.X, $"回归①：窗口仍在屏外（X={宠X} < {屏.Position.X}）");
-                // 把光标移到「屏内可见条」上
+                断言(宠X < 屏.Position.X, $"回归①：窗口仍在屏外（X={宠X} < {屏.Position.X}）");                break;
+            case 130:
+                GD.Print($"[EB] 隐藏后 0.5s: 循环播次数={EdgeHide.探针_循环播次数} 剩余={EdgeHide.探针_重播计时:0.00}s 动画={CharAnim.当前动画名_只读}");
+                断言(EdgeHide.探针_循环播次数 == 1, $"不到 2 秒不重播（已播 {EdgeHide.探针_循环播次数} 次）");
+                断言(CharAnim.当前动画名_只读.EndsWith("-keep"), "隐藏保持用的是 -keep 循环动画（不是静止单帧）");
+                break;
+            case 270:
+                GD.Print($"[EB] 隐藏后 2.8s: 循环播次数={EdgeHide.探针_循环播次数}");
+                断言(EdgeHide.探针_循环播次数 == 2, $"**每 2 秒才播放一次**：2.8s 时正好第二次（已播 {EdgeHide.探针_循环播次数} 次）");
+                break;
+
+            case 280:
+// 把光标移到「屏内可见条」上（等节拍断言做完再悬停）
                 var 位 = DisplayServer.WindowGetPosition();
                 var 可见条中心 = new Vector2I(屏.Position.X + 10, 位.Y + 宠尺.Y / 2);
                 DisplayServer.WarpMouse(可见条中心 - 位); // WarpMouse 是窗口相对坐标（见坑 #12）
                 GD.Print($"[EB] 光标移到可见条: 期望 {可见条中心} 实际 {DisplayServer.MouseGetPosition()}");
                 break;
-            case 140:
+            case 340:
                 GD.Print($"[EB] 悬停后 相={EdgeHide.探针_相} 目标X={EdgeHide.探针_目标位置.X} 动画={CharAnim.当前动画名_只读}");
                 断言(EdgeHide.探针_相 is EdgeHide.相.探出中 or EdgeHide.相.已探出, "鼠标靠到可见条 → 探出");
                 断言(EdgeHide.探针_目标位置.X > 屏.Position.X - 宠尺.X * 0.5f, "探出时窗口往屏内回收");
                 StateMachine.重播当前状态(); // 模拟「探出动画播完」
                 break;
-            case 150:
+            case 350:
                 断言(EdgeHide.探针_相 == EdgeHide.相.已探出, $"探出动画播完 → 停在「已探出」（相={EdgeHide.探针_相}）");
                 存窗口图("edgehide_peek.png");
                 // 光标移走（挪到屏中间偏上，远离可见条）
                 DisplayServer.WarpMouse(new Vector2I(300, 200) - DisplayServer.WindowGetPosition());
                 break;
-            case 230:
+            case 430:
                 GD.Print($"[EB] 移开后 相={EdgeHide.探针_相} 动画={CharAnim.当前动画名_只读}");
                 断言(EdgeHide.探针_相 is EdgeHide.相.缩回中 or EdgeHide.相.隐藏, "鼠标移开 → 缩回（延迟后）");
                 EdgeHide.复位("探针");
                 break;
-            case 240:
+            case 440:
                 断言(EdgeHide.探针_相 == EdgeHide.相.退出中, "复位 → 进入退出相");
                 break;
-            case 320:
+            case 520:
                 GD.Print($"[EB] 复位后: X={宠X} 原位={EdgeHide.探针_原位.X} 相={EdgeHide.探针_相}");
                 断言(宠X == EdgeHide.探针_原位.X, $"窗口滑回原位（{宠X} == {EdgeHide.探针_原位.X}）");
                 GD.Print("--- 让位防护：别人抢状态时窗口必须回原位 ---");
                 DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400));
                 EdgeHide.检查贴边();
                 break;
-            case 400:
+            case 600:
                 断言(EdgeHide.探针_相 != EdgeHide.相.无 && 宠X < 屏.Position.X, $"先进入隐藏（X={宠X}）");
                 StateMachine.SetState(StateMachine.Idle); // 别人抢状态
                 break;
-            case 405:
+            case 605:
                 GD.Print($"[EB] 抢状态后: X={宠X} 相={EdgeHide.探针_相}");
                 断言(EdgeHide.探针_相 == EdgeHide.相.无, "让位后阶段清空");
                 断言(宠X >= 屏.Position.X, $"**窗口被拉回屏内**（X={宠X} ≥ {屏.Position.X}）—— 不会烂在屏外");
@@ -131,7 +142,7 @@ public partial class EdgeHideBehaviorProbe : Node
                 EdgeHide.探针_设相(EdgeHide.相.退出中);                      // 复位已完成 / 主人已接管
                 StateMachine.SetState(StateMachine.Idle);                   // 松手会走这条（取消拖拽 → 标记状态）
                 break;
-            case 410:
+            case 610:
                 GD.Print($"[EB] 松手后: X={宠X}（原位 X={EdgeHide.探针_原位.X}）相={EdgeHide.探针_相}");
                 断言(宠X == 900, $"回归②：窗口留在屏幕中间（X={宠X} == 900）—— 没被拽回原位 {EdgeHide.探针_原位.X}、没吸附回边缘");
                 GD.Print("--- 开关：关掉后贴边不生效 ---");
@@ -139,7 +150,7 @@ public partial class EdgeHideBehaviorProbe : Node
                 DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400));
                 EdgeHide.检查贴边();
                 break;
-            case 415:
+            case 615:
                 GD.Print($"[EB] 关掉开关后: X={宠X} 相={EdgeHide.探针_相}");
                 断言(EdgeHide.探针_相 == EdgeHide.相.无, "启用=false 时贴边检查不生效（开关关得住）");
 
@@ -156,7 +167,7 @@ public partial class EdgeHideBehaviorProbe : Node
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
                 break;
         }
-        if (_帧 > 900) { GD.PrintErr("[EB] 超时"); GetTree().Quit(2); }
+        if (_帧 > 1400) { GD.PrintErr("[EB] 超时"); GetTree().Quit(2); }
     }
 
     private void 纯函数组()
@@ -165,9 +176,9 @@ public partial class EdgeHideBehaviorProbe : Node
         var 屏测 = new Rect2I(0, 0, 1920, 1040);
         const int 宽 = 282;
 
-        断言(EdgeHide.判断贴边侧(5, 屏测, 20) == EdgeHide.侧.左, "X=5 → 贴左边缘");
-        断言(EdgeHide.判断贴边侧(1920 - 宽 - 5, 屏测, 20) == EdgeHide.侧.右, "右缘留 5px → 贴右边缘");
-        断言(EdgeHide.判断贴边侧(800, 屏测, 20) == null, "屏中间 → 不贴边");
+        断言(EdgeHide.判断贴边侧(5, 屏测, 20, 宽) == EdgeHide.侧.左, "X=5 → 贴左边缘");
+        断言(EdgeHide.判断贴边侧(1920 - 宽 - 5, 屏测, 20, 宽) == EdgeHide.侧.右, "右缘留 5px → 贴右边缘");
+        断言(EdgeHide.判断贴边侧(800, 屏测, 20, 宽) == null, "屏中间 → 不贴边");
 
         var 左隐 = EdgeHide.隐藏位置X(EdgeHide.侧.左, 屏测, 宽, 0.30f);
         var 右隐 = EdgeHide.隐藏位置X(EdgeHide.侧.右, 屏测, 宽, 0.30f);

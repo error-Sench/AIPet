@@ -34,10 +34,11 @@ public partial class CharAnim : AnimatedSprite2D
         应用外观配置();
     }
 
-    /// <summary>从 settings/pet.json 应用桌宠默认大小（窗口尺寸随后由 PetWindow 套住角色）。</summary>
+    /// <summary>从 settings/pet.json 应用桌宠默认大小（窗口尺寸随后由 PetWindow 套住角色）。
+    /// **大小只在启动时定**：滚轮缩放已删除（主人决策：缩放会破坏动画链 —— 素材偏移/贴边比例都是按固定缩放导入调好的）。</summary>
     private static void 应用外观配置()
     {
-        _缩放 = 0.55f;
+        _缩放 = 0.43f;   // 对齐 VPet 官方比例（实测官方角色高 ≈210px，我们 0.55 时 ≈280px → 0.55×0.75≈0.41，取 0.43）
         foreach (var 路径 in new[]
                  {
                      ProjectSettings.GlobalizePath("user://pet.json"),
@@ -60,16 +61,8 @@ public partial class CharAnim : AnimatedSprite2D
         GD.Print($"[CharAnim] 外观: 缩放={_缩放}");
     }
 
-    private static float _缩放 = 0.55f;
-
-    /// <summary>滚轮调缩放（窗口尺寸随之更新）。</summary>
-    public static void 调整缩放(float 增量)
-    {
-        _缩放 = Math.Clamp(_缩放 + 增量, 0.25f, 1.5f);
-        if (_单例 != null) _单例.Scale = new Vector2(_缩放, _缩放);
-        初始化窗口尺寸();
-        GD.Print($"[CharAnim] 缩放 -> {_缩放:0.00}");
-    }
+    private static float _缩放 = 0.43f;
+    // 注：滚轮调缩放（调整缩放 API）已按主人决策**删除** —— 运行时缩放会破坏动画链（导入时按固定缩放对齐的偏移/贴边比例全部失效）。
 
     /// <summary>按当前缩放与素材尺寸，把窗口收缩到正好套住角色。</summary>
     private static void 初始化窗口尺寸()

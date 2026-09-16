@@ -8,7 +8,6 @@
 [ext_resource type="Script" path="res://script/State/StateMachine.cs" id="13_state"]
 [ext_resource type="Script" path="res://script/Mode/ModeManager.cs" id="14_mode"]
 [ext_resource type="Script" uid="uid://bqrbs7h7rtxy3" path="res://script/UX/WindowDrag.cs" id="4_fc0e3"]
-[ext_resource type="Script" uid="uid://d3wi7jo3dg6kl" path="res://script/UX/WindowScale.cs" id="5_eow3j"]
 [ext_resource type="Script" uid="uid://18fs4wa17lvf" path="res://script/Logic/ClipboardRead.cs" id="6_hve3p"]
 [ext_resource type="Script" uid="uid://bo1bs0tbllods" path="res://script/UX/WindowHide.cs" id="6_j5wjh"]
 [ext_resource type="Script" uid="uid://cis2a0filoirf" path="res://script/Logic/FileDrop.cs" id="6_vef74"]
@@ -34,9 +33,6 @@ script = ExtResource("17_e8heu")
 
 [node name="WindowDrag" type="Node" parent="Window"]
 script = ExtResource("4_fc0e3")
-
-[node name="WindowScale" type="Node" parent="Window"]
-script = ExtResource("5_eow3j")
 
 [node name="WindowHide" type="Node" parent="Window"]
 script = ExtResource("6_j5wjh")

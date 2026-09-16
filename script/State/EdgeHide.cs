@@ -47,6 +47,12 @@ public static class EdgeHide
     public static int 左偏移像素 { get; set; }
     public static int 右偏移像素 { get; set; }
 
+    /// <summary>循环动画的**重播间隔**（秒）：隐藏/探出的循环不是连续播，而是「播一次 → 隔这么久 → 再播一次」。
+    /// 主人要求「贴边动画播放要有延迟，每 2 秒才播放一次」。</summary>
+    public static float 循环间隔秒 { get; set; } = 2f;
+
+    private static float _重播计时;      // 循环动画的下次重播倒计时
+
     private static Vector2I _原位;        // 隐藏前的屏内位置（复位目标）
     private static Vector2I _目标位置;    // 当前滑动目标
     private static float _悬停离开计时;
@@ -54,11 +60,12 @@ public static class EdgeHide
 
     // ================= 纯函数（探针可直接断言） =================
 
-    /// <summary>窗口 X 是否算贴到边缘（返回命中的侧；没贴中返回 null）。</summary>
-    public static 侧? 判断贴边侧(int 窗口X, Rect2I 屏, int 阈值)
+    /// <summary>窗口 X 是否算贴到边缘（返回命中的侧；没贴中返回 null）。
+    /// 宽度由调用方传入，保持纯函数（探针可用合成尺寸断言）。</summary>
+    public static 侧? 判断贴边侧(int 窗口X, Rect2I 屏, int 阈值, int 窗口宽)
     {
         if (窗口X <= 屏.Position.X + 阈值) return 侧.左;
-        if (窗口X + 窗口宽() >= 屏.End.X - 阈值) return 侧.右;
+        if (窗口X + 窗口宽 >= 屏.End.X - 阈值) return 侧.右;
         return null;
     }
 
@@ -96,7 +103,7 @@ public static class EdgeHide
     {
         if (!启用) return;
         var 屏 = 可用屏();
-        var 侧 = 判断贴边侧(DisplayServer.WindowGetPosition().X, 屏, 贴边阈值像素);
+        var 侧 = 判断贴边侧(DisplayServer.WindowGetPosition().X, 屏, 贴边阈值像素, 窗口宽());
         if (侧 == null) return;
 
         当前侧 = 侧.Value;
@@ -162,6 +169,14 @@ public static class EdgeHide
             位 = DisplayServer.WindowGetPosition();
         }
 
+        // 3. 循环动画的重播节拍：播一次 → 隔 循环间隔秒 → 再播一次（主人要求「每 2 秒才播放一次」）
+        if (_重播计时 > 0f)
+        {
+            _重播计时 -= delta;
+            if (_重播计时 <= 0f && 当前相 is 相.隐藏 or 相.已探出)
+                播(当前相 == 相.隐藏 ? 静止动画() : 探出动画());
+        }
+
         // 2. 悬停判定：只在「隐藏/已探出」这两个稳定相里切换探出/缩回
         if (当前相 is 相.隐藏 or 相.已探出)
         {
@@ -189,8 +204,7 @@ public static class EdgeHide
                 播(静止动画());
                 break;
             case 相.隐藏:
-                播(静止动画());   // 静止姿势单帧重播 = 稳定保持
-                break;
+                break;   // 不立刻重播：等 循环间隔秒 的节拍（主人要求「每 2 秒才播放一次」）
             case 相.探出中:
                 当前相 = 相.已探出;
                 播(探出动画());   // 循环播探出动作：**不能停帧**（停帧 = 静止画面，主人反馈「没动画」）
@@ -245,7 +259,15 @@ public static class EdgeHide
 
     private static void 播(string 动画名)
     {
-        if (CharAnim.有动画(动画名)) { CharAnim.PlayNamed(动画名); return; }
+        if (CharAnim.有动画(动画名))
+        {
+            CharAnim.PlayNamed(动画名);
+            // 循环类动画（-keep/-peek）不连续播：播完隔 循环间隔秒 再播（主人要求「贴边动画每 2 秒才播放一次」）
+            var 循环 = 动画名.EndsWith("-keep") || 动画名.EndsWith("-peek");
+            _重播计时 = 循环 ? 循环间隔秒 : 0f;
+            if (循环) 探针_循环播次数++;
+            return;
+        }
         if (当前相 == 相.已探出) return; // 探出后本就不该重播：素材缺失也不报
         if (!_已报警告)
         {
@@ -259,6 +281,12 @@ public static class EdgeHide
     public static 相 探针_相 => 当前相;
     public static Vector2I 探针_目标位置 => _目标位置;
     public static Vector2I 探针_原位 => _原位;
+
+    /// <summary>循环动画（-keep/-peek）已经播了几次 —— 探针用它断言「每 2 秒才播放一次」的节拍。</summary>
+    public static int 探针_循环播次数 { get; set; }
+
+    /// <summary>探针：剩余多少秒后重播循环动画。</summary>
+    public static float 探针_重播计时 => _重播计时;
 
     /// <summary>探针：直接进入某阶段（跳过拖拽前置），用于验证阶段机与动画。</summary>
     public static void 探针_强制阶段(侧 侧, 相 相)
