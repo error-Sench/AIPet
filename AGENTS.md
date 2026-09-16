@@ -22,7 +22,7 @@
 | 灵魂层：`soul.md` 结构、思维范式、数值层（心情/精力/亲密）、数值可视化 | `script/Soul/README.md` |
 | 身体层：状态效果表、交互时序、自主行为节律、环境感知（P6） | `script/State/README.md` |
 | 界面层：面板群（聊天/工具栏/配置/状态窗）、窗口铁律、动画池机制、云母样式 | `script/UX/README.md` |
-| 能力层：ACP 客户端、AgentBridge、指令通道协议、白名单与安全边界、人格注入 | `script/Agent/README.md` |
+| 能力层：ACP 客户端、AgentBridge、指令通道协议、白名单与安全边界、人格与数据的获取方式（**Agent 自主读取，不做注入**） | `script/Agent/README.md` |
 | 模式层：办公 / 游戏切换接口 | `script/Mode/README.md` |
 | 回归探针：有哪些、怎么跑、探针方法论（怎么写出不骗自己的断言） | `tests/README.md` |
 | 资产导入：VPet → mods 的导入器规则与踩坑 | `tools/README.md`（见该文件） |
@@ -94,7 +94,7 @@ D:/Games/Github/AIPet/
 
 ## 7. 实现顺序建议（路线图）
 
-1. **SoulTable.cs**：读取人格文件 `soul.md` + 注入用文本生成（基础，无依赖）。
+1. **SoulTable.cs**：读取人格文件 `soul.md`（**只读不推**：不做注入，见 §9 硬规则）（基础，无依赖）。
 2. **ModeManager.cs**：双模式接口 + 进度存取桩（轻量，先钉住模式层）。
 3. **CharAnim.cs** ✅ 已加 `PlayState(string)` 公开入口（状态机的地基）。
 4. **StateMachine.cs（含行为链）**：接现有动画，接 `set_state/speak/play_anim/queue_chain`。
@@ -127,7 +127,10 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 - `desktop.csproj` 的 SDK 已由 Godot 4.7.2 编辑器自动从 `4.5.1` 升级为 `4.7.2`（用户无手动改动；编辑器打开即自动改写）。**保留**该改动——本地引擎是 4.7.2，还原后打开又会被升回。
 - 架构图参考：`D:/Games/Github/ACPPet-架构图.html`（旧名文件，内容对应本项目）。
 - 骨架文件（`script/Soul/`、`script/State/`、`script/Agent/`、`script/Mode/`）已建，均为桩/TODO，待按此文档实现。
-- 灵魂职责已重新定义为「人格 prompt 资产」：数值归 `state/stats.json`，用户画像归 `soul/profile.md`，记忆流水归 `soul/memory.jsonl`，三者独立于 soul.md。
+- 灵魂职责已重新定义为「人格 prompt 资产」：数值归 `stats.json`，用户画像归 `soul/profile.md`，记忆流水归 `soul/memory.jsonl`，三者独立于 soul.md。
+- **人格与数据的获取方式 = Agent 自主读取（硬规则，主人三次强调 2026-09-16 定稿）**：桌宠**不做任何主动注入**——
+  不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent），
+  Agent 按 skill 指引自己读 `soul.md` / `stats.json` / `profile.md` / `memory.jsonl`。skill 与模板**在项目完工时才写**（P8）。
 
 ---
 

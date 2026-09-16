@@ -179,7 +179,7 @@ public partial class AgentBridge : Node
     /// <summary>
     /// 组装实际发给 Agent 的文本：主人原话 + 一行「桌宠当前状态」。
     /// <para>
-    /// 设计边界：**只加数据，不加人格**——人格归 Agent 自己的 SOUL.md（见 idea.md 人格注入原则），
+    /// 设计边界：**只加数据，不加人格**——人格归 Agent 自己（按 skill 自主读取 soul.md，见 Soul/README.md 硬规则），
     /// 桌宠只负责告诉它「我现在什么状态」。这一行也**不进聊天界面**（界面显示的始终是主人原话）。
     /// 主人可在 `settings/agent.json` 里把 `injectStats` 设为 false 完全关掉。
     /// </para>

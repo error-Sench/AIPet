@@ -23,7 +23,7 @@ public sealed class PetCommand
 /// 指令通道（能力层的**下行面**）：Agent 在回复里内嵌指令块，桌宠解析后执行。
 /// <para>
 /// **为什么是文本内嵌、而不是 JSON-RPC 字段**：ACP 的 `session/prompt` 响应只有 `stopReason`，
-/// 没有自定义字段通道；而各 Agent 结构不同（见 idea.md 人格注入原则）。把协议定在**回复文本**上，
+/// 没有自定义字段通道；而各 Agent 结构不同（见 script/Soul/README.md 硬规则（Agent 自主读取，不做注入））。把协议定在**回复文本**上，
 /// 任何 Agent（Hermes / 别的 ACP 客户端 / 甚至纯 HTTP 兜底）都能用，桌宠侧零耦合。
 /// </para>
 /// <para>

@@ -38,23 +38,21 @@
 - 实测证据：Godot headless 跑通「会话建立 → 发送 → 流式回复『桌宠链路已通』→ end_turn」，`hermes acp --check` OK，Hermes 0.21.2。
 - 实现文件：`script/Agent/AcpClient.cs`（客户端）+ `script/Agent/AgentBridge.cs`（Node 生命周期包装）；测试场景 `tests/AcpTest.tscn`。
 
-**人格注入方案（已定，2026-09-15）**：**用 Agent 原生机制，不写插件、不改协议。**
+**人格与数据的获取方式（已定稿，2026-09-16）**：**不做主动注入 —— Agent 自主读取。**
 
-| 通道 | 机制 | 结论 |
+> 主人三次强调的硬规则：桌宠**不推送**人格/数值/记忆（不拼消息、不写插件钩子、不改 system prompt），
+> 只把文件**放在磁盘上**；交付物是一份 **skill**，用户把它提交给自己的 Agent，Agent 按指引**自己来读**
+> `soul.md` / `stats.json` / `profile.md` / `memory.jsonl`（路径表见 `script/Soul/README.md`）。
+
+保留的技术事实（供选型参考，**不作为我们的方案**）：
+
+| 通道 | 机制 | 备注 |
 |---|---|---|
-| **SOUL.md**（首选） | `$HERMES_HOME/SOUL.md` 是 **identity slot #1**，存在即注入 system prompt（`load_soul_md`） | ✅ **人格注入的正解** |
-| **Profile 隔离** | `hermes -p <profile>` 每个 profile 有独立 HERMES_HOME（自己的 SOUL.md） | ✅ 桌宠用独立 profile，不污染主人日常人格 |
-| 项目上下文文件 | `AGENTS.md`/`.hermes.md`/`CLAUDE.md` 按 cwd 注入，**也会进 system prompt** | ⚠️ **构建期正常**（工程上下文），**打包时 cwd 须指向干净目录** |
-| `pre_llm_call` 插件钩子 | 注入到 **user message**（非 system prompt） | ️ 适合动态记忆/上下文，**不适合人格** |
-| ACP 协议 | `session/prompt` 只带用户文本，**无独立 system prompt 通道** | ❌ 不可用于人格 |
-
-**落地方式**：
-1. 建桌宠专属 profile（如 `hermes -p aipet`），其 `SOUL.md` = 桌宠人格（内容来自 `soul.md`，可软链或复制）。
-2. ACP 子进程用该 profile 启动，cwd 指向**无 AGENTS.md 的干净目录**。
-3. 主人手改 `soul.md` 后，同步到 profile 的 `SOUL.md`（或直接软链）。
-4. 动态上下文（记忆/画像/环境）后续可用 `pre_llm_call` 钩子注入 user message。
-
-**约束**：SOUL.md 上限 20,000 字符，超长会 head+tail 截断；内容经过注入扫描器（明显注入模式会被 `[BLOCKED]`）。
+| SOUL.md | `$HERMES_HOME/SOUL.md` 存在即进 system prompt（`load_soul_md`） | Agent **自己**的机制，由用户自行决定是否使用 |
+| Profile 隔离 | `hermes -p <profile>` 各有独立 HERMES_HOME | 别的用户可用；本机不碰主人 profile |
+| 项目上下文文件 | `AGENTS.md`/`.hermes.md`/`CLAUDE.md` 按 cwd 进 system prompt | **打包时 cwd 须指向干净目录**（否则工程契约会进人格）|
+| `pre_llm_call` 钩子 | 注入 user message | 我们**不用**（属主动注入）|
+| ACP 协议 | `session/prompt` 只带用户文本，无 system prompt 通道 | 正因如此才走「文件 + 自主读取」|
 
 **消息协议 v1（自定义 HTTP 兜底方案，保留备用）**：
 - **桌宠 → Agent**（`POST /ask`）：
@@ -66,7 +64,7 @@
 
 **指令通道（下行面）落地（✅ 已实测 2026-09-16）**：
 
-ACP 的 `session/prompt` 响应只有 `stopReason`，**没有自定义字段通道**；而各 Agent 结构不同（人格注入原则见 §2）。
+ACP 的 `session/prompt` 响应只有 `stopReason`，**没有自定义字段通道**；而各 Agent 结构不同（人格与数据的获取方式见 §2：**Agent 自主读取，不做注入**）。
 因此协议定在**回复文本内嵌围栏块**上——任何 Agent（Hermes / 别的 ACP 客户端 / HTTP 兜底）都能用，桌宠侧零耦合：
 
 ````

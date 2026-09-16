@@ -5,7 +5,7 @@ using Godot;
 namespace desktop.script.Soul;
 
 /// <summary>
-/// 灵魂层：读取「人格文件」soul.md，生成注入 Agent 的提示词段落。
+/// 灵魂层：读取「人格文件」soul.md，提供 Agent **自主读取**的人格文本（本类不做任何注入）。
 /// 关键认知：LLM 不读文件学习、权重不变；人格 = prompt 资产，
 /// 靠「每轮注入 + few-shot 范式锚定 + 低 temperature」逼近稳定。
 /// 职责边界（互不混写）：
