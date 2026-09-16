@@ -130,9 +130,21 @@ run_with_timeout() {
   pid=$!
   ( sleep "$secs"; : >"$flag"; kill_tree "$pid" ) >/dev/null &
   watchdog=$!
-  # 有界等待：万一杀不干净，别把脚本自己挂死（最多再等 15s）
-  while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 150 ]; do sleep 0.1; i=$((i + 1)); done
-  if [ "$i" -ge 150 ]; then
+  # 等探针自己退出，或等超时哨兵（硬上限 secs+15s；MSYS 下每圈约 0.1-0.15s）。
+  # ⚠ 必须允许等到 secs，不能只等十几秒——否则 20 秒以上的探针会被误判「杀不掉」。
+  local cap=$((secs * 10 + 150))
+  while kill -0 "$pid" 2>/dev/null; do
+    [ -f "$flag" ] && break
+    [ "$i" -ge "$cap" ] && break
+    sleep 0.1; i=$((i + 1))
+  done
+  # 哨兵已触发 / 触到硬上限：有界等待杀进程生效（最多再等 ~15s），等不到才算杀不掉
+  if kill -0 "$pid" 2>/dev/null; then
+    i=0
+    while kill -0 "$pid" 2>/dev/null && [ "$i" -lt 150 ]; do sleep 0.1; i=$((i + 1)); done
+  fi
+  if kill -0 "$pid" 2>/dev/null; then
+    kill_tree "$pid" >/dev/null 2>&1 || true
     RC=125
     printf '\n  [warn] 进程 %s 杀不掉，屏幕上可能残留一个窗口；继续跑下一个\n' "$pid" >&2
   else

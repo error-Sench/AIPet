@@ -3,7 +3,7 @@
 这个目录是 AIPet 桌宠**对外交付**的成果：给用户 Agent 的 **skill**、给用户的**灵魂模板**，外加这份说明。
 
 ## 语音（可选）
-默认用 Edge 在线语音（晓晓，好听，需要网络）。想开：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`。不装也没关系——会回退到 Windows 自带语音（机械但能用）；不想让它说话就把 `settings/tts.json` 的 `启用` 改成 `false`。
+默认用 Edge 在线语音（晓晓，好听，需要网络）。想开：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`。不装也没关系——会回退到 Windows 自带语音（机械但能用）；不想让它说话就把 `config/tts.json` 的 `启用` 改成 `false`。
 
 ## 这是什么（为什么是这两个文件）
 
@@ -17,13 +17,13 @@ AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 | 交付物 | 文件 | 给谁 |
 |---|---|---|
 | skill | `skill/SKILL.md` | **给用户的 Agent**（告诉它去哪读、怎么指挥桌宠、怎么写记忆） |
-| 灵魂模板 | `soul_template.md` | 给用户（人格文件的结构与写法；现有 `settings/soul_template.md` 的改进版） |
+| 灵魂模板 | `soul_template.md` | 给用户（人格文件的结构与写法；现有 `config/soul_template.md` 的改进版） |
 
-> 本目录只**新增文件**，不改动仓库里的任何代码与文档。`soul_template.md` 是 `settings/soul_template.md` 的**改进版**（多了「说话风格」「口头禅与禁忌」「与数值的关系」三节），要不要替换原文件由项目主进程决定。
+> 本目录只**新增文件**，不改动仓库里的任何代码与文档。`soul_template.md` 是 `config/soul_template.md` 的**改进版**（多了「说话风格」「口头禅与禁忌」「与数值的关系」三节），要不要替换原文件由项目主进程决定。
 
 ## 三步用起来
 
-1. **接上你的 Agent**：桌宠通过 ACP 驱动 Agent（`settings/agent.json` 里 `backend: hermes-acp` + `executable` 指向你的 agent CLI）。接好之后，聊天窗里你说的话会原样发给它，它的回复显示回来。
+1. **接上你的 Agent**：桌宠通过 ACP 驱动 Agent（`config/agent.json` 里 `backend: hermes-acp` + `executable` 指向你的 agent CLI）。接好之后，聊天窗里你说的话会原样发给它，它的回复显示回来。
 2. **把 skill 交给你的 Agent**（下一节）。
 3. **想改人格** → 编辑桌宠的 `soul/soul.md`（或者把 `soul_template.md` 复制过去当底稿）。
 
@@ -45,7 +45,7 @@ AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 桌宠的 `user://` 在 Windows 上：
 
 ```
-C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\desktop\
+C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 ```
 
 | 文件 | 谁写 | 说明 |
@@ -68,7 +68,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\desktop\
 
 - ⚠️ **`play_anim` 的参数键与自动生成的 `context.md` 示例不一致**：`ContextTable.cs` 生成的示例文本写的是 `{"cmd":"play_anim","name":"…"}`，而 `PetCommands.cs` 只读 `anim`（别名 `animation`）。用 `name` 的那条会被丢弃、动画不播。**建议主进程把 `ContextTable.cs` 里那句示例改成 `anim`**（本包未改代码）。
 - `soul_get` / `soul_set` 在白名单里但**未实现**，会被跳过并记日志（改人格请直接编辑 `soul.md`）。
-- `open_url` 仅在 `settings/agent.json` 的 `aggressiveMode=true` 时可用；默认关闭。项目**刻意不提供**任何「执行本地命令」能力。
+- `open_url` 仅在 `config/agent.json` 的 `aggressiveMode=true` 时可用；默认关闭。项目**刻意不提供**任何「执行本地命令」能力。
 - 事件池 500 行为上限（自动裁最旧）；ack 是否算数取决于 `ref` 与事件的 `t` **完全一致**。
 - 隐私边界：事件池只记桌宠自己的观察（时间 / 时长 / 状态机事件），**不记**窗口标题、进程名、键鼠内容、屏幕内容。
 - 本包内容与代码同步于：`script/Agent/PetCommands.cs`（白名单 / 上限）、`script/Soul/ContextTable.cs`（路径 / 上下文结构 / 画像与记忆模板）、`script/State/EventPool.cs`（事件格式 / ack）、`script/State/StateMachine.cs`（合法状态）、`script/Soul/StatsTable.cs`（数值 / 心情词）。

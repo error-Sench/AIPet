@@ -15,9 +15,9 @@
 
 ## 它现在能做什么
 
-- **会说话**（默认开）：桌宠冒出的气泡会被念出来，默认用 **Edge 在线语音（晓晓）**，声音自然；不想联网就改 `settings/tts.json` 的 `引擎` 为 `sapi`（Windows 自带，本机、机械）。装语音：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；没装/断网会自动回退，不会报错。
+- **会说话**（默认开）：桌宠冒出的气泡会被念出来，默认用 **Edge 在线语音（晓晓）**，声音自然；不想联网就改 `config/tts.json` 的 `引擎` 为 `sapi`（Windows 自带，本机、机械）。装语音：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；没装/断网会自动回退，不会报错。
 
-- **网速监测气泡**（桌面气泡样式）：命令栏点「网速」→ 桌面右上角出现一行小胶囊 `↓1.2MB/s ↑340KB/s`，左键拖动、右键关闭。嫌大/嫌不透改 `settings/widget.json`（字号 8-22、边距 0-3、透明度 0.3-1.0）。
+- **网速监测气泡**（桌面气泡样式）：工具栏点「网速监控」→ 桌面右上角出现一行小胶囊 `↓1.2MB/s ↑340KB/s`，左键拖动、右键关闭。嫌大/嫌不透改 `config/widget.json`（字号 8-22、边距 0-3、透明度 0.3-1.0）。
 
 | 层 | 能力 |
 |---|---|
@@ -26,19 +26,19 @@
 | **记忆** | `profile.md` 用户画像 + `memory.jsonl` 记忆流水（**由 Agent 自己写**）+ 事件池 `events.jsonl`（行为日志 + 待 Agent 处理的事件）|
 | **能力** | ACP 协议接外部 Agent（Hermes 实测打通）：流式对话、会话恢复、**指令通道**（Agent 用 ` ```pet ` 围栏块指挥桌宠：set_state / speak / play_anim / set_mode / queue_chain / set_mood …）|
 | **感知** | 环境感知（**默认关**）：只读「键鼠空闲秒数」与「前台是否全屏」→ 全屏静默、离开/回来打招呼、久坐提醒 |
-| **表达** | 语音输出用 **Windows 自带语音**（不内置模型，`settings/tts.json` 可关）+ 气泡 + 动画 |
+| **表达** | 语音输出（默认 **Edge 在线语音（晓晓）**，可切 Windows 自带；不内置模型，`config/tts.json` 可关）+ 气泡 + 动画 |
 | **接口** | **上下文接口** `context.md`：把人格/数值/画像/最近记忆/待办事件组装成一份文件，Agent 读一份就够，不必到处翻文件 |
 
 ## 快速上手
 
 1. **运行**：解压到**可写目录**（不要放 `Program Files`）→ 双击 `MagicPet.exe`。
    详见 [`document/新用户上手.md`](document/新用户上手.md)。
-2. **接上你自己的 Agent**（推荐）：编辑 `settings/agent.json` 的 `backend` / `executable`。
+2. **接上你自己的 Agent**（推荐）：编辑 `config/agent.json` 的 `backend` / `executable`。
 3. **改人格**：编辑数据目录里的 `soul/soul.md`（右键桌宠 → 配置 → 「数据」可直接打开数据目录）。
 4. **交出 skill**：把 `dist/skill/SKILL.md` 给你自己的 Agent（Claude Code / Hermes / Codex…），
    它就会按约定自主读数据、写记忆、用指令通道指挥桌宠 —— 见 [`dist/README.md`](dist/README.md)。
 
-数据都在 `%APPDATA%\Godot\app_userdata\desktop\`；隐私边界与全部开关见
+数据都在 `%APPDATA%\Godot\app_userdata\AIPet\`；隐私边界与全部开关见
 [`document/隐私与权限模型.md`](document/隐私与权限模型.md)。
 
 ### 交互
@@ -47,7 +47,7 @@
 * **移动**：左键拖拽（拖到屏幕左右边缘会被吸附并缩进去，鼠标靠近会探出）。
 * **菜单**：右键呼出（聊天 / 工具栏 / 配置）。
 * **文件与文本**：拖放文件到桌宠、或 `Ctrl + V` 粘贴。
-* ~~缩放：滚轮~~ —— **已删除**（运行时缩放会破坏动画链，缩放改成启动时读 `settings/pet.json`）。
+* ~~缩放：滚轮~~ —— **已删除**（运行时缩放会破坏动画链，缩放改成启动时读 `config/pet.json`）。
 
 ## 打包（分发者）
 

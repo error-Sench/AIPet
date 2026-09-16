@@ -8,10 +8,10 @@
 # 注意：shell 变量名必须用 ASCII（bash 不认识中文标识符，会把它当命令执行）。注释与输出用中文没问题。
 #
 # 为什么这样组装（见 document/打包审计.md）：
-#   * 导出产物读不到 res:// 里的 settings/*.json → 必须把 settings/ 放在 exe 旁边（ConfigFile 的查找顺序）
+#   * 导出产物读不到 res:// 里的 config/*.json → 必须把 config/ 放在 exe 旁边（ConfigFile 的查找顺序）
 #   * mods/ 与 config/ 是运行必需资产，必须随包（桌宠动画、命令、工具路径都在这）
 #   * 分发包里的 agent.json 要清掉作者机器路径（默认「本地桌宠模式」，用户自己接 Agent）
-#   * 不要装进 Program Files：程序要在自己旁边读写 mods/ config/ settings/
+#   * 不要装进 Program Files：程序要在自己旁边读写 mods/ config/
 
 set -uo pipefail
 
@@ -53,17 +53,15 @@ echo "✓ 导出完成"
 
 echo "=== [3/5] 组装分发包 ==="
 rm -rf "$OUT_DIR"
-mkdir -p "$OUT_DIR/licenses" "$OUT_DIR/settings"
+mkdir -p "$OUT_DIR/licenses"
 cp "$EXPORT_DIR/MagicPet.exe" "$OUT_DIR/" 2>/dev/null
 cp "$EXPORT_DIR/MagicPet.pck" "$OUT_DIR/" 2>/dev/null || echo "  （提示：embed_pck=false 时 exe 与 pck 必须一起发）"
 cp -r "$EXPORT_DIR"/data_* "$OUT_DIR/" 2>/dev/null   # .NET 导出产物目录
 cp -r "$ROOT/mods" "$OUT_DIR/mods"                   # 运行必需资产
 cp -r "$ROOT/config" "$OUT_DIR/config"
-cp "$ROOT/settings/"*.json "$OUT_DIR/settings/" 2>/dev/null
-cp "$ROOT/settings/soul_template.md" "$OUT_DIR/settings/" 2>/dev/null
 
 # 清掉作者机器专属配置：默认「本地桌宠模式」，用户自己接 Agent
-python - "$OUT_DIR/settings/agent.json" <<'PYEOF'
+python - "$OUT_DIR/config/agent.json" <<'PYEOF'
 import json, sys, os
 p = sys.argv[1]
 if os.path.exists(p):
@@ -85,13 +83,13 @@ cp "$ROOT/VERSION" "$OUT_DIR/"
 
 cat > "$OUT_DIR/README.txt" <<TXTEOF
 AIPet $VER —— 解压即用
-重要：请放在**可写目录**（例如 D:\\AIPet），不要放进 Program Files —— 它要在自己旁边读写 mods/ config/ settings/。
+重要：请放在**可写目录**（例如 D:\\AIPet），不要放进 Program Files —— 它要在自己旁边读写 mods/ config/。
 1) 双击 MagicPet.exe 启动桌宠（首次启动会生成人格与数据文件）。
-2) 数据位置：%APPDATA%\\Godot\\app_userdata\\desktop\\（人格 soul/soul.md、数值 stats.json、
+2) 数据位置：%APPDATA%\\Godot\\app_userdata\\AIPet\\（人格 soul/soul.md、数值 stats.json、
    上下文接口 context.md、事件 events.jsonl、画像 soul/profile.md、记忆 soul/memory.jsonl）。
 3) 退出：右键桌宠 → 退出。
-4) 想让它连上你自己的 Agent（推荐）：见 settings/agent.json 与「新用户上手.md」。
-5) 语音：使用系统自带语音（Windows 设置 → 时间和语言 → 语音），不联网。
+4) 想让它连上你自己的 Agent（推荐）：见 config/agent.json 与「新用户上手.md」。
+5) 语音：默认 Edge 在线语音（晓晓）；不想联网可在 config/tts.json 切「sapi」（Windows 自带）。
 TXTEOF
 
 echo "=== [4/5] 打 zip ==="

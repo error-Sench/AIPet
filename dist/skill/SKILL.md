@@ -32,7 +32,7 @@ description: "Use when 用户的桌面上跑着 AIPet 桌宠（一个 Godot 桌�
 桌宠的 `user://` 在 Windows 上落在 Godot 的用户目录（它的项目名是 `desktop`）：
 
 ```
-C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\desktop\
+C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 ```
 
 > 若该目录不存在：在 `%APPDATA%\Godot\app_userdata\` 下找项目名对应的目录（有人改过项目名）。
@@ -91,14 +91,14 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\desktop\
 
 | cmd | 参数 | 用法与限制 |
 |---|---|---|
-| `set_state` | `state` | 切身体层状态。**只有这 10 个值有效**：`idle`、`interact`、`drag`、`think`、`speak`、`listen`、`working`、`sleep`、`greet`、`edge_hide`。`think`/`speak`/`listen`/`working`/`sleep` 是持续态：用默认切法调用后，约 **120 秒**没有后续信号会自动回 `idle`（时长来自 `settings/behavior.json` 的「持续态兜底秒」，用户可改；只有 `edge_hide` 不吃兜底）；`interact`（约 2 秒）、`greet`（约 2.5 秒）是短反应，到时自己回 idle；`drag`、`edge_hide` 是主人交互时程序自己用的，**你一般不要碰** |
+| `set_state` | `state` | 切身体层状态。**只有这 10 个值有效**：`idle`、`interact`、`drag`、`think`、`speak`、`listen`、`working`、`sleep`、`greet`、`edge_hide`。`think`/`speak`/`listen`/`working`/`sleep` 是持续态：用默认切法调用后，约 **120 秒**没有后续信号会自动回 `idle`（时长来自 `config/behavior.json` 的「持续态兜底秒」，用户可改；只有 `edge_hide` 不吃兜底）；`interact`（约 2 秒）、`greet`（约 2.5 秒）是短反应，到时自己回 idle；`drag`、`edge_hide` 是主人交互时程序自己用的，**你一般不要碰** |
 | `speak` | `text` | 冒个气泡（显示约 4 秒）。≤ **200 字**；方括号会被替换成全角（防样式注入），所以别写 Markdown 链接。**别复述你的正文** |
 | `play_anim` | `anim` | 精确播一个动画。动画名 = `池-变体`，**必须是用户机器上已装动画包里真有的名字**；写错会被拒绝。可用的池：`idle celerate drag dragup dragdown fidget think say work listen sleep walk greet interact move edge_hide`；本机已确认的示例：`walk-left`、`walk-right`、`edge_hide-left-keep`、`edge_hide-left-peek`、`edge_hide-left-in`、`edge_hide-left-out`。**不确定名字就别用这条** |
 | `set_mode` | `mode` | 切办公 / 游戏模式：`office` 或 `game` |
 | `queue_chain` | `steps` | 一串「状态:秒」，逗号分隔会**替换**当前行为链。≤ **5 步**，单步 ≤ **30 秒**（超出会被夹住），省略秒数或写 0 = 立即过。状态同样只能用上面那 10 个。例：`{"cmd":"queue_chain","steps":"greet:3,think:10,idle:0"}` |
 | `set_mood` | `mood` | 改它的心情。`0–100` 的数字，或关键词 `excited`(95) / `happy`(80) / `normal`(60) / `tired`(40) / `sad`(20)，也收中文：兴奋 / 开心 / 高兴 / 一般 / 平静 / 累 / 疲惫 / 难过 / 低落 |
 | `soul_get` / `soul_set` | — | **已登记但程序里尚未实现**，会被跳过（不要用；要改人格直接编辑 `soul.md`） |
-| `open_url` | `url` | 打开网页。**仅当主人在 `settings/agent.json` 打开了 `aggressiveMode` 时**才可用（限 `http/https`，≤ 200 字符）。默认关闭，会被拒绝 |
+| `open_url` | `url` | 打开网页。**仅当主人在 `config/agent.json` 打开了 `aggressiveMode` 时**才可用（限 `http/https`，≤ 200 字符）。默认关闭，会被拒绝 |
 
 **硬上限（一轮回复内）：最多 6 条指令**，第 7 条起全部忽略。
 
@@ -132,7 +132,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\desktop\
 
 ### `soul/soul.md`（人格）
 
-- 结构：YAML frontmatter（`version` / `name`）+ 正文（我是谁 / 性格 / 说话风格 / 口头禅与禁忌 / 原则 / 思维范式 / 情绪表达 / 与数值的关系）。随包交付的 `soul_template.md` 就是这份结构（桌宠仓库里另有一份 `settings/soul_template.md`）。
+- 结构：YAML frontmatter（`version` / `name`）+ 正文（我是谁 / 性格 / 说话风格 / 口头禅与禁忌 / 原则 / 思维范式 / 情绪表达 / 与数值的关系）。随包交付的 `soul_template.md` 就是这份结构（桌宠仓库里另有一份 `config/soul_template.md`）。
 - 它本质是 **prompt 资产**（人格提示词 + 思维范式示例），**不是**数值表、不是记忆库。
 - 边界：游戏进度归 `game/save.json`，数值归 `stats.json`，**都不写进 soul.md**。
 - 改动结构时把 `version` +1 并登记；主人也可以直接手改这个文件。

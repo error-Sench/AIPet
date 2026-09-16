@@ -16,7 +16,6 @@ namespace desktop.script.Soul;
 /// </summary>
 public static class SoulTable
 {
-    private const string TemplateResPath = "res://settings/soul_template.md";
     private const string Fallback = "# 我是谁\n（人格未配置）\n";
 
     public static string RawText { get; private set; } = "";
@@ -77,18 +76,14 @@ public static class SoulTable
 
     private static string ReadTemplate()
     {
-        // 优先 exe 同目录（分发包形态）→ user:// → res://（开发期；`Godot.FileAccess` 能读 pck 里的资源）
+        // 走 ConfigFile（native 路径：user:// → exe 同目录 → res://）。
+        // 注意：config/ 被 .gdignore 忽略，**不要**用 Godot.FileAccess 直接读 res://config/...
         try
         {
-            var 外部 = Util.ConfigFile.找("settings/soul_template.md");
-            if (!string.IsNullOrEmpty(外部)) return File.ReadAllText(外部, Encoding.UTF8);
+            var 路径 = Util.ConfigFile.找("config/soul_template.md");
+            if (!string.IsNullOrEmpty(路径)) return File.ReadAllText(路径, Encoding.UTF8);
         }
-        catch { /* 忽略，继续走 pck 资源 */ }
-        if (Godot.FileAccess.FileExists(TemplateResPath))
-        {
-            using var f = Godot.FileAccess.Open(TemplateResPath, Godot.FileAccess.ModeFlags.Read);
-            if (f != null) return f.GetAsText();
-        }
+        catch { /* 忽略，用内置兜底 */ }
         return Fallback;
     }
 

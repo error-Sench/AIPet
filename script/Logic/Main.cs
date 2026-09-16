@@ -38,7 +38,7 @@ public partial class Main:Node
 		LoadUtil.初始化();
 		SoulTable.Load();
 		Audio.Tts.载入配置();          // 语音输出（系统 TTS；不内置模型）
-		UX.NetSpeedBubble.载入外观配置();  // 网速气泡外观（字号/边距/透明度，settings/widget.json 可调）
+		UX.NetSpeedBubble.载入外观配置();  // 网速气泡外观（字号/边距/透明度，config/widget.json 可调）
 		UX.NetSpeedBubble.启动恢复();      // 按上次开关状态恢复（入口＝工具栏「网速监控」；删/禁用 mod 即不再恢复）
 		ContextTable.确保数据文件();   // 画像/记忆两个数据文件（只创建、不覆盖）
 		ContextTable.生成();           // 上下文接口文件 user://context.md（Agent 自主读取，见 Soul/README.md 硬规则）

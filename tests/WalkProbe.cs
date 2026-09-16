@@ -8,7 +8,7 @@ namespace desktop.tests;
 /// <summary>
 /// 自主走动实证探针（**必须非 headless**，headless 下屏幕/窗口尺寸为 0，`尝试走动` 会直接放弃）：
 ///   ① 把桌宠窗口挪到离鼠标最远的角落（绕开「鼠标悬停在桌宠身上 → 禁止主动行为」闸门）
-///   ② 临时把节律调快（只改内存，不动 settings/behavior.json）
+///   ② 临时把节律调快（只改内存，不动 config/behavior.json）
 ///   ③ 观察是否真的发生走动、窗口 X 是否真的变了
 /// 用法：Godot_..._console.exe --path D:/Games/Github/AIPet res://tests/WalkProbe.tscn
 /// </summary>

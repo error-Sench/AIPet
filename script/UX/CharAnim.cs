@@ -35,12 +35,12 @@ public partial class CharAnim : AnimatedSprite2D
         应用外观配置();
     }
 
-    /// <summary>从 settings/pet.json 应用桌宠默认大小（窗口尺寸随后由 PetWindow 套住角色）。
+    /// <summary>从 config/pet.json 应用桌宠默认大小（窗口尺寸随后由 PetWindow 套住角色）。
     /// **大小只在启动时定**：滚轮缩放已删除（主人决策：缩放会破坏动画链 —— 素材偏移/贴边比例都是按固定缩放导入调好的）。</summary>
     private static void 应用外观配置()
     {
         _缩放 = 0.5f;   // **对齐官方内部 ZoomRatio = 0.5**（官方设置界面显示 1.0）；后续动画都按这个显示标准做
-        foreach (var 路径 in Util.ConfigFile.候选("pet.json").Concat(Util.ConfigFile.候选("settings/pet.json")))
+        foreach (var 路径 in Util.ConfigFile.候选("pet.json").Concat(Util.ConfigFile.候选("config/pet.json")))
         {
             try
             {

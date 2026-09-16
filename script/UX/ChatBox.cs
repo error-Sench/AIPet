@@ -301,11 +301,11 @@ public partial class ChatBox : Window
         }
     }
 
-    /// <summary>从 settings/panel.json 读「隐藏指令」名单（缺失/损坏 = 不隐藏）。</summary>
+    /// <summary>从 config/panel.json 读「隐藏指令」名单（缺失/损坏 = 不隐藏）。</summary>
     private static HashSet<string> 读取隐藏指令()
     {
         var 结果 = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var 路径 in Util.ConfigFile.候选("panel.json").Concat(Util.ConfigFile.候选("settings/panel.json")))
+        foreach (var 路径 in Util.ConfigFile.候选("panel.json").Concat(Util.ConfigFile.候选("config/panel.json")))
         {
             try
             {

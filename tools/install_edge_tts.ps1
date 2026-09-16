@@ -5,7 +5,7 @@
 # 声音自然；默认用 zh-CN-XiaoxiaoNeural（晓晓）。
 #
 # 用法：powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1
-# 装完重启桌宠即可（settings/tts.json 的 引擎 保持 "edge"）。
+# 装完重启桌宠即可（config/tts.json 的 引擎 保持 "edge"）。
 # 没装 / 断网时桌宠会自动回退系统语音，不会报错。
 
 $ErrorActionPreference = "Stop"

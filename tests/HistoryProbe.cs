@@ -59,16 +59,20 @@ public partial class HistoryProbe : Node
         }
         else if (_帧 == 1230)
         {
-            // 抓面板画面供人工/视觉复核（必须非 headless 才有像素）
-            var w = GetChild(0).GetNodeOrNull("ChatBox") as Window;
-            var 图 = w?.GetTexture()?.GetImage();
-            if (图 != null)
+            // 抓面板画面供人工/视觉复核（必须非 headless 才有像素；headless 的 dummy 渲染器取图会报错噪音）
+            if (!OS.HasFeature("headless"))
             {
-                var 路径 = ProjectSettings.GlobalizePath("user://history_panel.png");
-                图.SavePng(路径);
-                GD.Print($"[HS] 面板截图: {路径} ({图.GetWidth()}x{图.GetHeight()})");
+                var w = GetChild(0).GetNodeOrNull("ChatBox") as Window;
+                var 图 = w?.GetTexture()?.GetImage();
+                if (图 != null)
+                {
+                    var 路径 = ProjectSettings.GlobalizePath("user://history_panel.png");
+                    图.SavePng(路径);
+                    GD.Print($"[HS] 面板截图: {路径} ({图.GetWidth()}x{图.GetHeight()})");
+                }
+                else GD.Print("[HS] 面板截图跳过（无像素）");
             }
-            else GD.Print("[HS] 面板截图跳过（headless 无像素）");
+            else GD.Print("[HS] 面板截图跳过（headless）");
             AgentBridge.Stop();
             GetTree().Quit(_失败 == 0 ? 0 : 1);
         }

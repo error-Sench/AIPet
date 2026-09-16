@@ -27,7 +27,7 @@
 | 工具栏 | `ToolBar.cs` | 命令栏「工具栏」 | 扫描 `mods/toolbar/` 生成工具格（info.json：name/desc/action）。action＝内置动作（`netspeed`）或旧指令派发（`command:<指令名>`，如 任务管理器/游览/复制）；删目录或加 `_` 前缀＝移除/禁用 |
 | 配置窗 | `SettingsWindow.cs` | 命令栏「配置」 | 语言下拉 + 目录（点击打开文件夹） |
 | 状态窗 | `StatsWindow.cs` | 命令栏「状态」 | 数值可视化：**mood 用文字状态显示、界面不出现任何数字** + 占位行 |
-| 网速气泡 | `NetSpeedBubble.cs` | 命令栏「网速」 | **桌面气泡**形态（主人指定）：一行紧凑胶囊 ↓/↑ 实时速度；左键拖、右键关；外观 `settings/widget.json`（字号/边距/透明度）；位置记 `user://netspeed.json`；窗口尺寸**自动贴合内容**（别写死，否则会裁边） |
+| 网速气泡 | `NetSpeedBubble.cs` | 工具栏「网速监控」 | **桌面气泡**形态（主人指定）：一行紧凑胶囊 ↓/↑ 实时速度；左键拖、右键关；外观 `config/widget.json`（字号/边距/透明度）；位置记 `user://netspeed.json`；窗口尺寸**自动贴合内容**（别写死，否则会裁边） |
 
 ## 动画池机制（`CharAnim.cs`）
 

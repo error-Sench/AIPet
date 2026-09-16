@@ -66,30 +66,53 @@
 
 ## 5. 目录地图（真实路径）
 
+> **原则：顶层一个目录 = 一个职责。** 运行时要读的**配置**全在 `config/`；内容数据（动画/指令/翻译）全在 `mods/`；代码按层在 `script/`；**开发工具**在 `tools/`（不参与运行）。
+
 ```
 D:/Games/Github/AIPet/
-├── project.godot          # Godot 4.7.2 .NET (GL Compatibility)
-├── desktop.csproj         # C# 项目（SDK 4.7.2 —— Godot 4.7.2 编辑器打开时自动升级，保留）
-├── script/
-│   ├── Logic/             # Main.cs(总控) IO.cs(Info/Global 双字典) 等
-│   ├── Loader/            # ModLoader / AnimLoader / CommandLoader / ... 加载管线
-│   ├── State/             #  身体层状态机 (StateMachine.cs) + 环境感知 (EnvironmentSense.cs, P6 默认关)
-│   ├── Soul/              # 🆕 灵魂/数值层 (SoulTable.cs 读 soul.md；StatsTable.cs 心情/精力/亲密)
-│   ├── Agent/             #  能力层 (IAgentBackend 抽象 / AgentBackendRegistry 注册表 /
-│   │                      #     AcpClient / NullAgentBackend / AgentBridge)
-│   ├── Mode/              #  模式层 (ModeManager.cs)
-│   ├── Audio/             # Kws.cs 语音关键词 (Sherpa-onnx) / Tts.cs 语音输出（系统 TTS，不内置）
-│   ├── Steam/             # SteamNode / WorkShop（工坊分发，保留）
-│   ── UX/ Asset/ Util/   # 现有辅助 + ChatBox.cs(聊天框) / ToolBar.cs(工具栏) /
-│                          #   SettingsWindow.cs(配置窗) / StatsWindow.cs(状态窗) / MicaTheme.cs(云母样式)
-├── mods/                  # 行为层：main_command / main_txt / main_file / main_anim / workshop（只加不改）
-│                          #   + toolbar/（工具栏小组件：删目录即移除、加 _ 前缀即禁用）
-├── settings/              # ⚠️ 可被 Godot 读取（config/ 有 .gdignore 会被忽略）
-│   ├── agent.json         # 后端配置（backend/executable/工作目录）
-│   └── soul_template.md   # 人格模板
-├── tests/                 # headless 验证（AcpTest / ChatFlowTest）
-└── AGENTS.md              # 本文档
+├── AGENTS.md / README.md / VERSION / LICENSE          # 文档与版本
+├── project.godot / desktop.csproj / desktop.sln / export_presets.cfg   # 工程文件
+├── game.tscn / default_bus_layout.tres                # 主场景
+├── config/                # ★ 运行时配置（用户可改；改完重启生效）
+│   ├── config.json        #   模组配置（当前人物等；原项目数据）
+│   ├── i18n.csv           #   界面多语言（原项目）
+│   ├── tool.json          #   外部工具路径表（原项目）
+│   ├── agent.json         #   Agent 接入（backend / executable / aggressiveMode）
+│   ├── behavior.json      #   行为节律（走动/睡眠/贴边/环境感知/久坐提醒…）
+│   ├── pet.json           #   外观（缩放）
+│   ├── panel.json         #   面板（隐藏指令名单）
+│   ├── tts.json           #   语音输出（引擎/声音/语速/音量）
+│   ├── widget.json        #   小组件外观（网速气泡）
+│   └── soul_template.md   #   人格模板（首次运行据此落 soul.md 到 user://）
+├── mods/                  # ★ 行为层内容（mod 协议：每个子目录 = 一个 mod；只加不改）
+│   ├── main_command/ main_txt/ main_file/ main_anim/ workshop/   # 原项目
+│   └── toolbar/           #   工具栏小组件（删目录即移除、`_` 前缀即禁用）
+├── script/                # ★ C# 源码（按层）
+│   ├── Logic/             #   总控与数据流（Main / IO / FileDrop / ClipboardRead…）
+│   ├── Loader/            #   加载管线（ModLoader / AnimLoader / CommandLoader…）
+│   ├── State/             #   身体层：状态机 + 环境感知
+│   ├── Soul/              #   灵魂层：人格读取 + 数值统计
+│   ├── Agent/             #   能力层：后端抽象 + ACP 客户端 + 桥
+│   ├── Mode/              #   模式层：办公/游戏接口
+│   └── Audio/ UX/ Steam/ Util/ Asset/    # 语音 / 界面与动画 / Steam / 工具 / 图标
+├── tests/                 # 回归探针（28 个场景；跑法与清单见 tests/README.md）
+├── tools/                 # ★ 开发工具（不参与运行、不随包发布）
+│   ├── anim/              #   动画资产导入（VPet → mods/main_anim）
+│   ├── package.sh         #   打包（构建→导出→组装→打 zip）
+│   ├── run_probes.sh/.ps1 #   一键回归
+│   └── install_edge_tts.ps1   # Edge 语音依赖安装
+├── document/              # 项目文档（plan / idea / 打包审计 / 隐私模型 / 新用户上手 / img）
+├── dist/                  # 对外交付物（skill + 灵魂模板 + 用户 README）
+├── licenses/              # 第三方许可
+├── addons/                # Godot 插件（dialogue_manager）
+└── font/ icon/ resource/  # Godot 素材（字体/图标/资源；原项目）
 ```
+
+**三个常见疑问**：
+
+- **「动画」在哪？** 成品动画资产在 `mods/main_anim/anim/loris/<池>/`（运行时读）；**导入工具**在 `tools/anim/`（开发期用、不随游戏运行）——工具与成品分离。
+- **配置为什么只有一个目录？** 原 `config/`（模组数据）与 `settings/`（新功能配置）已于 2026-09-17 **合并为 `config/`**；代码统一走 `ConfigFile.候选("config/X")`（native 路径，不受 `.gdignore` 影响）。
+- **用户数据在哪？** `%APPDATA%/Godot/app_userdata/AIPet/`（人格/数值/记忆/事件/会话；见 `document/新用户上手.md` §5）。
 
 ---
 
@@ -152,7 +175,7 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 
 4. **麦克风不要在启动时打开**。`AudioStreamPlayer2D` 挂 `AudioStreamMicrophone` + `autoplay=true` 会让程序一启动就占用录音设备，无设备时报 `WASAPI: init_input_device error`（且属隐私问题）。→ 规则：**按需启动**（`Kws` 只在语音模型真加载成功后才开）。
 
-7. **`config/` 目录有 `.gdignore`，Godot 完全忽略它**。放在其中的 json 在 `res://` 下读不到（`soul_template.md`、`agent.json` 都曾中招）。→ 规则：**运行时需要读取的配置放 `settings/`**；`config/` 只放模组用的数据（`i18n.csv` 等由代码按绝对路径读取）。
+7. **`config/`、`mods/`、`document/` 都有 `.gdignore`，Godot 完全忽略它们**（原项目有意为之：不让运行数据混进导入系统）。放在其中的文件用 `Godot.FileAccess` 读 `res://...` 会读不到（`soul_template.md`、`agent.json` 都曾中招）。→ 规则：**读这些目录里的文件一律走 `ConfigFile.候选()`（native 路径）**；`ConfigFile.找` 的第三个候选就是 `res://` 的 native 化路径（开发期靠它）。
 
 8. **`FileAccess` 二义性**：`Godot.FileAccess` 与 `System.IO.FileAccess` 同名。→ 规则：同时 `using Godot;` 和 `using System.IO;` 时，显式写 `Godot.FileAccess`。
 

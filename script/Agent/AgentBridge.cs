@@ -74,8 +74,8 @@ public partial class AgentBridge : Node
 
     private static void LoadConfig()
     {
-        // 优先 user://agent.json（可与代码分离、分发时替换）；再退 exe 同目录 → res://settings/agent.json
-        var candidates = Util.ConfigFile.候选("agent.json").Concat(Util.ConfigFile.候选("settings/agent.json"));
+        // 优先 user://agent.json（可与代码分离、分发时替换）；再退 exe 同目录 → res://config/agent.json
+        var candidates = Util.ConfigFile.候选("agent.json").Concat(Util.ConfigFile.候选("config/agent.json"));
         foreach (var path in candidates)
         {
             try

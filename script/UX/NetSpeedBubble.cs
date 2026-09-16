@@ -48,14 +48,14 @@ public partial class NetSpeedBubble : Window
     /// <summary>探针：覆写配置路径（避免探针写真实用户数据，见打包审计 B6）；null＝真实路径。</summary>
     public static string 探针_配置路径覆写;
 
-    // 外观可调（settings/widget.json，缺省内置）：主人可自己微调大小/透明度，不用改代码
+    // 外观可调（config/widget.json，缺省内置）：主人可自己微调大小/透明度，不用改代码
     private static int 字号 = 10;
     private static int 边距 = 2;
-    private static float 透明度 = 0.62f;   // 更透（主人反馈「透明区域不是那么透」）；settings/widget.json 可调 0.3-1.0
+    private static float 透明度 = 0.62f;   // 更透（主人反馈「透明区域不是那么透」）；config/widget.json 可调 0.3-1.0
 
     public static void 载入外观配置()
     {
-        foreach (var 路径 in Util.ConfigFile.候选("widget.json").Concat(Util.ConfigFile.候选("settings/widget.json")))
+        foreach (var 路径 in Util.ConfigFile.候选("widget.json").Concat(Util.ConfigFile.候选("config/widget.json")))
         {
             try
             {

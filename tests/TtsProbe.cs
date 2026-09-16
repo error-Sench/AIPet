@@ -54,7 +54,7 @@ public partial class TtsProbe : Node
 
     private void A组_配置()
     {
-        GD.Print("--- A 组：配置（settings/tts.json）---");
+        GD.Print("--- A 组：配置（config/tts.json）---");
         Tts.载入配置();
         断言(Tts.启用, "默认启用（配置文件里 启用=true）");
         断言(Tts.最大字数 == 80, $"最大字数按配置（{Tts.最大字数}）");

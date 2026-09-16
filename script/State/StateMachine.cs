@@ -17,7 +17,7 @@ namespace desktop.script.State;
 /// 向下驱动 CharAnim；CharAnim 自身「动画播完回 idle」的旧逻辑在持续态期间让位（见 `接管中`）。
 ///
 /// 状态效果表见 `_效果表`：每个状态 → 动画池（目标池 / 当前兼容池）+ 是否持续态 + 秒数。
-/// 节律参数全部来自 `settings/behavior.json`（改完重启生效，无需重编译）。
+/// 节律参数全部来自 `config/behavior.json`（改完重启生效，无需重编译）。
 /// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
 /// </summary>
 public partial class StateMachine : Node
@@ -819,7 +819,7 @@ public partial class StateMachine : Node
 
     // ================= 节律配置 =================
 
-    /// <summary>节律参数（settings/behavior.json；缺失/损坏用内置默认值）。</summary>
+    /// <summary>节律参数（config/behavior.json；缺失/损坏用内置默认值）。</summary>
     public static class 设置
     {
         public static bool 启用 = true;
@@ -861,7 +861,7 @@ public partial class StateMachine : Node
 
         public static void 加载()
         {
-            foreach (var 路径 in Util.ConfigFile.候选("behavior.json").Concat(Util.ConfigFile.候选("settings/behavior.json")))
+            foreach (var 路径 in Util.ConfigFile.候选("behavior.json").Concat(Util.ConfigFile.候选("config/behavior.json")))
             {
                 try
                 {

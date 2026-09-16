@@ -20,11 +20,11 @@ namespace desktop.script.Audio;
 /// **说什么**：桌宠的**气泡**（`Dialogue.显示临时标题`）—— 它"冒出来"的话就念出来；聊天面板里的长篇回复**不念**
 /// （不打扰，也避免机器人在你耳边念小作文）。超过 `最大字数` 的泡泡不念。
 /// </para>
-/// <para>配置：`settings/tts.json`（启用 / 引擎 / edge语音 / edge命令 / 声音 / 语速 / 音量 / 最大字数）。所有开关都可随时关掉。</para>
+/// <para>配置：`config/tts.json`（启用 / 引擎 / edge语音 / edge命令 / 声音 / 语速 / 音量 / 最大字数）。所有开关都可随时关掉。</para>
 /// </summary>
 public static class Tts
 {
-    // ================= 配置（settings/tts.json，缺省用内置默认） =================
+    // ================= 配置（config/tts.json，缺省用内置默认） =================
 
     public static bool 启用 { get; private set; } = true;
     /// <summary>引擎：`edge` = Edge 在线语音（自然好听、需要网络）｜`sapi` = Windows 自带（离线、机械）。</summary>
@@ -66,7 +66,7 @@ public static class Tts
 
     public static void 载入配置()
     {
-        foreach (var 路径 in Util.ConfigFile.候选("tts.json").Concat(Util.ConfigFile.候选("settings/tts.json")))
+        foreach (var 路径 in Util.ConfigFile.候选("tts.json").Concat(Util.ConfigFile.候选("config/tts.json")))
         {
             try
             {
@@ -145,7 +145,7 @@ public static class Tts
             {
                 _edge查找过 = true;
                 _edge路径 = 找Edge();
-                GD.Print(_edge路径 != null ? $"[Tts] edge-tts: {_edge路径}" : "[Tts] 没找到 edge-tts → 用系统语音（settings/tts.json 的 edge命令 可指定路径）");
+                GD.Print(_edge路径 != null ? $"[Tts] edge-tts: {_edge路径}" : "[Tts] 没找到 edge-tts → 用系统语音（config/tts.json 的 edge命令 可指定路径）");
             }
             return _edge路径;
         }

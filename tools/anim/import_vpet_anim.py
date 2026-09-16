@@ -20,7 +20,7 @@ from collections import Counter
 from PIL import Image
 
 VPET = r"D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup"
-DST_ROOT = r"D:/Games/Github/AIPet/mods/main_anim/anim/loris"
+DST_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mods", "main_anim", "anim", "loris")
 REF = os.path.join(DST_ROOT, "idle/1/00.png")
 CANVAS = 512
 

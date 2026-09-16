@@ -1,17 +1,30 @@
-# 资产导入（VPet → mods）—— 说明文档
+# 开发工具 —— 说明文档
 
-> 本文件是 **`AGENTS.md` 的分册**（工具链部分）。相关代码：`tools/`；产物落在 `mods/main_anim/anim/loris/<池>/<变体>/`。
-> 约定：标识符英文，注释中文。
+> 本文件是 **`AGENTS.md` 的分册**（工具链部分）。
+> **`tools/` 不参与游戏运行**——它是开发 / 构建 / 资产导入的工具箱；运行时要读的东西在 `config/`（配置）与 `mods/`（内容）。
 
-## 1. 两个导入器
+## 目录
+
+| 工具 | 用途 |
+|---|---|
+| `anim/import_vpet_anim.py` | **动画资产导入（通用）**：VPet → `mods/main_anim/anim/loris/<池>/` |
+| `anim/import_vpet_walk.py` | 走动专用导入器（历史原因保留：它要按角色包围盒对齐基线） |
+| `package.sh` | 打包：构建 → 导出 → 组装 `dist/AIPet-<版本>/` → 打 zip |
+| `run_probes.sh` / `run_probes.ps1` | 一键跑全部回归探针（`--list` / `--all` / `--only`） |
+| `install_edge_tts.ps1` | 装 Edge 语音（TTS 可选依赖；装到 `%LOCALAPPDATA%\AIPet\tts-venv`，不碰系统 Python） |
+
+> **为什么动画导入器在 `tools/`**：导入器是**开发期工具**（从 VPet 素材生成动画池）；**成品动画资产在 `mods/main_anim/`**（运行时读取）。
+> 工具与成品分离——改工具不影响运行；`tools/` 也**不随分发包发布**。
+
+## 1. 动画导入（`anim/`）
 
 | 脚本 | 用途 |
 |---|---|
-| `tools/import_vpet_walk.py` | 走动专用（历史原因保留：它要按角色包围盒对齐基线） |
-| `tools/split_agents_docs.py` | 一次性迁移脚本：把 AGENTS.md 的各层内容拆到 `script/*/README.md` + `tests/README.md`（可重跑；幂等）。拆分原则：**只搬不重写**、**踩坑编号全局保留** |
-| `tools/import_vpet_anim.py` | **通用导入器**：`SPEC` 里一张「池 → [(源叶子路径, 目标变体名)]」表；`python tools/import_vpet_anim.py [池名]` |
+| `anim/import_vpet_anim.py` | **通用导入器**：`SPEC` 里一张「池 → [(源叶子路径, 目标变体名)]」表；`python tools/anim/import_vpet_anim.py [池名]` |
+| `anim/import_vpet_walk.py` | 走动专用（历史原因保留：它要按角色包围盒对齐基线） |
 
 **素材来源**：`D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup/`（VPet 原项目，1000×1000 画布）。
+**输出目录**：自动相对本仓库定位（`<仓库根>/mods/main_anim/anim/loris/`）——换机器不用改脚本。
 
 ## 2. 导入规则（都是实测结论）
 

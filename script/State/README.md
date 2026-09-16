@@ -68,7 +68,7 @@ StateMachine.EnqueueChain(
 
 #### 3.1.2 动画池资产管理（VPet 资产导入）
 
-**导入器**：`tools/import_vpet_anim.py`（`python tools/import_vpet_anim.py [池名]`），源为 VPet `mod/0000_core/pet/vup`，产物写入 `mods/main_anim/anim/loris/<池>/<变体>/`。
+**导入器**：`tools/anim/import_vpet_anim.py`（`python tools/anim/import_vpet_anim.py [池名]`），源为 VPet `mod/0000_core/pet/vup`，产物写入 `mods/main_anim/anim/loris/<池>/<变体>/`。
 
 已导入的池（每个池含多个变体，`进入状态` 在池内随机取一项 → 天然有变化）：
 
@@ -125,7 +125,7 @@ StateMachine.EnqueueChain(
 
 **退出保护**：持续态锁定会让退出动画的播完回调被吞掉（`case "exit"` 不触发 → 程序关不掉），因此 `CharAnim.OnAnimationFinished` 的锁定判断放行退出动画，且 `播放退出动画()` 先调 `StateMachine.准备退出()` 解锁。
 
-### 3.2 自主行为节律（`settings/behavior.json`，改完重启生效）
+### 3.2 自主行为节律（`config/behavior.json`，改完重启生效）
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
@@ -154,7 +154,7 @@ StateMachine.EnqueueChain(
 
 ### 3.3 环境感知（P6，**默认关闭**）
 
-感知主人是否在用电脑，让「不打扰」更聪明。**开关在 `settings/behavior.json`，默认关**——不开就一次也不查。
+感知主人是否在用电脑，让「不打扰」更聪明。**开关在 `config/behavior.json`，默认关**——不开就一次也不查。
 
 **隐私边界（硬约束，实现里写死）**：
 
@@ -216,7 +216,7 @@ StateMachine.EnqueueChain(
 
 ### 视觉微调旋钮（主人要求：这类对齐他自己调）
 
-全部在 `settings/behavior.json`，**改完重启生效**；窗口宽 282px：
+全部在 `config/behavior.json`，**改完重启生效**；窗口宽 282px：
 
 | 旋钮 | 默认 | 作用 |
 |---|---|---|
@@ -236,7 +236,7 @@ StateMachine.EnqueueChain(
 | 鼠标进入 → 播 `Rise` 的 `A_Start`，**不动窗口**；离开 → `Rise` 的 `C_End` → 回 `Main` 的 `B_Loop` | 同样：悬浮只切动画；探出的窗口位移**默认 0**（`探出可见比例` 与隐藏相同） |
 | 点击宠物 → `MoveWindows` 把窗口拉回屏内 + 播 `Main` 的 `C_End` | `复位()`（点击/面板/任何交互） |
 | 贴边判据 `GetWindowsDistanceLeft() < -50 × ZoomRatio` | `贴边阈值像素`（默认 20） |
-| 缩放 = `Set.ZoomLevel`（用户设置） | `settings/pet.json` 的 `缩放`（同样只在启动时读一次） |
+| 缩放 = `Set.ZoomLevel`（用户设置） | `config/pet.json` 的 `缩放`（同样只在启动时读一次） |
 | `DisplayBLoopingForce` = B 段播完**立刻**再播，"2 秒"节奏来自 B 段时长 | 显式 `贴边循环间隔秒`（默认 2.0，更好调） |
 
 **实测左右差异（给调参做参考）**：`-keep` 帧里角色在窗口内 `left x∈[68,220]` / `right x∈[69,221]`；
@@ -273,7 +273,7 @@ StateMachine.EnqueueChain(
 23. **视觉对齐别靠截图估，先看官方源码**。本次三处结论都来自 `LorisYounger/VPet`：
     ① 贴边对齐是素材配置 `side: left#219 right#281`（**素材像素、左右各一个值**）→ 我们也做每侧偏移；
     ② **官方悬浮时完全不动窗口**（`MouseEnter` 只 `Display(Rise, A_Start)`）→ 我"又滑窗口又播动画"才是「整个人飞出来」的根因；
-    ③ 缩放是 `Set.ZoomLevel`（用户设置项），换算到我们的 512 画布 = `settings/pet.json` 的 `缩放`。
+    ③ 缩放是 `Set.ZoomLevel`（用户设置项），换算到我们的 512 画布 = `config/pet.json` 的 `缩放`。
 
 ### 踩坑 #14
 
@@ -297,7 +297,7 @@ StateMachine.EnqueueChain(
 
 ### 久坐提醒（程序侧第一个实例）
 
-| 键（`settings/behavior.json`） | 默认 | 作用 |
+| 键（`config/behavior.json`） | 默认 | 作用 |
 |---|---|---|
 | `久坐提醒分钟` | 90 | 主人连续活跃 ≥ 此值 → 冒泡提醒休息（0 = 关）|
 | `久坐提醒冷却分钟` | 90 | 两次提醒的最小间隔 |

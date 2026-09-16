@@ -13,7 +13,7 @@
 | **P0** | Agent 会话链路（ACP）+ 三个面板（聊天 / 工具栏 / 配置） | — | ✅ 已完成 |
 | **P1** | **身体层：状态机自主行为**（状态效果 + 触发 + 交互接入） | — | ✅ 已完成（2026-09-16） |
 | **P2** | 动画资产：新增语义池（think/sleep/walk/greet/interact/edge_hide）+ VPet 资产导入 | P1 | ⏳ **基本完成**（16 池已导入，仅 `listen` 无对应素材、回退 fidget）|
-| **P3** | 灵魂层：`soul.md` 落地 + 灵魂模板/skill（**Agent 自主读取，不做注入**）| P0 | ⏳ **部分**（`SoulTable.cs`+`settings/soul_template.md` 已建、启动加载已接；**注入链路未接**）|
+| **P3** | 灵魂层：`soul.md` 落地 + 灵魂模板/skill（**Agent 自主读取，不做注入**）| P0 | ⏳ **部分**（`SoulTable.cs`+`config/soul_template.md` 已建、启动加载已接；**注入链路未接**）|
 | **P4** | 记忆与画像：`memory.jsonl` / `profile.md`（**由 Agent 自主读取**，不做注入）| P3 | ⏳ |
 | **P5** | 数值层：`stats.json`（mood/energy）+ 可视化 + 情绪表达规则 | P1 | ✅ 已完成（数值 + 文字状态窗 + 情绪择档；主动注入已按硬规则删除 → 改为上下文接口供 Agent 自读）|
 | **P6** | 环境感知：前台窗口 / 键鼠空闲（隐私可控）→ 驱动主动行为 | P1 | ✅ 已完成（**默认关**，只读空闲秒数+是否全屏）|
@@ -47,7 +47,7 @@
 
 > **降级原则**：目标池不存在时（P2 之前）自动回退到「现有动画池」列；`CharAnim.进入状态` 已经内置「未知池 → idle」的兜底。
 
-### 1.2 自主行为节律（v1，参数全部走 `settings/behavior.json`）
+### 1.2 自主行为节律（v1，参数全部走 `config/behavior.json`）
 
 | 行为 | 触发条件 | 约束 |
 |---|---|---|
@@ -66,7 +66,7 @@
 ### 1.3 任务分解（每步 2–5 分钟）
 
 **任务 1｜状态效果表 + 配置读取**
-- 改：`script/State/StateMachine.cs`（状态→池映射表 + `settings/behavior.json` 读取，缺省用内置值）
+- 改：`script/State/StateMachine.cs`（状态→池映射表 + `config/behavior.json` 读取，缺省用内置值）
 - 验证：`dotnet build` 0 错误
 
 **任务 2｜状态锁：让 `CharAnim` 让位给状态机**
@@ -106,7 +106,7 @@ script/UX/ChatBox.cs              # think/speak 持续态
 script/Logic/ClipboardRead.cs     # 粘贴 → 交互记录
 script/Logic/FileDrop.cs          # 拖入 → 交互记录
 script/Audio/Kws.cs               # 语音 → 交互记录/唤醒
-settings/behavior.json            # 新增：节律参数（可调，不用重编译）
+config/behavior.json            # 新增：节律参数（可调，不用重编译）
 tests/StateProbe.cs (+ .tscn)     # 新增：状态机回归探针
 AGENTS.md                         # 契约同步
 ```
@@ -127,7 +127,7 @@ AGENTS.md                         # 契约同步
 2. 启动后不碰它：≥45s 后能看到自主走动；≥10 分钟（或深夜 3 分钟）进入 sleep。
 3. 单击桌宠有反应（interact），拖动时立即打断自主行为。
 4. 面板打开期间**没有任何**主动行为。
-5. 参数全在 `settings/behavior.json`，改完重启生效，无需重编译。
+5. 参数全在 `config/behavior.json`，改完重启生效，无需重编译。
 
 ---
 
@@ -194,7 +194,7 @@ AGENTS.md                         # 契约同步
 |---|---|
 | 资产来源 | VPet `MOVE/walk.left` / `walk.right` 的 `B_Nomal` 体态档（A/B/C 是 VPet 的体态档；取中间档、各 6 帧最平滑） |
 | 产物 | `mods/main_anim/anim/loris/walk/{left,right}/`，各 `000.png…005.png`（三位零填充）+ `info.json {"rate": 8}` |
-| 转换 | 导入工具 `tools/import_vpet_walk.py`（可复用、参数化）。**关键：不能直接 1000→512 缩放**——必须按角色包围盒对齐到现有 loris 素材基线（参考帧底边 497 / 中心 x 263 / 角色高 485），且整段动画只算**一次**偏移逐帧套用，否则会抹掉帧间位移（走动的动作本身）。实测导入后角色高 482、底边 499，与参考一致 |
+| 转换 | 导入工具 `tools/anim/import_vpet_walk.py`（可复用、参数化）。**关键：不能直接 1000→512 缩放**——必须按角色包围盒对齐到现有 loris 素材基线（参考帧底边 497 / 中心 x 263 / 角色高 485），且整段动画只算**一次**偏移逐帧套用，否则会抹掉帧间位移（走动的动作本身）。实测导入后角色高 482、底边 499，与参考一致 |
 | 循环 | `CharAnim.循环动画组 = ["walk"]` → 该池以循环模式载入（6 帧 @8fps = 0.75s，一次位移 ≈1s，不循环会断档） |
 | 方向 | `CharAnim.PlayNamed("walk-left"/"walk-right")`（新增：按动画名精确播放，区别于 `PlayState` 的「按池随机取一项」）；状态机按 `_走动目标X` 与当前 X 决定方向 |
 | 不重播 | 三个走链节共用同一段动画，已是目标动画时不重播（否则链节边界重置相位、看起来一顿一顿） |
@@ -203,7 +203,7 @@ AGENTS.md                         # 契约同步
 
 ### ✅ 已完成：think / say / work / sleep / greet / interact（2026-09-16）
 
-通用导入器 `tools/import_vpet_anim.py`（参数化 SPEC，`python tools/import_vpet_anim.py [池名]`），共导入 **169 帧 / 16 段动画**：
+通用导入器 `tools/anim/import_vpet_anim.py`（参数化 SPEC，`python tools/anim/import_vpet_anim.py [池名]`），共导入 **169 帧 / 16 段动画**：
 
 | 池 | 变体 | 帧数 |
 |---|---|---|
@@ -226,7 +226,7 @@ AGENTS.md                         # 契约同步
 
 **剩余仅 `listen`**（VPet 无对应资产 → 回退 fidget）。`edge_hide` 已导入（12 段/59 帧）且行为层已实装，见下方贴边章节。
 
-> 导入每个池都要过同一套规则（按前缀拆目录 / 三位零填充 / 丢 1bit 遮罩层 / 缩放对齐 512 / 写 rate），`tools/import_vpet_walk.py` 可直接改造成通用导入器。
+> 导入每个池都要过同一套规则（按前缀拆目录 / 三位零填充 / 丢 1bit 遮罩层 / 缩放对齐 512 / 写 rate），`tools/anim/import_vpet_walk.py` 可直接改造成通用导入器。
 
 ## 两个交互/会话缺陷修复（2026-09-16）
 
@@ -314,7 +314,7 @@ ACP 的 `session/prompt` 响应只有 `stopReason`，**没有自定义字段通�
 - `set_state` 查 `StateMachine.状态有效()`；`play_anim` 查 `CharAnim.有动画()` —— 拒绝任意字符串（实测越界构造如 `../../evil`、以及伪造的 shell 命令串，都被挡下）。
 - `speak` 限 200 字 + 转义 `[`（防 BBCode 注入）；`queue_chain` 限 5 步 / 单步 ≤30s。
 - `set_mood` / `soul_get` / `soul_set` **已登记但未实现**（P3）→ 记「未实现」而**不假装成功**。
-- `aggressiveMode`（`settings/agent.json`，默认 false）当前只放宽 `open_url`（限 http/https）。
+- `aggressiveMode`（`config/agent.json`，默认 false）当前只放宽 `open_url`（限 http/https）。
   **刻意不实现任何「执行本地命令」能力** —— 那需要专门设计 + 主人明确授权，不应顺手开洞。
 
 ### 验证
@@ -439,7 +439,7 @@ PASS  C1 say 池无 happy 变体 → 安全回退池内随机（say-serious）
 | 提案 | 落盘位置 | 内容 |
 |---|---|---|
 | 1 | §6 | 「指令通道（下行面）落地」小节：ACP 无自定义字段通道 → 协议定在回复文本内嵌围栏块；块内一行一条；永不显示；实现与验证指路 |
-| 2 | §6 安全边界第 2 条 | 激进开关写实：`settings/agent.json` 的 `aggressiveMode`，当前仅放宽 `open_url`；**刻意不实现本地命令执行** |
+| 2 | §6 安全边界第 2 条 | 激进开关写实：`config/agent.json` 的 `aggressiveMode`，当前仅放宽 `open_url`；**刻意不实现本地命令执行** |
 | 3 | §6 白名单表 | 新增「实现状态」列：5 条已实现、`set_mood` 已转正、`soul_get/set` 待 P3、`open_url` 仅激进 |
 | 4 | §10 坑 #13/#14/#15 | 指令通道三坑（静默解析 / 回放也要过滤 / 跨 chunk 拼接）＋「状态机是动画所有者」＋「探针要隔离不测的那层」 |
 | 5 | §10.1 探针表 | 新增 `CommandProbe` / `CommandE2E` / `StatsProbe` / `MoodProbe` 四行 |
@@ -450,7 +450,7 @@ PASS  C1 say 池无 happy 变体 → 安全回退池内随机（say-serious）
 ## P5 第三切片：数值进 Agent 上下文（**已撤销，2026-09-16 主线改为「不做主动注入」**）
 
 > ✅ **本节做法已被主人指令取代**：主人定稿「**我们不做主动注入**，只写 skill 由用户提交给 Agent，让 Agent 自主读我们的信息/决策文件」。
-> 因此 `injectStats` / `组装提示()` 的追加逻辑 / `PetCommands.去掉状态行()` 与 `settings/agent.json` 的 `injectStats` 键**全部删除**，
+> 因此 `injectStats` / `组装提示()` 的追加逻辑 / `PetCommands.去掉状态行()` 与 `config/agent.json` 的 `injectStats` 键**全部删除**，
 > 发给 Agent 的就是主人原话；数值改为**上下文接口**：`ContextTable` 组装 `user://context.md`（含人格/数值/画像/最近记忆/指令通道 + 源文件路径），
 > Agent **自己来读**（启动 + 数值存盘时刷新）。下面保留当时的实现记录，仅作历史。
 
@@ -470,7 +470,7 @@ PASS  C1 say 池无 happy 变体 → 安全回退池内随机（say-serious）
 **设计边界（重要）**：
 - **只加数据，不加人格**。人格归 Agent 自己的 SOUL.md（见 §2 人格注入原则），桌宠只负责告诉它「我现在什么状态」。
 - 这一行**不进聊天界面** —— 界面显示的永远是主人原话。
-- 可一键关闭：`settings/agent.json` 的 `injectStats`（默认 `true`）→ `Ask` 里一次性组装，排队路径同样生效。
+- 可一键关闭：`config/agent.json` 的 `injectStats`（默认 `true`）→ `Ask` 里一次性组装，排队路径同样生效。
 
 ### 连带发现的对称问题（已修）
 
@@ -591,7 +591,7 @@ hermes 存的是**我们实际发出去的文本**（含状态行），所以 `s
 | `StateMachine.允许主动()` 闸门 | **全屏中 + 全屏静默** → 主动行为（走动/搭话）一律拦下 —— 这是「不打扰」红线的加强 |
 | `StateMachine.心跳()` | 维护「闲→忙」边沿：主人离开超过阈值后又回来 → 打招呼（**60s 节流**，且受每小时主动预算约束） |
 
-### 配置（`settings/behavior.json`，默认关闭）
+### 配置（`config/behavior.json`，默认关闭）
 
 ```jsonc
 "环境感知启用": false,   // ← 开关（默认关：不开就完全不动）
@@ -627,7 +627,7 @@ PASS  E1     关掉开关后注入值也不生效（彻底不动）
 
 所以：**Main = 隐藏时的姿态序列；Rise = 鼠标靠近时的探出/缩回**。左右是镜像。
 
-### 导入（`tools/import_vpet_anim.py edge_hide`，12 段 / 59 帧）
+### 导入（`tools/anim/import_vpet_anim.py edge_hide`，12 段 / 59 帧）
 
 `mods/main_anim/anim/loris/edge_hide/{left,right}-{in,keep,hold,out,peek,unpeek}/`
 
@@ -641,14 +641,14 @@ PASS  E1     关掉开关后注入值也不生效（彻底不动）
 
 **验证**：`EdgeHideProbe` 16 断言全 PASS —— 池已登记、12 段全部载入、左右都能真播。
 
-### 第二切片：行为（**已实装**；下表为当初定的默认，实际值以 `settings/behavior.json` 为准）
+### 第二切片：行为（**已实装**；下表为当初定的默认，实际值以 `config/behavior.json` 为准）
 
 | 决策点 | 我的默认 |
 |---|---|
 | 触发 | **拖拽结束**且窗口**被推出屏外 ≥ 20px** → 贴边（判据已对齐官方 `dist < -50×ZoomRatio`，早先是「离屏边 20px 内」太敏感）。mood 驱动**尚未做**（心情<35 自动躲边） |
 | 隐藏程度 | 窗口**大部分移出屏外**，只留约 **30%** 在屏内（具体像素待视觉复核后定） |
 | 交互 | 鼠标进入可见区 → `-peek` 探出（**窗口默认不动**，对齐官方：悬浮只播动画）；离开 1s → `-unpeek` 缩回；点击/拖拽/面板打开 → `-out` 复位回 idle |
-| 开关 | `settings/behavior.json` 的 `贴边隐藏启用`，**默认开**（这是桌宠惯例行为，且让它更不打扰）
+| 开关 | `config/behavior.json` 的 `贴边隐藏启用`，**默认开**（这是桌宠惯例行为，且让它更不打扰）
 
 ---
 
@@ -676,7 +676,7 @@ PASS  E1     关掉开关后注入值也不生效（彻底不动）
 | # | 项 | 层 | 现状 | 说明 |
 |---|---|---|---|---|
 | 0 | ~~上下文接口~~ ✅ **已完成** | P3/P4 | `ContextTable.cs` + `user://context.md`（人格/数值/画像/记忆/指令通道 + 路径表）+ `ContextProbe` 17 断言 | 启动与 30s 刷新；文件只读、源文件各归其主 |
-| 1 | **灵魂模板 + skill**（交付物） | P3/P8 | `SoulTable` 已能读 `soul.md`（**只读不推**）；模板骨架 `settings/soul_template.md` 已有 | **不做注入**。skill 写明：文件路径 + 「Agent 自主读取」+ 指令协议；**项目完工时写**（P8）|
+| 1 | **灵魂模板 + skill**（交付物） | P3/P8 | `SoulTable` 已能读 `soul.md`（**只读不推**）；模板骨架 `config/soul_template.md` 已有 | **不做注入**。skill 写明：文件路径 + 「Agent 自主读取」+ 指令协议；**项目完工时写**（P8）|
 | 2 | **记忆与画像** | P4 | 未开始（只有 `user://soul/soul.md`） | `memory.jsonl` / `profile.md`；提炼链「短期 6 →（每 6 条）中期 6 → 永久 20」（idea §3.4）；画像 ≤ 5k 字符 |
 | 3 | ~~行为事件系统~~ ✅ **第一切片完成** | P4 | `EventPool.cs` + 久坐提醒（程序侧）+ 升级为 Agent 事件 + `EventProbe` | 复用：P6 感知 ✅、回来/离开 ✅、任务完成 ✅。**下一批**：节假日/系统事件/更多事件类型（`idea §7.2`）|
 | 4 | ~~事件池（行为日志）~~ ✅ **完成** | P4 | `user://events.jsonl`（JSONL 流水 + ack + 保留上限 500 + 隐私边界） | idea §8 的形态；**下一批**：独立的 `logs/action.jsonl` 细分（若需要）|
@@ -690,3 +690,14 @@ PASS  E1     关掉开关后注入值也不生效（彻底不动）
 ### 已收口（不再有 TODO）
 
 P0（Agent 链路 + 三面板 + 指令通道）· P1（状态机/节律/不打扰）· P2（16 池导入 + 贴边隐藏素材与行为层 + 对齐官方）· **P3 接口部分（上下文接口 `context.md` + 数据文件脚手架）** · **#3/#4 行为事件系统第一切片（事件池 `events.jsonl` + 久坐提醒 + 升级为 Agent 事件）** · **#5 TTS（系统语音，不内置）** · **#8 降级提醒** · P5（数值 + 文字状态窗 + 情绪择档；**改为 Agent 自主读取，已删主动注入**）· P6（环境感知，默认关）。
+
+---
+
+## 2026-09-17 结构重整（施工记录）
+
+- **`settings/` 并入 `config/`**：运行时配置统一为一个目录（原 config 的模组数据 + 原 settings 的新功能配置）；代码统一读 `ConfigFile.候选("config/X")`（native 路径，不受 `.gdignore` 影响）。`package.sh` 与发行文档同步。
+- **`tools/` 分类**：动画导入器移入 `tools/anim/`（**成品动画在 `mods/main_anim`；工具不参与运行、不随包发布**）；删除一次性迁移脚本 `split_agents_docs.py`。
+- **清理**：删除 `document/tags.txt`、`document/tokens.txt`（原项目误提交的草稿/模型碎片）与根目录 `desktop.csproj.old`（未跟踪的旧备份）。
+- **AGENTS.md §5 重写**：「一个目录 = 一个职责」原则 + 常见疑问（动画在哪 / 配置合并 / 数据目录）。
+- 遗留（待定）：`mods/main_anim/node/_啊哈`（原项目的演示脚本，已被 `_` 前缀禁用，未参与运行）。
+- 顺手修（回归工具链）：`run_probes.sh` 等待循环只等 ~15-21 秒，>20 秒的探针被误判「杀不掉/超时」（HistoryProbe 中招，断言其实全过）→ 重写为「等满超时哨兵 + 杀后有界等待」；HistoryProbe 在 headless 下取面板图的报错噪音一并修掉。

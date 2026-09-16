@@ -12,8 +12,9 @@ import shutil
 from PIL import Image
 
 SRC = r"D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup/MOVE"
-DST = r"D:/Games/Github/AIPet/mods/main_anim/anim/loris/walk"
-REF = r"D:/Games/Github/AIPet/mods/main_anim/anim/loris/idle/1/00.png"
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DST = os.path.join(_ROOT, "mods", "main_anim", "anim", "loris", "walk")
+REF = os.path.join(_ROOT, "mods", "main_anim", "anim", "loris", "idle", "1", "00.png")
 CANVAS = 512
 RATE = 8
 VARIANT = "B_Nomal"   # A/B/C 是 VPet 的体态档；取中间档，6 帧最平滑
