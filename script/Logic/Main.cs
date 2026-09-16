@@ -40,6 +40,13 @@ public partial class Main:Node
 		Audio.Tts.载入配置();          // 语音输出（系统 TTS；不内置模型）
 		ContextTable.确保数据文件();   // 画像/记忆两个数据文件（只创建、不覆盖）
 		ContextTable.生成();           // 上下文接口文件 user://context.md（Agent 自主读取，见 Soul/README.md 硬规则）
+		// 首启引导（打包审计 A7）：第一次运行（还没有人格文件）→ 说一声，并提示数据目录怎么找
+		if (!SoulTable.IsLoaded)
+		{
+			GD.Print($"[AIPet] 首次运行：数据目录 = {ProjectSettings.GlobalizePath("user://")}");
+			Dialogue.显示临时标题($"初次见面，我是{SoulTable.名字}～右键我 → 配置，能看到我的数据都存在哪", 9000);
+		}
+
 		ModLoader.加载模组();
 		
 		Kws.TurnOn();

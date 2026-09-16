@@ -25,9 +25,16 @@ public partial class ContextProbe : Node
         else { _失败++; GD.PrintErr($"[CTX] FAIL  {描述}"); }
     }
 
+    private readonly string _临时目录 = Path.Combine(Path.GetTempPath(), "aipet_ctx_probe");
+
     public override void _Ready()
     {
-        GD.Print("=== ContextProbe: 场景已实例化 ===");
+        // B6（打包审计）：探针**绝不碰真实用户数据** —— 全部走临时覆写路径
+        Directory.CreateDirectory(_临时目录);
+        ContextTable.探针_上下文覆写 = Path.Combine(_临时目录, "context.md");
+        ContextTable.探针_画像覆写 = Path.Combine(_临时目录, "profile.md");
+        ContextTable.探针_记忆覆写 = Path.Combine(_临时目录, "memory.jsonl");
+        GD.Print($"=== ContextProbe: 场景已实例化（临时目录 {_临时目录}）===");
     }
 
     public override void _Process(double delta)
@@ -39,6 +46,8 @@ public partial class ContextProbe : Node
             case 20: B组_脚手架不覆盖(); break;
             case 30: C组_生成与只读不推送(); break;
             case 40:
+                ContextTable.探针_上下文覆写 = ""; ContextTable.探针_画像覆写 = ""; ContextTable.探针_记忆覆写 = "";
+                try { Directory.Delete(_临时目录, true); } catch { /* 忽略 */ }
                 GD.Print($"[CTX] ===== 失败数 = {_失败} =====");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
                 break;
@@ -76,9 +85,13 @@ public partial class ContextProbe : Node
         ContextTable.确保数据文件();
         断言(File.ReadAllText(ContextTable.画像路径) == 哨兵, "B1 已存在的 profile.md 不被覆盖（Agent 写的东西是安全的）");
         断言(File.ReadAllText(ContextTable.记忆路径).Contains(哨兵), "B2 已存在的 memory.jsonl 不被覆盖");
-        断言(ContextTable.画像路径.EndsWith("soul/profile.md".Replace('/', Path.DirectorySeparatorChar)) ||
-            ContextTable.画像路径.EndsWith("soul\\profile.md") || ContextTable.画像路径.EndsWith("soul/profile.md"),
-            $"B3 画像路径在 soul/ 下（{ContextTable.画像路径}）");
+        断言(ContextTable.画像路径.StartsWith(_临时目录), $"探针全程走临时目录，不碰真实用户数据（{ContextTable.画像路径}）");
+        // 生产路径形状：临时清空覆写检查完再恢复
+        var 覆写 = ContextTable.探针_画像覆写;
+        ContextTable.探针_画像覆写 = "";
+        断言(ContextTable.画像路径.Replace('\\', '/').EndsWith("soul/profile.md"),
+            $"真实画像路径在 soul/ 下（{ContextTable.画像路径}）");
+        ContextTable.探针_画像覆写 = 覆写;
 
         // 记忆只带末尾若干条
         var 行 = new StringBuilder();

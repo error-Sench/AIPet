@@ -21,10 +21,16 @@ public static class ContextTable
     // ================= 路径（唯一的真源，skill / 文档都引用这里） =================
 
     public const string 上下文文件名 = "context.md";
-    public static string 上下文路径 => ProjectSettings.GlobalizePath($"user://{上下文文件名}");
+    /// <summary>探针用：临时覆写路径（绝不碰真实用户数据）。空 = 用真实路径。</summary>
+    public static string 探针_上下文覆写 { get; set; } = "";
+    public static string 探针_画像覆写 { get; set; } = "";
+    public static string 探针_记忆覆写 { get; set; } = "";
+
+    public static string 上下文路径 => string.IsNullOrEmpty(探针_上下文覆写)
+        ? ProjectSettings.GlobalizePath($"user://{上下文文件名}") : 探针_上下文覆写;
     public static string 数值路径 => ProjectSettings.GlobalizePath("user://stats.json");
-    public static string 画像路径 => ProjectSettings.GlobalizePath("user://soul/profile.md");
-    public static string 记忆路径 => ProjectSettings.GlobalizePath("user://soul/memory.jsonl");
+    public static string 画像路径 => string.IsNullOrEmpty(探针_画像覆写) ? ProjectSettings.GlobalizePath("user://soul/profile.md") : 探针_画像覆写;
+    public static string 记忆路径 => string.IsNullOrEmpty(探针_记忆覆写) ? ProjectSettings.GlobalizePath("user://soul/memory.jsonl") : 探针_记忆覆写;
 
     /// <summary>最近记忆在上下文里带几条。</summary>
     public const int 记忆条数上限 = 12;

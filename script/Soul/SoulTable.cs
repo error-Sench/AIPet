@@ -25,6 +25,21 @@ public static class SoulTable
 
     public static string FilePath => ProjectSettings.GlobalizePath("user://soul/soul.md");
 
+    /// <summary>显示名缺省值（soul.md frontmatter 没写 name 时用）。</summary>
+    public const string 默认名字 = "小萝";
+
+    /// <summary>桌宠显示名：读 soul.md frontmatter 的 `name:`（**改人格文件即可改名**，聊天窗标题/说话人标签都用它）。</summary>
+    public static string 名字
+    {
+        get
+        {
+            var 匹配 = System.Text.RegularExpressions.Regex.Match(RawText ?? "", @"(?m)^\s*name\s*:\s*(.+?)\s*$");
+            if (!匹配.Success) return 默认名字;
+            var 值 = 匹配.Groups[1].Value.Trim().Trim('"', '\'');
+            return 值.Length == 0 ? 默认名字 : 值;
+        }
+    }
+
     /// <summary>启动时读取人格文件；缺失时回退模板并落一份到 user://。</summary>
     public static void Load()
     {

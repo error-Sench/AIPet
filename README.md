@@ -1,73 +1,94 @@
 <p align="center">
-  <img src="./icon/icon.png" width="200" alt="MagicPet Logo">
+  <img src="./icon/icon.png" width="200" alt="AIPet Logo">
 </p>
 
-# MagicPet - 魔法桌宠
+# AIPet —— Agent 驱动的桌宠
 
 [![License](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://opensource.org/licenses/GPL-3.0)
-[![Engine](https://img.shields.io/badge/Engine-Godot-orange.svg)](https://godotengine.org/)
+[![Engine](https://img.shields.io/badge/Engine-Godot%204.7.2%20.NET-orange.svg)](https://godotengine.org/)
 
-**MagicPet** 是一款基于 Godot 开发的轻量化桌宠工具箱。其核心定位是一个具备桌宠外壳的 **CLI 与自动化脚本启动器**。
-
-通过内置的 GDScript 支持，用户可以实现极高自由度的模组化定制，将复杂的自动化任务集成于灵动的桌面角色之中。
-
-> **素材致谢**：美术资源引用自开源项目 [VPet](https://github.com/LorisYounger/VPet)。
+> 一只**有自己的状态、会自己动、能跟你的 Agent 说话**的桌宠。
+> 定位不是「套皮工具箱」，而是 **Agent 驱动的桌宠前端**：人格、数值、记忆、事件都写在磁盘上，
+> 由 Agent 按 skill **自主读取** —— **我们不做主动注入**（硬规则，见 `script/Soul/README.md`）。
 
 ---
 
-## 🛠 功能与操作
+## 它现在能做什么
 
-### 交互指令
+| 层 | 能力 |
+|---|---|
+| **身体** | 状态机自主行为：待机小动作、自主走动、打瞌睡、打招呼、被摸摸（三段动画）、**贴边隐藏**（拖到屏幕边缩进去、鼠标靠近探出；判据与对齐方式对照 VPet 官方源码实现）|
+| **灵魂** | `soul.md` 人格文件（改文件即改性格，显示名取自 frontmatter 的 `name`）+ 数值层（心情/精力/亲密，驱动表情变体与行为频率）|
+| **记忆** | `profile.md` 用户画像 + `memory.jsonl` 记忆流水（**由 Agent 自己写**）+ 事件池 `events.jsonl`（行为日志 + 待 Agent 处理的事件）|
+| **能力** | ACP 协议接外部 Agent（Hermes 实测打通）：流式对话、会话恢复、**指令通道**（Agent 用 ` ```pet ` 围栏块指挥桌宠：set_state / speak / play_anim / set_mode / queue_chain / set_mood …）|
+| **感知** | 环境感知（**默认关**）：只读「键鼠空闲秒数」与「前台是否全屏」→ 全屏静默、离开/回来打招呼、久坐提醒 |
+| **表达** | 语音输出用 **Windows 自带语音**（不内置模型，`settings/tts.json` 可关）+ 气泡 + 动画 |
+| **接口** | **上下文接口** `context.md`：把人格/数值/画像/最近记忆/待办事件组装成一份文件，Agent 读一份就够，不必到处翻文件 |
 
-* **缩放**：滚动鼠标滑轮。
-* **移动**：左键点击并拖拽人物。
-* **菜单**：右键点击呼出指令面板。
-* **交互**：支持直接拖放文件至人物，或点击后通过 `Ctrl + V` 粘贴内容。
+## 快速上手
 
-### 输入支持
+1. **运行**：解压到**可写目录**（不要放 `Program Files`）→ 双击 `MagicPet.exe`。
+   详见 [`document/新用户上手.md`](document/新用户上手.md)。
+2. **接上你自己的 Agent**（推荐）：编辑 `settings/agent.json` 的 `backend` / `executable`。
+3. **改人格**：编辑数据目录里的 `soul/soul.md`（右键桌宠 → 配置 → 「数据」可直接打开数据目录）。
+4. **交出 skill**：把 `dist/skill/SKILL.md` 给你自己的 Agent（Claude Code / Hermes / Codex…），
+   它就会按约定自主读数据、写记忆、用指令通道指挥桌宠 —— 见 [`dist/README.md`](dist/README.md)。
 
-* **文件路径**：支持鼠标拖入或剪切板读取（兼容目录及快捷方式）。
-* **文本信息**：支持剪切板纯文本粘贴。
-* **网络链接**：自动识别剪切板中的 URL 地址。
+数据都在 `%APPDATA%\Godot\app_userdata\desktop\`；隐私边界与全部开关见
+[`document/隐私与权限模型.md`](document/隐私与权限模型.md)。
+
+### 交互
+
+* **摸摸**：左键单击。
+* **移动**：左键拖拽（拖到屏幕左右边缘会被吸附并缩进去，鼠标靠近会探出）。
+* **菜单**：右键呼出（聊天 / 工具栏 / 配置）。
+* **文件与文本**：拖放文件到桌宠、或 `Ctrl + V` 粘贴。
+* ~~缩放：滚轮~~ —— **已删除**（运行时缩放会破坏动画链，缩放改成启动时读 `settings/pet.json`）。
+
+## 打包（分发者）
+
+```bash
+bash tools/package.sh            # 构建 → Godot 导出 → 组装 dist/AIPet-<版本>/ → 打 zip
+```
+前置：Godot 4.7.2 的**导出模板**（编辑器 → 编辑器菜单 → 管理导出模板）；Godot 可执行文件路径可用环境变量 `GODOT=` 指定。
+包结构与缺口清单见 [`document/打包审计.md`](document/打包审计.md)，第三方许可见 [`licenses/`](licenses/THIRD-PARTY-NOTICES.md)。
+
+## 开发
+
+```bash
+dotnet build D:/Games/Github/AIPet/desktop.csproj   # 必须 0 个 error CS
+bash tools/run_probes.sh                            # 一键跑全部 headless 探针（--all 含需要真实窗口的）
+```
+
+**文档地图**（改代码前先看这个）：
+
+| 文件 | 内容 |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | **工程契约（主文档）**：六层架构、开发约定、踩坑清单索引 |
+| [`document/plan.md`](document/plan.md) | 路线图 + **待办唯一权威清单**（含主人已拍板的决策与「不做」清单）|
+| [`document/idea.md`](document/idea.md) | 设计意图（Why / What）|
+| `script/*/README.md` | 各层分册：灵魂 / 状态 / UX / Agent / 音频（细节与踩坑都在这里）|
+| [`document/新用户上手.md`](document/新用户上手.md) · [`document/隐私与权限模型.md`](document/隐私与权限模型.md) · [`document/打包审计.md`](document/打包审计.md) | 面向用户与分发 |
+
+## 可挂载的外部工具链（原有能力，按需保留）
+
+桌宠可以调起外部工具完成确定性任务（网速监控、截图、搜文件、下视频等），工具清单与路径在 `mods/` 的模组里配置：
+
+| 工具 | 说明 |
+|---|---|
+| CopyQ / Everything / Flameshot / ImageMagick / Lively / Optimizer / yt-dlp | 见各 mod 的 `config/tool.json` 键与 `info.json` |
+| Sherpa-onnx | 语音唤醒（KWS）已内置为 NuGet 依赖；**语音输出改用系统 TTS，不内置** |
+
+> 模组里目录名加下划线前缀 `_` 即可禁用该模组。
 
 ---
 
-## ⚙️ 配置与扩展
+## 说明
 
-您可以通过右键菜单进入“配置”界面进行个性化设置：
+* **项目现状**：学习 Godot 时顺手做的项目，历史代码里有较多面条与 AI 生成代码，正在按 `document/plan.md` 逐层重构。
+* **素材致谢**：角色美术来自开源项目 [VPet](https://github.com/LorisYounger/VPet)（**Apache-2.0**）。
+* **文档**：`AGENTS.md` 是工程契约，`document/` 是设计与交付文档，`script/*/README.md` 是各层分册。
 
-* **外部工具**：可执行文件存放在 `/bin` 目录下。
-* **脚本逻辑**：模组逻辑位于 `/mods` 目录。
-  * *提示：在目录名前添加下划线 `_` 即可快速禁用该模组。*
-* **模组开发**：结构设计直观，建议参考现有目录实现自定义功能，详细教程待后续更新。
+## 开源协议
 
----
-
-## 📦 集成开源工具清单
-
-项目集成了以下开源工具：
-
-| 工具名称            | 说明                        | 链接                                                   |
-|:--------------- |:------------------------- |:---------------------------------------------------- |
-| **CopyQ**       | 强大的剪切板管理器                 | [GitHub](https://github.com/hluk/CopyQ)              |
-| **Everything**  | 毫秒级全盘文件搜索                 | [Voidtools](https://www.voidtools.com/)              |
-| **Flameshot**   | 功能丰富的跨平台截图工具              | [GitHub](https://github.com/flameshot-org/flameshot) |
-| **ImageMagick** | 命令行图像处理工具集                | [GitHub](https://github.com/ImageMagick/ImageMagick) |
-| **Lively**      | 开源动态桌面和屏幕保护程序 (WinUI 3)   | [GitHub](https://github.com/rocksdanister/lively)    |
-| **Optimizer**   | Windows 系统优化工具            | [GitHub](https://github.com/hellzerg/optimizer)      |
-| **Sherpa-onnx** | 全平台离线语音处理工具 (STT/TTS/VAD) | [GitHub](https://github.com/k2-fsa/sherpa-onnx)      |
-| **yt-dlp**      | 视频下载命令行工具                 | [GitHub](https://github.com/yt-dlp/yt-dlp)           |
-
----
-
-## 📝 注意
-
-* **项目现状**：项目为学习godot时顺手做的,包含较多面条代码与 AI 生成代码，后续会重构，暂不建议深入阅读。
-* **模组门槛**：外部执行逻辑全由 AI 辅助生成，侧面验证了本项目模组开发具备极低的准入门槛。
-* **说明文档由ai细化，能看就行=-=**
-
----
-
-## 📜 开源协议
-
-本项目遵循 **GPL-3.0** 开源协议。
+本项目遵循 **GPL-3.0**；分发二进制时请随附源码或获取方式，并保留 [`licenses/THIRD-PARTY-NOTICES.md`](licenses/THIRD-PARTY-NOTICES.md)。

@@ -58,3 +58,39 @@
 | `StatsWindowProbe` | **非 headless** | 状态窗：命令栏入口存在 → 点击弹出 → **一个数字都不出现** → 文字状态随 mood 变化（并截图供视觉复核） |
 
 **踩坑：验节律必须在场景实例化「之前」写配置。** `StateMachine._Ready` 会读 `user://behavior.json` 并用它算好 `_走动倒计时`；之后再改内存里的 `设置` 字段已经晚了（探针曾因此在 20s 内一次走动都触发不了）。`WalkProbe` 的做法：`_Ready` 里先写临时 `user://behavior.json` → 再实例化场景 → 结束时删除。
+
+---
+
+## ### 10.2 一键回归：`tools/run_probes.sh` / `tools/run_probes.ps1`
+
+一次把探针全跑一遍（默认只跑 headless 的），逐个打印「名字 / 结果 / 耗时」，最后给汇总表；**任一失败 → 脚本退出码非 0**（可以直接串进别的脚本）。
+
+| 用途 | bash（git-bash / MSYS） | PowerShell（没装 bash 的机器） |
+|---|---|---|
+| 默认：所有 headless 探针 | `bash tools/run_probes.sh` | `powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_probes.ps1` |
+| 先看清单与分类（不跑，安全） | `bash tools/run_probes.sh --list` | `... -File tools\run_probes.ps1 -List` |
+| 含非 headless（会弹窗、动光标） | `bash tools/run_probes.sh --all` | `... -File tools\run_probes.ps1 -All` |
+| 只跑单个 / 几个 | `--only PanelProbe,StateProbe` | `-Only PanelProbe,StateProbe` |
+| 跳过需要真 Agent 的探针 | `--no-agent` | `-NoAgent` |
+| 单个探针超时秒数（默认 180） | `--timeout 300` | `-Timeout 300` |
+| 透传给探针的参数 | `--only SessionProbe -- -- read` | `-Only SessionProbe -ProbeArgs read` |
+| 指定 Godot 可执行文件 / 日志目录 | `--godot <exe> --logs <dir>` | `-Godot <exe> -Logs <dir>` |
+
+**判定规则**：退出码 0 = 通过、非 0 = 失败；日志里 `FAIL  `（FAIL + 两个空格）行数 = 失败断言数；**通过 = 退出码 0 且 0 条 FAIL**。脚本自己的退出码：`0` 全过 / `1` 有失败 / `2` 用法错 / `3` 环境错（找不到 Godot、找不到 `tests/`）。
+
+**headless 与非 headless 的区别**（清单由脚本扫 `tests/*.tscn` 得到，新增探针不用改脚本；`--list` 里的清单是权威版，10.1 表里还没登记的探针也会列出来）：
+
+- **默认只跑 headless 的**：不弹窗、可以后台/连着跑，适合每次改完代码的快检。
+- **非 headless 白名单默认跳过**：`DragProbe` / `SettingsProbe` / `StatsWindowProbe` / `EdgeHideBehaviorProbe` / `EnterProbe`，外加 `WalkProbe`——它们要**真实窗口 / 真实光标**，会真弹窗、真动光标，只有 `--all` 或 `--only <名字>` 才跑。`WalkProbe` 是被踩坑赶进来的：headless 下屏幕与窗口尺寸为 0，`尝试走动` 会直接放弃（跑了也是**假绿**）。
+- 名单在脚本顶部可改：`.sh` 的 `NON_HEADLESS`、`.ps1` 的 `$NonHeadless`（加进去的名字 = 默认不跑）。
+- **必须串行**：探针共用 `user://` 存档（行为节律、数值…），脚本不并行跑。
+
+**超时怎么看**：单个探针跑过 `--timeout`（默认 180s）→ 记 `TIMEOUT`、按失败计（退出码 124），并把**整棵进程树**杀掉，再按「命令行里含 `res://tests/<本探针>.tscn`」精确补一刀（只撞本探针的 Godot 进程，不会碰编辑器 / 别的项目）。两步都要的原因：`*_console.exe` 只是个启动器，只杀它会留一个孤儿窗口；MSYS 下 `taskkill /T` 还可能漏杀（子进程被重新挂父）。
+
+- **慢探针**：真连 Agent（LLM）的 `HistoryProbe` / `CommandE2E` / `AcpTest` / `ChatFlowTest` / `SessionProbe`（`--list` 里标了 `[需 Agent]`）——网络/机器慢就给 `--timeout 300`；没配 Agent 就用 `--no-agent` 跳过。
+- **失败时看什么**：脚本会把该探针的 `FAIL` 行直接打在结果下面（一条 FAIL 行都没有，就贴日志末尾 8 行）；每个探针的完整日志在汇总下面的「失败日志」里给路径，默认落在系统临时目录（`aipet_probes/<时间戳>/`）。
+- **找不到 Godot**：脚本**一开始就报错退出**（`rc=3`，并提示改脚本顶部的 `GODOT_EXE` / `$DefaultGodot`，或用 `--godot` / `-Godot` / 环境变量 `GODOT_EXE` 指定），不会每个探针都炸一遍。
+
+**`SessionProbe` 是两趟**（第一趟设暗号 → 第二趟问暗号）：单跑一次只完成第一趟，要验「记忆延续」得按上表的透传写法跑第二趟。
+
+**改 `.ps1` 的注意**：内容是**纯 ASCII + 英文注释/输出**——本机 PowerShell 5.1 读无 BOM 的 `.ps1` 按 ANSI 解析，写中文注释会解析失败。

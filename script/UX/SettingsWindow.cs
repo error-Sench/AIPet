@@ -157,6 +157,8 @@ public partial class SettingsWindow : Window
         (Tr("config"), () => 全局路径("config", () => ProjectSettings.GlobalizePath("res://config"))),
         (Tr("mods"), () => 全局路径("mod", () => LoadUtil.ModPath)),
         (Tr("save"), () => 全局路径("save", LoadUtil.GetOutputDir)),
+        // 数据目录（A7）：人格/数值/记忆/事件/上下文接口都在这里 —— 用户最容易找不到的一项
+        (Tr("data"), () => ProjectSettings.GlobalizePath("user://")),
     };
 
     private static string 全局路径(string 键, Func<string> 兜底)

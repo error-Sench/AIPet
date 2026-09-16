@@ -66,7 +66,7 @@ public partial class ChatBox : Window
     public override void _Ready()
     {
         _单例 = this;
-        Title = "小萝";
+        Title = Soul.SoulTable.名字;
         Visible = false;
         Borderless = true;
         Transparent = true;
@@ -99,7 +99,7 @@ public partial class ChatBox : Window
         var 标题行 = new HBoxContainer();
         标题行.AddThemeConstantOverride("separation", 8);
         标题底.AddChild(标题行);
-        var 标题 = new Label { Text = "小萝", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        var 标题 = new Label { Text = Soul.SoulTable.名字, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         MicaTheme.应用(标题, 15);
         标题行.AddChild(标题);
         var 副标题 = new Label { Text = "陪你聊聊，也能帮你做事" };
@@ -464,10 +464,10 @@ public partial class ChatBox : Window
         _流式缓冲.Append(块);
         if (_记录 != null)
         {
-            var 色 = 显示色("小萝");
+            var 色 = 显示色(Soul.SoulTable.名字);
             // 指令围栏块（```pet … ```）永不显示：流式中途未闭合的块也一并截掉（见 PetCommands.解析）
             var 可见 = PetCommands.过滤显示(_流式缓冲.ToString()).TrimEnd();
-            _记录.Text = _历史 + $"[color=#{色}][b]小萝[/b][/color] {转义富文本(可见)}";
+            _记录.Text = _历史 + $"[color=#{色}][b]{Soul.SoulTable.名字}[/b][/color] {转义富文本(可见)}";
             请求滚到底();
         }
     }
@@ -484,11 +484,11 @@ public partial class ChatBox : Window
         探针_最近原始流式 = _流式缓冲.ToString();
         if (_流式缓冲.Length > 0)
         {
-            var 色 = 显示色("小萝");
+            var 色 = 显示色(Soul.SoulTable.名字);
             // 落进历史的是**去掉指令块**的干净文本（AgentBridge 已执行过指令，这里只负责显示）
             var 干净 = PetCommands.过滤显示(_流式缓冲.ToString()).TrimEnd();
             if (干净.Length > 0)
-                _历史.Append($"[color=#{色}][b]小萝[/b][/color] {转义富文本(干净)}\n\n");
+                _历史.Append($"[color=#{色}][b]{Soul.SoulTable.名字}[/b][/color] {转义富文本(干净)}\n\n");
         }
         _流式缓冲.Clear();
         设置状态("");
@@ -526,7 +526,7 @@ public partial class ChatBox : Window
             ? 文本
             : PetCommands.过滤显示(文本).TrimEnd();
         if (显示.Length == 0) return; // 整条都是指令块 → 不产生空气泡
-        追加记录(是你 ? "你" : "小萝", 显示);
+        追加记录(是你 ? "你" : Soul.SoulTable.名字, 显示);
     }
 
     /// <summary>供探针读取聊天记录原文（只读）。</summary>

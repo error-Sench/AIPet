@@ -13,6 +13,13 @@ public partial class SteamNode : Node
 
     public override void _Ready()
     {
+        // B2（打包审计）：公开分发包不带 steam_api64.dll → 直接跳过，别在别人机器上刷「Steam 初始化失败」日志
+        var dll = System.IO.Path.Combine(OS.GetExecutablePath().GetBaseDir(), "steam_api64.dll");
+        if (!System.IO.File.Exists(dll))
+        {
+            GD.Print("[Steam] 未随包携带 steam_api64.dll → 跳过 Steam 初始化（公开分发包的正常状态）");
+            return;
+        }
         try
         {
             // 1. 初始化 Steam 客户端

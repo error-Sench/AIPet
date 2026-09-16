@@ -26,3 +26,9 @@ dist/AIPet-*/
 dist/*.zip
 bin/
 obj/
+
+# 仓库卫生（打包审计 B3）
+.idea/
+*.DotSettings.user
+steam_api64.dll
+*.tmp
