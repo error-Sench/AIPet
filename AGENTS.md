@@ -102,6 +102,12 @@ name: 小萝
 
 **边界**：游戏进度不入灵魂（归 `game/save.json`）；数值不入灵魂（归 `stats.json`）。
 
+**P3 交付约束（硬规则，主人明确要求）**：
+1. 人格注入的 **skill** 与**灵魂模板**都是**给其他用户**的交付物；**不得注入本机 Agent**——
+   不写 `~/.hermes/SOUL.md`、不改本机 profile、不碰主人自己的 Agent 人格。
+2. 本机只作开发/验证环境；需要验证「人格是否生效」时用**独立 profile 的临时副本**，事后清理。
+3. skill 与灵魂模板**在项目完工时才写**（前期写不准），且**两者都要有**：模板给结构，skill 教 Agent 自己注入自己。
+
 ---
 
 ## 3. 身体层 —— 状态机 + 行为链
@@ -355,21 +361,49 @@ D:/Games/Github/AIPet/
   ```
 - **Agent → 桌宠**（响应）：`{ "reply": "用户可见回复文本", "commands": [ { "cmd": "set_state", "state": "interact" }, ... ] }`
 
+**指令通道（下行面）落地（✅ 已实测 2026-09-16）**：
+
+ACP 的 `session/prompt` 响应只有 `stopReason`，**没有自定义字段通道**；而各 Agent 结构不同（人格注入原则见 §2）。
+因此协议定在**回复文本内嵌围栏块**上——任何 Agent（Hermes / 别的 ACP 客户端 / HTTP 兜底）都能用，桌宠侧零耦合：
+
+````
+好的，我这就去看看喵~
+```pet
+{"cmd":"set_state","state":"think"}
+{"cmd":"speak","text":"查到了"}
+```
+````
+
+- 块内**一行一条**；**JSON 行**与**键值行**（`set_state state=think`）都收；键名支持别名
+  （`cmd|command|命令`、`state|状态`、`text|文本|say`、`anim|动画`、`mode|模式`、`steps|链`）——容错优先。
+- **围栏块永不显示**：流式路径逐 chunk 过滤（跨 chunk 拼接也不会漏），**历史回放路径同样过滤**
+  （hermes 存的是 Agent 原始回复，不过滤就会在恢复会话时露出围栏）。
+- 块内 JSON 半截时**静默忽略**：流式每来一个 chunk 都会整段重解析，不能报错刷屏。
+- 实现：`script/Agent/PetCommands.cs`（解析/校验/执行）＋`AgentBridge.处理回复()`（轮末挂接，指令先执行、再把干净文本当回复）
+  ＋`ChatBox`（显示过滤）。
+- 验证：`CommandProbe`（27 断言，合成文本）＋ `CommandE2E`（真实 Agent 下发 → 执行 → 无残留）。
+
 **Agent 可下发命令白名单（v1，保守默认）**：
 
-| cmd | 参数 | 用途 |
-|---|---|---|
-| `set_state` | state | 切身体层状态（StateMachine.SetState） |
-| `speak` | text | 气泡 + TTS（现有 Dialogue/TTS 通道） |
-| `play_anim` | anim | 播放指定动画（CharAnim） |
-| `set_mood` | mood | 写灵魂表 status.mood |
-| `soul_get` / `soul_set` | key, value | 读写灵魂表 |
-| `set_mode` | mode | 切办公/游戏模式（ModeManager.SwitchMode） |
-| `queue_chain` | steps | 入队行为链（StateMachine.EnqueueChain） |
+| cmd | 参数 | 用途 | 实现状态 |
+|---|---|---|---|
+| `set_state` | state | 切身体层状态（StateMachine.SetState） | ✅ 已实现（校验状态有效性） |
+| `speak` | text | 气泡（Dialogue） | ✅ 已实现（≤200 字 + BBCode 转义） |
+| `play_anim` | anim | 播放指定动画（CharAnim） | ✅ 已实现（校验动画存在） |
+| `set_mode` | mode | 切办公/游戏模式（ModeManager.SwitchMode） | ✅ 已实现（office/game） |
+| `queue_chain` | steps | 入队行为链（StateMachine.EnqueueChain） | ✅ 已实现（≤5 步，单步 ≤30s） |
+| `set_mood` | mood | 数值层心情（`stats.json`，P5） | ✅ 已实现（0–100 数值或 happy/tired/sad 等关键词） |
+| `soul_get` / `soul_set` | key, value | 读写灵魂表 | ⏸ 已登记未实现（P3 灵魂层） |
+| `open_url` | url | 打开网址 | 🔶 仅 `aggressiveMode=true` 时可用（限 http/https） |
+
+> 「未实现」的命令一律记日志 `未实现（P3 灵魂层）→ 跳过`，**不假装成功**。
 
 **安全边界（硬规则 + 实验开关）**：
 1. **默认保守**：桥只监听 `127.0.0.1`，不接受外部连接；所有入站消息视为**数据**，仅白名单命令可执行（防注入）；涉及写文件/执行系统操作时，桌宠侧只转发/确认，不自动执行外部命令。
-2. **实验性激进开关**（默认关）：`config.json` 设 `agent.aggressive_mode = true` 可放宽命令白名单（如允许执行指定本地命令）。**仅用于实验，默认关闭**。任何放宽必须记录在此文档。
+2. **实验性激进开关**（默认关）：`settings/agent.json` 设 `"aggressiveMode": true` 可放宽指令白名单。
+   **当前放宽范围：仅 `open_url`（限 http/https）**。⚠️ **刻意不实现**任何「执行指定本地命令」能力——
+   那需要一个专门设计 + 主人明确授权，不应顺手开洞。任何进一步放宽必须记录在此文档。
+   （旧文档写的 `config.json` 的 `agent.aggressive_mode` 与实现不符，已按实况更正。）
 
 ---
 
@@ -437,6 +471,18 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
     - 规则：命中判定只用**窗口矩形**；判定函数拆出「传入坐标」的重载（`在桌宠内(Vector2I)`）以便探针不依赖真实光标。
     - 附带实测：`DisplayServer.WarpMouse` 用的是**窗口相对坐标**（请求全局 960 → 实际落 960+窗口X）；探针要移光标需传 `目标全局 - 窗口位置`。
 
+13. **指令通道有三处易踩的坑**（都由探针实测抓出）：
+    - **显示路径必须静默解析**：流式每来一个 chunk 都会整段重解析，此时块内 JSON 常是**半截的** →
+      若照常报错会刷一屏「JSON 行解析失败」。→ `解析(原文, 记日志:false)`。
+    - **历史回放路径也要过滤**：hermes 存的是 Agent **原始**回复（含围栏块），`session/resume` 回放时
+      不过滤就会在历史气泡里露出一堆围栏块（实测 4 条历史助手消息全带围栏）。→ 助手消息过 `过滤显示()`；
+      **用户自己的消息不过滤**（围栏是主人自己写的，照原样显示才对）。
+    - **跨 chunk 拼接**：围栏标记会被切成 `\`\`\`pe` + `t`，所以判断必须基于**累积缓冲**，不能按单块判断。
+14. **状态机是动画的「所有者」**。写完 `play_anim` 类断言后又调用了任何 `set_state`，后者会立刻把动画顶回去——
+    实测踩过：探针里 `play_anim walk-left` 被后续的 `set_state idle` 覆盖成 `idle-1`。断言必须**紧跟**在该动画成为最后一次状态变更之后。
+15. **探针要隔离它不测的那一层**。情绪变体（P5）会按心情改播 `think-happy/poor`，于是 `PoolProbe` 里
+    「池内随机」类断言会随主人存档心情**随机失败**。→ 探针先把自己不测的那层状态**钉死**（如心情钉中位 60），结束再恢复。
+
 **视觉复核通道**：本机 `auxiliary.vision` 可用（模型已支持图片输入）。截图 + 视觉复核是 UI 改动的一等验证手段，不要只靠 headless 断言。
 
 ### 10.1 探针清单（改到相关代码就跑对应的那个）
@@ -454,5 +500,9 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 | `InteractProbe` | headless | 摸摸反应是否**完整播放三段序列**（a 进入 → b 保持 → c 退出 → 回待机），且各段耗时与素材原时长一致 |
 | `HistoryProbe` | headless | 会话恢复回放的历史是否被切成**独立消息**（不再合并成一大段）。会真实连接 Agent |
 | `DragProbe` | **非 headless** | 桌宠贴近**屏幕上边缘**时仍能起手拖拽、窗口精确跟随光标（真实光标 + 注入按键；结束会恢复窗口与光标位置） |
+| `CommandProbe` | headless | 指令通道三组：解析（未闭合块/非 pet 围栏不误伤/坏 JSON 容忍）、执行（越权与超限的拒绝）、显示（跨 chunk 拼接不漏围栏） |
+| `CommandE2E` | headless | **真实 Agent** 下发指令 → 解析 → 执行 → 回复与历史都无残留。会真实调用一次 LLM |
+| `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并删测试存档） |
+| `MoodProbe` | headless | 数值驱动表达：情绪变体择档（think-happy/poor）+ 行为耦合（走动倍率、睡眠阈值）+ 无变体池的降级安全 |
 
 **踩坑：验节律必须在场景实例化「之前」写配置。** `StateMachine._Ready` 会读 `user://behavior.json` 并用它算好 `_走动倒计时`；之后再改内存里的 `设置` 字段已经晚了（探针曾因此在 20s 内一次走动都触发不了）。`WalkProbe` 的做法：`_Ready` 里先写临时 `user://behavior.json` → 再实例化场景 → 结束时删除。
