@@ -36,7 +36,7 @@
 | 探针 | 跑法 | 验证什么 |
 |---|---|---|
 | `PanelProbe` | headless | 命令栏 / 配置窗 / 状态机基本态 |
-| `ToolBarProbe` | headless | 工具栏弹出与关闭 |
+| `ToolBarProbe` | headless | 工具栏：弹出/关闭 + mod 工具格（「网速监控」·开/关状态、旧工具按钮接线）+ 点击开/关气泡 + 启动恢复 + 指令查找（**不触发副作用**）|
 | `WindowProbe` | headless | 桌宠窗口几何不漂移 |
 | `StateProbe` | headless | 状态效果表 / 状态锁 / 排队与作废 / 保持与兜底 / 入场门 / 退出保护 / 空闲与不打扰 |
 | `SettingsProbe` | **非 headless** | 配置窗真实几何 + 把窗口画面存 PNG 供视觉复核 |
@@ -51,7 +51,7 @@
 | `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并删测试存档） |
 | `ContextProbe` | headless | 上下文接口（`user://context.md`）：组装内容 / 脚手架只建不覆盖 / 只读不推送 |
 | `DegradeProbe` | headless | 降级路径：配了 Agent 起不来 → 提醒主人（气泡人话+事件池）；没配 Agent = 本地模式不打扰 |
-| `NetSpeedProbe` | headless（`-- hold` 可保持显示供外部截屏）| 网速桌面气泡：格式化/采样差分/文本与历史/位置持久化/懒创建（位置断言在 headless 下跳过）|
+| `NetSpeedProbe` | headless（`-- hold` 可保持显示供外部截屏）| 网速桌面气泡：格式化/采样差分/文本与历史/位置+开关状态持久化/懒创建（位置断言在 headless 下跳过；配置走临时文件）|
 | `TtsProbe` | headless | 语音输出：配置/清洗/门控/系统语音枚举与挑选/**真合成到 WAV**/与气泡联动（探针不发声）|
 | `EventProbe` | headless | 行为事件：事件池读写/ack/保留策略/隐私字段 + 久坐提醒触发与冷却 + 升级为 Agent 事件 + 进上下文接口 |
 | `MoodProbe` | headless | 数值驱动表达：情绪变体择档（think-happy/poor）+ 行为耦合（走动倍率、睡眠阈值）+ 无变体池的降级安全 |

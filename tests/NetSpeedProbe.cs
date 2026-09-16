@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.IO;
+using System.Text.Json;
 using Godot;
 using desktop.script.UX;
 
@@ -26,6 +27,9 @@ public partial class NetSpeedProbe : Node
     public override void _Ready()
     {
         _保持 = System.Array.IndexOf(OS.GetCmdlineUserArgs(), "hold") >= 0;
+        // 探针不碰真实数据（打包审计 B6）：配置写到临时文件，收尾删除
+        NetSpeedBubble.探针_配置路径覆写 = ProjectSettings.GlobalizePath("user://_probe_netspeed.json");
+        try { if (File.Exists(NetSpeedBubble.探针_配置路径覆写)) File.Delete(NetSpeedBubble.探针_配置路径覆写); } catch { }
         GD.Print($"=== NetSpeedProbe: 场景已实例化（保持模式={_保持}）===");
     }
 
@@ -46,6 +50,8 @@ public partial class NetSpeedProbe : Node
                     GD.Print("[NS] HOLDING（气泡保持在屏上，外部截屏后手动结束进程）");
                     break;
                 }
+                try { File.Delete(NetSpeedBubble.探针_配置路径覆写); } catch { }   // 收尾：不留探针文件
+                NetSpeedBubble.探针_配置路径覆写 = null;
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
                 break;
         }
@@ -108,7 +114,14 @@ public partial class NetSpeedProbe : Node
         // 截图见 D组_截图()（等布局算完再拍，否则截到白板 —— 聊天面板也踩过同一个坑）
         NetSpeedBubble.隐藏();
         断言(!NetSpeedBubble.可见, "隐藏() 之后不可见");
-        断言(File.Exists(ProjectSettings.GlobalizePath("user://netspeed.json")),
-            "位置写入 user://netspeed.json（下次打开还在原地）");
+        断言(File.Exists(NetSpeedBubble.探针_配置路径覆写),
+            "位置与开关状态写入配置文件（探针走临时文件，不碰真实数据）");
+        try
+        {
+            using var 文档 = JsonDocument.Parse(File.ReadAllText(NetSpeedBubble.探针_配置路径覆写));
+            var 开 = 文档.RootElement.TryGetProperty("enabled", out var 字段) && 字段.GetBoolean();
+            断言(!开, "隐藏后 enabled=false（下次启动不自动开）");
+        }
+        catch (Exception 异常) { _失败++; GD.PrintErr($"[NS] FAIL  读配置文件失败: {异常.Message}"); }
     }
 }

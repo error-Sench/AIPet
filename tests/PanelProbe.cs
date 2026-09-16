@@ -64,7 +64,7 @@ public partial class PanelProbe : Node
 
             if (!desktop.script.UX.SettingsWindow.可见) GD.PrintErr("[Probe] 配置窗未弹出");
             if (语言.Count < 5) GD.PrintErr("[Probe] 语言下拉项过少");
-            if (路径.Count != 3) GD.PrintErr("[Probe] 目录行数应为 3");
+            if (路径.Count != 4) GD.PrintErr("[Probe] 目录行数应为 4（配置/模组/存储/数据）");
 
             // 切回聊天面板并确认命令栏仍在（配置不再占用面板内的选项栏）
             desktop.script.UX.ChatBox.显示();

@@ -1,0 +1,5 @@
+{
+  "name": "游览",
+  "action": "command:visit",
+  "desc": "从列表里选一个网站游览（列表在 mods/main_command/command/2open-web/option.dialogue）。"
+}

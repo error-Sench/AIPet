@@ -11,8 +11,9 @@ namespace desktop.script.UX;
 /// 网速监测**桌面气泡**（主人指定形态：不是面板窗，是浮在桌面上的气泡）。
 /// <para>
 /// 形态：无边框 + 半透明圆角胶囊，两行数字（↓下载 / ↑上传）+ 最近 60 秒迷你曲线。
-/// 交互：**左键拖**挪位置（位置记在 `user://netspeed.json`，下次还在那）、**右键关**；
-/// 开关入口在聊天面板命令栏的「网速」按钮（与「状态」并排）。
+/// 交互：**左键拖**挪位置、**右键关**（位置与开关状态记在 `user://netspeed.json`，下次还在那）；
+/// 开关入口＝**工具栏**「网速监控」小组件（`mods/toolbar/netspeed`：点按开/关；删目录或加 `_` 前缀＝移除/禁用）。
+/// 启动时按上次状态恢复：enabled=true 且工具栏入口仍在 → 自动显示。
 /// </para>
 /// <para>
 /// 数据：`NetworkInterface` 的 IPv4 收发字节差分 —— **纯本地读取，不联网、不读任何内容、不记历史到磁盘**。
@@ -42,7 +43,10 @@ public partial class NetSpeedBubble : Window
     private bool _拖动中;
     private Vector2I _拖动起点差;
 
-    private static string 配置文件 => ProjectSettings.GlobalizePath("user://netspeed.json");
+    private static string 配置文件 => 探针_配置路径覆写 ?? ProjectSettings.GlobalizePath("user://netspeed.json");
+
+    /// <summary>探针：覆写配置路径（避免探针写真实用户数据，见打包审计 B6）；null＝真实路径。</summary>
+    public static string 探针_配置路径覆写;
 
     // 外观可调（settings/widget.json，缺省内置）：主人可自己微调大小/透明度，不用改代码
     private static int 字号 = 10;
@@ -91,14 +95,35 @@ public partial class NetSpeedBubble : Window
         _单例.按内容定尺寸();   // 每次打开都校准一次（字体/DPI 变化也稳）
         _单例.确保在屏内();
         _单例.Show();
+        _单例.保存状态();       // 记 enabled=true（下次启动按此自动恢复）
         GD.Print("[NetSpeed] 气泡已显示");
+    }
+
+    /// <summary>启动恢复：上次开着（enabled=true）且工具栏入口还在 → 自动显示；否则保持隐藏。</summary>
+    public static void 启动恢复()
+    {
+        try
+        {
+            var 路径 = 配置文件;
+            if (!File.Exists(路径)) return;
+            using var 文档 = JsonDocument.Parse(File.ReadAllText(路径));
+            if (!文档.RootElement.TryGetProperty("enabled", out var e) || !e.GetBoolean()) return;
+            if (!ToolBar.动作存在("netspeed"))
+            {
+                GD.Print("[NetSpeed] 上次开着，但工具栏 mod 不在（已删除/已禁用）→ 不自动显示");
+                return;
+            }
+            显示();
+            GD.Print("[NetSpeed] 启动恢复：按上次状态自动显示");
+        }
+        catch (Exception ex) { GD.PrintErr($"[NetSpeed] 启动恢复失败: {ex.Message}"); }
     }
 
     public static void 隐藏()
     {
         if (_单例 == null) return;
         _单例.Hide();
-        _单例.保存位置();
+        _单例.保存状态();   // Visible=false → enabled=false（下次启动不再自动开）
         GD.Print("[NetSpeed] 气泡已隐藏");
     }
 
@@ -207,7 +232,7 @@ public partial class NetSpeedBubble : Window
                 _拖动起点差 = DisplayServer.MouseGetPosition() - Position;
                 break;
             case InputEventMouseButton { Pressed: false } 松开 when 松开.ButtonIndex == MouseButton.Left:
-                if (_拖动中) { _拖动中 = false; 保存位置(); }
+                if (_拖动中) { _拖动中 = false; 保存状态(); }
                 break;
             case InputEventMouseButton { Pressed: true } 右键 when 右键.ButtonIndex == MouseButton.Right:
                 隐藏();
@@ -253,14 +278,15 @@ public partial class NetSpeedBubble : Window
         catch { 摆到默认位(); }
     }
 
-    private void 保存位置()
+    /// <summary>保存位置与开关状态（enabled 供下次启动恢复）。</summary>
+    private void 保存状态()
     {
         try
         {
             File.WriteAllText(配置文件,
-                JsonSerializer.Serialize(new { x = Position.X, y = Position.Y }));
+                JsonSerializer.Serialize(new { x = Position.X, y = Position.Y, enabled = Visible }));
         }
-        catch (Exception e) { GD.PrintErr($"[NetSpeed] 保存位置失败: {e.Message}"); }
+        catch (Exception e) { GD.PrintErr($"[NetSpeed] 保存状态失败: {e.Message}"); }
     }
 
     // ================= UI =================

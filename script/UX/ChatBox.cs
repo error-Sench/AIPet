@@ -228,11 +228,7 @@ public partial class ChatBox : Window
         状态.Pressed += StatsWindow.显示;
         _命令栏.AddChild(状态);
 
-        // 「网速」：网速监测桌面气泡（浮在桌面上，左键拖 / 右键关）
-        var 网速 = 新命令按钮("网速", null);
-        网速.TooltipText = "开关网速监测桌面气泡（不联网，只读本机网卡计数）";
-        网速.Pressed += NetSpeedBubble.开关;
-        _命令栏.AddChild(网速);
+        // 「网速」已移到工具栏「网速监控」小组件（mods/toolbar/netspeed；删目录或加 _ 前缀＝移除/禁用）
 
         var 关闭 = 新命令按钮(Tr("close"), null);
         关闭.Pressed += () => CharAnim.播放退出动画();

@@ -88,4 +88,18 @@ public static class CommandLoader
             }
         }
     }
+
+    /// <summary>按 name 查找指令（工具栏旧工具派发用）；找不到返回 null。</summary>
+    public static 可见脚本信息 按名查找(string 名)
+    {
+        if (string.IsNullOrEmpty(名)) return null;
+        foreach (var 可见 in 直接指令列表)
+            if (可见.name == 名) return 可见;
+        foreach (var 组 in 直接指令组脚本映射.Values)
+            foreach (var 可见 in 组)
+                if (可见.name == 名) return 可见;
+        foreach (var 可见 in 文本指令列表)
+            if (可见.name == 名) return 可见;
+        return null;
+    }
 }

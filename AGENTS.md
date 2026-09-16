@@ -82,7 +82,8 @@ D:/Games/Github/AIPet/
 │   ├── Steam/             # SteamNode / WorkShop（工坊分发，保留）
 │   ── UX/ Asset/ Util/   # 现有辅助 + ChatBox.cs(聊天框) / ToolBar.cs(工具栏) /
 │                          #   SettingsWindow.cs(配置窗) / StatsWindow.cs(状态窗) / MicaTheme.cs(云母样式)
-├── mods/                  # 行为层：main_command / main_txt / main_file / main_anim / workshop（不动）
+├── mods/                  # 行为层：main_command / main_txt / main_file / main_anim / workshop（只加不改）
+│                          #   + toolbar/（工具栏小组件：删目录即移除、加 _ 前缀即禁用）
 ├── settings/              # ⚠️ 可被 Godot 读取（config/ 有 .gdignore 会被忽略）
 │   ├── agent.json         # 后端配置（backend/executable/工作目录）
 │   └── soul_template.md   # 人格模板
