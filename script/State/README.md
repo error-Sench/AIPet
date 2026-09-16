@@ -1,0 +1,179 @@
+# 身体层（状态机 / 节律 / 环境感知）—— 说明文档
+
+> 本文件是 **`AGENTS.md` 的分册**。AGENTS.md 是总纲（项目定位 / 架构总览 / 目录地图 / 路线图 / 开发约定 / 已知事项），
+> **本层的细节与踩坑在这里**。相关代码：`script/State/`；改动后请跑 `tests/README.md` 里对应的探针。
+> 约定：标识符英文，注释中文。
+
+## 3. 身体层 —— 状态机 + 行为链
+
+**位置**：`script/State/StateMachine.cs`（骨架已在，标识符英文）。
+**职责**：根据情绪和状态决定表现（动画/气泡/音效）或由Agent指定→ 驱动 `CharAnim`。
+
+**状态集 v1（草案）与 VPet 动画资产映射**：
+
+> 动画资产来源：`D:\SteamLibrary\steamapps\common\VPet\mod\0000_core\pet\vup`（VPet 原项目，25 组，比现有 loris 丰富）。导入时转换为 Godot SpriteFrames（PNG 序列帧；文件名含帧序与时长，如 `摸头_0_250.png`）。
+
+| 状态 | 含义 | VPet 动画组 |
+|---|---|---|
+| `idle` 待机 | 无交互 | `IDEL`、`Default` |
+| `drag` 拖拽 | 被拖动/被举起 | `Raise`、`MOVE` |
+| `interact` 互动 | 被点击/被摸 | `Touch_Head`、`Touch_Body`、`Pinch` |
+| `think` 思考 | Agent 推理中 | `Think` |
+| `speak` 说话 | 输出回复 | `Say` |
+| `working` 执行 | 任务执行中 | `WORK` |
+| `sleep` 休眠 | 空闲/深夜 | `Sleep` |
+| `walk` 行走 | 行为链移动 | `MOVE`（14 变体，横板移动可用） |
+| `edge_hide` 贴边 | 贴屏幕边缘隐藏 | `SideHide_Left_*`、`SideHide_Right_*` |
+| `startup` / `shutdown` | 启动 / 退出 | `StartUP`、`Shutdown` |
+| 节日/成长（被动） | 庆祝等 | `BDay`、`LevelUP`、`Gift`、`Music`、`Drink`、`Eat`、`Switch` |
+
+**行为链（状态序列编排）—— v1 设计**：
+> 单状态是原子，行为链是「从 A 到 B」的完整过程。例如宠物从桌面左走到右，不是一个 `move` 状态，而是一串：`WalkStart → WalkLoop → WalkEnd`，每个链节可带时长、条件、回调。
+
+```csharp
+// 伪代码约定
+StateMachine.EnqueueChain(
+    new ChainStep("walk_start", 0.4f),
+    new ChainStep("walk_loop", 2.0f, () => 移动到(x2)),
+    new ChainStep("walk_end", 0.3f, 到达回调)
+);
+// 顺序执行: 前一个链节结束(动画播完/计时到/条件满足) -> 下一链节
+// 支持: 打断(用户输入 -> SetState 抢断)、链完成事件(chain_done)、回调
+```
+
+**转移规则 v1（草案）**：
+- 用户输入（点击/拖拽/粘贴/语音）→ 对应状态（打断当前链）。
+- Agent 下发 `set_state` → `SetState` 直接切状态；下发 `play_anim` → 仅播动画不改状态。
+- 计时器：`idle` 超时 → `sleep`；`sleep` 被交互唤醒 → `idle`/`interact`。
+- **行为链优先于单状态**：有链在执行时，普通切换先排队/打断（按链节定义决定）。
+
+**CharAnim 接口现状（已补 `PlayState` 公开入口）**：`public static void PlayState(string state)` 已加入 `CharAnim.cs`——身体层状态机统一走它，未知状态自动回退 idle。
+
+### 3.1 状态效果表（P1 实装，唯一权威在 `StateMachine._效果表`）
+
+每个状态 = **目标池**（P2 已导入的专属动画）+ **兼容池**（缺失时的优雅降级，见 §3.1.2）+ 是否持续态。选择规则：目标池既在 `动画池字典` 有非空列表、又已登记在 `CharAnim.内置动画组` 时用目标池，否则用兼容池。
+
+| 状态 | 目标池 | 兼容池 | 持续态 | 锁定 | 秒数 | 退出 |
+|---|---|---|---|---|---|---|
+| `idle` | idle | idle | ✔ | — | — | 循环 |
+| `interact` | a / b / c（**三段序列**：进入→保持→退出） | fidget | — | — | 序列驱动 | 末段播完 → idle |
+| `drag` | drag | drag | ✔ | — | — | 松手 → idle（表现由 CharAnim 负责，状态机只 `标记状态`） |
+| `think` | think | fidget | ✔ | ✔ | 120 | 显式结束 / 兜底超时 |
+| `speak` | say | fidget | ✔ | ✔ | 120 | 显式结束 / 兜底超时 |
+| `listen` | listen | fidget | ✔ | ✔ | 60 | 显式结束 / 兜底超时 |
+| `working` | work | fidget | ✔ | ✔ | 120 | 显式结束 / 兜底超时 |
+| `sleep` | sleep | idle | ✔ | ✔ | — | 任何交互唤醒（→ greet） |
+| `greet` | greet | celerate | — | — | 2.5 | 保持期满 → idle |
+| `walk_start/loop/end` | `walk-left` / `walk-right`（按方向，**循环播放**） | drag（占位） | 行为链 | — | 链节时长 | 链结束 → idle |
+
+#### 3.1.2 动画池资产管理（VPet 资产导入）
+
+**导入器**：`tools/import_vpet_anim.py`（`python tools/import_vpet_anim.py [池名]`），源为 VPet `mod/0000_core/pet/vup`，产物写入 `mods/main_anim/anim/loris/<池>/<变体>/`。
+
+已导入的池（每个池含多个变体，`进入状态` 在池内随机取一项 → 天然有变化）：
+
+| 池 | 变体（源） | 帧数 | 说明 |
+|---|---|---|---|
+| `walk` | left / right | 6+6 | VPet `MOVE/walk.*` 的 `B_Nomal`；**循环** |
+| `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
+| `say` | smile / self / serious | 7/15/4 | VPet `Say/Shining·Self·Serious` |
+| `work` | pc / read / write | 14/12/10 | VPet `WORK/WorkTWO·Study·WorkONE/A_Nomal` |
+| `sleep` | loop / happy | 6+6 | VPet `Sleep/B_Nomal·B_Happy`；**循环** |
+| `greet` | amuse / meow | 11/20 | VPet `IDEL/amusement_B·Meow/Happy/1`（VPet 无专门打招呼动作，取开心姿势） |
+| `interact` | head / body / happy | 11/11/15 | VPet `Touch_Head`·`Touch_Body`（摸头/被摸 = 被摸的反应） |
+
+> **未导入**：`listen` —— VPet 无对应资产，仍回退 `fidget`。`edge_hide`（贴边隐藏）也尚未导入。
+
+**导入硬规则（每条都踩过）**：
+1. **帧名三位零填充、从 000 起** —— `CharAnim` 的帧排序是 `filePaths.Sort()`（字符串序），`0.png,1.png,…,10.png` 会排成 `0,1,10,2…`。
+2. **必须用固定缩放（`485/948`），不要按每段动画的包围盒高度反推** —— 躺下/蹲下这类姿势包围盒本来就矮，按包围盒对齐会把它们**放大**（实测 `sleep` 被放大到 1.021 倍）；含道具的动画（写字/电脑）又会把道具算进包围盒导致角色缩水。
+3. **整段动画只算一次偏移，逐帧套用** —— 若逐帧按自身包围盒居中，会抹掉帧间位移（动作本身）。
+4. **锚点约定：包围盒底边对齐参考帧底边（地面线）** —— 躺姿也躺在这条线上；若改成居中，躺下的宠物会浮空。
+5. **单目录多序列必须拆开** —— VPet 常在单目录塞两条序列（`1毛笔开心_*` + `2…退出通用_*`、`FLA_*` + `FLB_*`）。导入器检测到一个目录里出现多于一个文件名前缀就跳过并告警。
+6. **丢弃 1bit/灰度遮罩层**（`*_lay` / `front` / `back`），它们不是帧序列。
+7. `info.json` 只写 `rate`，由文件名里的 `_<ms>` 后缀折算（取众数；125ms → 8fps）。
+
+**状态锁（`StateMachine.接管中`）——新旧两套状态逻辑的唯一交汇点**：`CharAnim.OnAnimationFinished` 原本会在动画播完时自行回 idle/fidget，会把 `think`/`speak`/`working`/`sleep` 等持续态抢掉。因此该回调入口加了一道判断：**锁定态期间让位给状态机重播当前状态**；唯一例外是**退出动画必须放行**（否则 `case "exit"` 永不触发、程序关不掉，`CharAnim.播放退出动画()` 会先调 `StateMachine.准备退出()` 解锁）。
+
+**入场门**：`StateMachine` 是 `game.tscn` 里 `Main` 的兄弟且在序列中靠后，其 `_Ready` **不得**播放 idle（deferred 的 `PlayState` 会抢掉入场动画，导致 `case "enter"` 永不触发）。入场动画播完后由 `CharAnim` 回调 `StateMachine.入场完成()` 解除门并打一次招呼。
+
+### 3.1.1 交互反应的两种时序（「摸摸可延迟、拖拽必须立刻」）
+
+| 场景 | 时序 | 机制 |
+|---|---|---|
+| **点击（摸摸）** | **延迟**：不硬切当前动画，等这次动画播完再进入 `interact` | `StateMachine.排队状态(Interact)`；`CharAnim.OnAnimationFinished` 里 `尝试应用排队状态()` 优先于自身的 idle→fidget 逻辑；`排队兜底秒`（默认 3s）防止动画不回完成信号时排队项永不生效 |
+| **拖拽** | **立刻**：同一帧生效，并**作废**排队项与交互序列（否则拖完会补一个摸摸动画） | `标记状态(Drag)`（只改逻辑态、不驱动表现，避免与 `CharAnim.开始拖拽()` 同帧两次 Play）—— 它同时清空排队项与序列 |
+| 直接状态切换（Agent `set_state`、think/speak 等） | 立刻 | `SetState()`，也会作废排队项 |
+
+#### 3.1.1.1 交互序列（多段素材必须整段播完）
+
+有些互动在**素材本身**就是多段：VPet 的摸头 = `Touch_Head/A`（进入：抬手）+ `B`（保持：抱头）+ `C`（退出：放下手回待机）。只播其中一段（例如只播 B）会在「抱头」姿势上**硬切**到待机 —— 用户反馈「突兀」，本质是**动画没播完**。
+
+修复方式（`StateMachine._序列表`）：
+
+| 环节 | 实现 |
+|---|---|
+| 声明 | `_序列表[Interact] = ["interact-a","interact-b","interact-c"]`（动画名 = `{池}-{变体}`） |
+| 推进 | 由**「动画播完」回调**驱动（`CharAnim.OnAnimationFinished` → `重播当前状态()` → `推进序列()`），**不做时长猜测** —— 实测各段耗时与素材原时长一致（a = 2帧@4fps = 0.5s、b = 11帧@8fps = 1.375s） |
+| 收尾 | 末段播完自动 `SetState(Idle)`（这就是「原版的后半段」） |
+| 协作 | 序列存在时该状态视为**接管中**（CharAnim 让位，不自行回 idle）；`标记状态()`（拖拽）会立即打断序列 |
+| 回退 | 序列首段动画不存在时，自动回退到效果表的单池路径 |
+
+> **判定依据（实测）**：A 的末帧是「抱头」、C 的末帧是「双臂下垂 ≈ 待机」。所以 A→B→C 才是完整的「抬手 → 保持 → 放下」。导入时这三个变体取自 `Touch_Head/{A,B,C}_Nomal`。
+
+> 判定「单击」的位置：`WindowDrag` 松手分支里的 `_isPreparing && !_dragging`（**必须早于 `取消桌宠拖拽()`**，后者会复位这两个标志）。「面板接管指针」的早退路径不经过该分支，因此操作面板时不会产生假「摸摸」。
+
+**退出保护**：持续态锁定会让退出动画的播完回调被吞掉（`case "exit"` 不触发 → 程序关不掉），因此 `CharAnim.OnAnimationFinished` 的锁定判断放行退出动画，且 `播放退出动画()` 先调 `StateMachine.准备退出()` 解锁。
+
+### 3.2 自主行为节律（`settings/behavior.json`，改完重启生效）
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `启用` | true | false = 完全关闭主动行为（只剩被动反应） |
+| `心跳秒` | 1.0 | 节律器步长 |
+| `睡眠空闲秒` / `深夜睡眠秒` | 600 / 180 | 空闲超阈值 → sleep；深夜（`深夜起`~`深夜止`，默认 23:00–07:00）用短阈值 |
+| `走动空闲秒` | 45 | 空闲达到后开始考虑自主走动 |
+| `走动间隔最小秒` / `最大秒` | 120 / 300 | 每次走动后重掷的间隔窗口 |
+| `走动距离最小/最大像素` | 60 / 160 | 单次位移范围；方向朝屏幕中心，目标位置 clamp 进可用屏幕区 |
+| `走动速度像素每秒` | 90 | 窗口位移速度 |
+| `每小时主动上限` | 8 | 主动行为（walk/greet）滑动 1 小时窗口预算；设 0 只关主动行为 |
+| `持续态兜底秒` | 120 | Agent 不回 `end_turn` 时防止永远卡在 think/speak |
+| `环境感知启用` | **false** | **P6 开关**：不开就完全不感知（一次也不查、不读任何环境数据） |
+| `离开阈值秒` | 300 | 空闲多久算「主人离开了」（用于「欢迎回来」边沿） |
+| `全屏静默` | true | 全屏（游戏/视频/演示）时是否完全静默 |
+
+**「不打扰」硬约束（主动行为闸门，任一命中即禁止）**：面板可见 / 鼠标悬停在桌宠身上 / 入场未完成 / 当前非 idle / 每小时主动数超上限。
+
+**交互入口统一口径**：任何交互都调 `StateMachine.NotifyInteraction(来源)`（重置空闲 + 睡醒打招呼）。已接入点：左键单击（`WindowDrag` 松手且未越拖动阈值 = `摸摸()`）、拖拽开始/结束、右键（`Context`）、滚轮（`WindowScale`）、任务执行（`Main.选择脚本` / `执行函数完成`，一处覆盖右键菜单/对话框/粘贴/拖入/语音/面板命令栏全部入口）、对话提交与流式（`ChatBox`）。
+
+### 3.3 环境感知（P6，**默认关闭**）
+
+感知主人是否在用电脑，让「不打扰」更聪明。**开关在 `settings/behavior.json`，默认关**——不开就一次也不查。
+
+**隐私边界（硬约束，实现里写死）**：
+
+| 只做 | 绝不做 |
+|---|---|
+| 只在本机读**两个数**：空闲秒数、前台是否全屏 | 不读窗口标题、不读进程名、不记录使用轨迹 |
+| 未启用时**一次也不查**（`空闲秒` 恒 0） | 不落盘、不发给 Agent、不出本机 |
+
+**实现**：`script/State/EnvironmentSense.cs`（Win32 P/Invoke）
+- 空闲秒：`GetLastInputInfo` + `System.Environment.TickCount` 对齐（32 位回绕用 `unchecked`；**必须全限定名**，见 §10 坑 #16）
+- 全屏：`GetWindowRect` 与 `MonitorFromWindow`/`GetMonitorInfo` 的显示器矩形比对（容差 2px，覆盖无边框全屏游戏的 1~2px 差）
+
+**两处接线**（都受开关约束）：
+
+| 位置 | 作用 |
+|---|---|
+| `StateMachine.允许主动()` | 全屏中 + `全屏静默` → 主动行为（走动/搭话）一律拦下 |
+| `StateMachine.心跳()` | 「闲→忙」边沿：主人离开超过阈值后又回来 → 打招呼（**60s 节流** + 受每小时主动预算约束） |
+
+**验证**：`EnvProbe`（16 断言）——默认关得住、真实读数可用（活的时钟）、闸门生效、边沿与节流正确。
+
+---
+---
+
+### 踩坑 #14
+
+14. **状态机是动画的「所有者」**。写完 `play_anim` 类断言后又调用了任何 `set_state`，后者会立刻把动画顶回去——
+    实测踩过：探针里 `play_anim walk-left` 被后续的 `set_state idle` 覆盖成 `idle-1`。断言必须**紧跟**在该动画成为最后一次状态变更之后。
