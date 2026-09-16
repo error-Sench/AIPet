@@ -221,6 +221,12 @@ public partial class ChatBox : Window
             _命令栏.AddChild(b);
         }
 
+        // 「状态」：桌宠数值可视化（主人指定放菜单栏；数值与人格分离，见 AGENTS.md §2）
+        var 状态 = 新命令按钮("状态", null);
+        状态.TooltipText = "看看它现在的心情 / 精力 / 亲密";
+        状态.Pressed += StatsWindow.显示;
+        _命令栏.AddChild(状态);
+
         var 关闭 = 新命令按钮(Tr("close"), null);
         关闭.Pressed += () => CharAnim.播放退出动画();
         _命令栏.AddChild(关闭);
@@ -435,6 +441,15 @@ public partial class ChatBox : Window
 
     /// <summary>探针：当前显示文本（历史 + 流式中）。</summary>
     public static string 探针_显示文本 => _单例?._记录?.Text ?? "";
+
+    /// <summary>探针：命令栏里是否有指定文本的按钮（用于验证「状态」等入口真的挂上了）。</summary>
+    public static bool 探针_命令栏有按钮(string 文本)
+    {
+        if (_单例?._命令栏 == null) return false;
+        foreach (var c in _单例._命令栏.GetChildren())
+            if (c is Button b && b.Text == 文本) return true;
+        return false;
+    }
 
     /// <summary>探针：最近一次结束流式时收到的**原始**缓冲（含指令块，未过滤）——排查泄漏用。</summary>
     public static string 探针_最近原始流式 { get; private set; } = "";

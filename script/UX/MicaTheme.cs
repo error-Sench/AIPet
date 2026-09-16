@@ -54,6 +54,23 @@ public static class MicaTheme
         };
     }
 
+    /// <summary>亲密色（P5 数值条用）：与心情/精力区分开。</summary>
+    public static readonly Color 亲密色 = new(0.90f, 0.45f, 0.55f);
+
+    /// <summary>数值条填充（P5 数值层用）：圆角实心。</summary>
+    public static StyleBoxFlat 数值填充(Color? 色 = null) => new()
+    {
+        BgColor = 色 ?? 强调,
+        CornerRadiusTopLeft = 4,
+        CornerRadiusTopRight = 4,
+        CornerRadiusBottomLeft = 4,
+        CornerRadiusBottomRight = 4,
+        ContentMarginTop = 0f,
+        ContentMarginBottom = 0f,
+        ContentMarginLeft = 0f,
+        ContentMarginRight = 0f,
+    };
+
     public static StyleBoxFlat 圆角按钮(Color 底色)
     {
         return new StyleBoxFlat

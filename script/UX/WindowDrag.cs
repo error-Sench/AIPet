@@ -42,7 +42,7 @@ public partial class WindowDrag : Node
     }
 
     /// <summary>独立面板在鼠标下方时，它们是最上层交互目标，桌宠必须完全让出本次指针。</summary>
-    private static bool 面板接管指针() => ChatBox.正在接管指针 || ToolBar.正在接管指针 || SettingsWindow.正在接管指针;
+    private static bool 面板接管指针() => ChatBox.正在接管指针 || ToolBar.正在接管指针 || SettingsWindow.正在接管指针 || StatsWindow.正在接管指针;
 
     /// <summary>清除桌宠拖拽的残留状态；若已经开始拖动，补播原有的落下动画。</summary>
     private void 取消桌宠拖拽()

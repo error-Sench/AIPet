@@ -1,9 +1,10 @@
-[gd_scene load_steps=19 format=3 uid="uid://bijuvf6qjvh7l"]
+[gd_scene load_steps=20 format=3 uid="uid://bijuvf6qjvh7l"]
 
 [ext_resource type="Script" uid="uid://cf0h0dtbopy88" path="res://script/UX/Context.cs" id="4_7jktm"]
 [ext_resource type="Script" path="res://script/UX/ChatBox.cs" id="11_chatbox"]
 [ext_resource type="Script" path="res://script/UX/ToolBar.cs" id="12_toolbar"]
 [ext_resource type="Script" path="res://script/UX/SettingsWindow.cs" id="15_settings"]
+[ext_resource type="Script" path="res://script/UX/StatsWindow.cs" id="16_stats"]
 [ext_resource type="Script" path="res://script/State/StateMachine.cs" id="13_state"]
 [ext_resource type="Script" path="res://script/Mode/ModeManager.cs" id="14_mode"]
 [ext_resource type="Script" uid="uid://bqrbs7h7rtxy3" path="res://script/UX/WindowDrag.cs" id="4_fc0e3"]
@@ -121,3 +122,9 @@ visible = false
 title = "配置"
 size = Vector2i(470, 224)
 script = ExtResource("15_settings")
+
+[node name="StatsWindow" type="Window" parent="."]
+visible = false
+title = "状态"
+size = Vector2i(360, 188)
+script = ExtResource("16_stats")

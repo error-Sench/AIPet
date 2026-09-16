@@ -396,6 +396,14 @@ public partial class StateMachine : Node
 
         if (!设置.启用) return;
 
+        // P6 环境感知：心跳推进「闲→忙」边沿；主人刚回来 → 打个招呼（节流 60s，且受主动预算约束）
+        EnvironmentSense.心跳(设置.心跳秒);
+        if (EnvironmentSense.刚回来)
+        {
+            GD.Print($"[StateMachine] 主人回来了（{EnvironmentSense.概述}）→ 打招呼");
+            if (CurrentState == Idle && 主动预算剩余() > 0) { 记一次主动(); SetState(Greet); return; }
+        }
+
         // 忙状态与拖拽中不调度自主行为
         if (CurrentState is Drag or Think or Speak or Working or Listen or Greet or Interact) return;
 
@@ -441,6 +449,7 @@ public partial class StateMachine : Node
         if (面板可见()) return false;
         if (鼠标悬停桌宠()) return false;
         if (CurrentState != Idle) return false;
+        if (EnvironmentSense.应当静默) return false; // P6：主人在全屏应用里（游戏/视频/演示）→ 彻底安静
         return 主动预算剩余() > 0;
     }
 
@@ -732,6 +741,11 @@ public partial class StateMachine : Node
         public static float 持续态兜底秒 = 120f;
         public static float 排队兜底秒 = 3f;
 
+        // —— P6 环境感知（**默认关**：主人不开，它就一次也不查） ——
+        public static bool 环境感知启用 = false;
+        public static float 离开阈值秒 = 300f;
+        public static bool 全屏静默 = true;
+
         public static void 加载()
         {
             foreach (var 路径 in new[]
@@ -763,6 +777,9 @@ public partial class StateMachine : Node
                     走动速度像素每秒 = Math.Max(1f, 取浮点(根, "走动速度像素每秒", 走动速度像素每秒));
                     每小时主动上限 = 取整数(根, "每小时主动上限", 每小时主动上限);
                     持续态兜底秒 = 取浮点(根, "持续态兜底秒", 持续态兜底秒);
+                    环境感知启用 = 取布尔(根, "环境感知启用", 环境感知启用);
+                    离开阈值秒 = 取浮点(根, "离开阈值秒", 离开阈值秒);
+                    全屏静默 = 取布尔(根, "全屏静默", 全屏静默);
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
@@ -771,6 +788,11 @@ public partial class StateMachine : Node
             if (走动间隔最大秒 < 走动间隔最小秒) 走动间隔最大秒 = 走动间隔最小秒;
             if (首次走动最大秒 < 首次走动最小秒) 首次走动最大秒 = 首次走动最小秒;
             if (走动距离最大像素 < 走动距离最小像素) 走动距离最大像素 = 走动距离最小像素;
+
+            // 把 P6 开关交给感知层（它自己会遵守「未启用就一次也不查」）
+            EnvironmentSense.启用 = 环境感知启用;
+            EnvironmentSense.离开阈值秒 = Math.Max(30f, 离开阈值秒);
+            EnvironmentSense.全屏静默 = 全屏静默;
         }
 
         private static bool 取布尔(JsonElement 根, string 键, bool 兜底) =>
