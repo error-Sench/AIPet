@@ -139,6 +139,8 @@ public partial class Main:Node
 		StateMachine.SetState(StateMachine.Idle);
 		StateMachine.NotifyInteraction("task_done");
 		if (当前脚本.cheer)CharAnim.开始庆祝();
+		// 行为事件（#3）：任务完成也进事件池（程序侧；日志用途，不打扰主人）
+		State.EventPool.记("任务完成", State.EventPool.归属.程序, string.IsNullOrEmpty(当前脚本.id) ? "任务完成" : $"任务完成：{当前脚本.id}");
 		var tip = string.IsNullOrEmpty(当前脚本.tip) ? "done" : 当前脚本.tip;
 		if (IO.单例.get("tip", out var value))
 		{

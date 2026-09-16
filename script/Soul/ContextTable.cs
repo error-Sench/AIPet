@@ -75,6 +75,7 @@ public static class ContextTable
         sb.AppendLine($"  - 数值 stats.json → `{数值路径}`（程序写，你别改）");
         sb.AppendLine($"  - 用户画像 profile.md → `{画像路径}`（**你写**）");
         sb.AppendLine($"  - 记忆流水 memory.jsonl → `{记忆路径}`（**你写**）");
+        sb.AppendLine($"  - 行为事件 events.jsonl → `{State.EventPool.路径}`（程序写；**归属你的事件在下面等着你**）");
         sb.AppendLine();
 
         // —— 数值层 ——
@@ -104,6 +105,11 @@ public static class ContextTable
         var 记忆 = 读末尾几行(记忆路径, 记忆条数上限);
         if (记忆.Length == 0) sb.AppendLine("（还没有记忆）");
         else foreach (var 行 in 记忆) sb.AppendLine($"- {行}");
+        sb.AppendLine();
+
+        // —— 事件池：等 Agent 处理的（pull；我们不做推送） ——
+        sb.AppendLine("## 待你处理的事件（事件池里归属你的事件，处理完请追加一条 ack 行）");
+        sb.AppendLine(State.EventPool.未处理摘要());
         sb.AppendLine();
 
         // —— 指令协议 ——

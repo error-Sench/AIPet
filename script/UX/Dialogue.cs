@@ -43,8 +43,12 @@ public partial class Dialogue : Node
     }
     private static int _当前标题序列号;
     /// <summary>显示临时标题（延时自动收起）。可跨线程调用（内部 marshal 到主线程）。</summary>
+    /// <summary>探针：最近一次请求显示的文本（即使当前场景里没有 Dialogue 节点也能断言「它想说什么」）。</summary>
+    public static string 探针_最近请求文本 { get; private set; } = "";
+
     public static void 显示临时标题(string 文本, int 显示时间 = 3000)
     {
+        探针_最近请求文本 = 文本 ?? "";
         if (string.IsNullOrEmpty(文本) || _单例 == null) return;
         _单例.CallDeferred(nameof(单例临时标题入口), 文本, 显示时间);
     }

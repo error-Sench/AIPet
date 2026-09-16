@@ -417,8 +417,24 @@ public partial class StateMachine : Node
         if (EnvironmentSense.刚回来)
         {
             GD.Print($"[StateMachine] 主人回来了（{EnvironmentSense.概述}）→ 打招呼");
+            EventPool.记("回来", EventPool.归属.程序, "主人回来了");
             if (CurrentState == Idle && 主动预算剩余() > 0) { 记一次主动(); SetState(Greet); return; }
         }
+
+        // 「离开」边沿（真正离开 = 打断久坐计数）
+        if (!_上次主人不在 && EnvironmentSense.主人不在)
+        {
+            EventPool.记("离开", EventPool.归属.程序, $"主人离开（空闲 {EnvironmentSense.空闲秒:0}s）");
+            _上次主人不在 = true;
+            _活跃累计秒 = 0f; _久坐提醒次数 = 0; _久坐升级已写 = false;
+        }
+        else if (_上次主人不在 && !EnvironmentSense.主人不在)
+        {
+            _上次主人不在 = false;
+        }
+
+        // —— 行为事件（#3）：久坐提醒（程序侧简单判断；复杂判断归 Agent，见 BehaviorEventTick） ——
+        if (BehaviorEventTick()) return;
 
         // 忙状态与拖拽中不调度自主行为；**贴边隐藏中也不调度**（它就是「在边上待着」，不该被入睡/走动打回屏内 —— 实测 bug）
         if (CurrentState is Drag or Think or Speak or Working or Listen or Greet or Interact or EdgeHideState) return;
@@ -476,6 +492,69 @@ public partial class StateMachine : Node
     }
 
     private static void 记一次主动() => _主动时间戳.Add(_运行秒);
+
+    // ================= 行为事件（#3，主人决策：主动清单与被动触发器合并为「行为事件」）=================
+    // 简单判断 → 程序侧直接触发；复杂判断 → 写进事件池（owner=agent）**等 Agent 自己来读**（不做推送）。
+
+    private static bool _上次主人不在;
+    private static float _活跃累计秒;      // 本段「连续活跃」累计（真正离开会打断）
+    private static float _久坐冷却剩余;
+    private static int _久坐提醒次数;
+    private static bool _久坐升级已写;
+
+    /// <summary>久坐提醒：主人在电脑前连续活跃 ≥ `久坐提醒分钟` → 冒泡提醒休息（受「不打扰」五闸门约束）。</summary>
+    private static bool BehaviorEventTick()
+    {
+        if (!EnvironmentSense.启用) return false;            // 环境感知关着 → 不测活跃（隐私优先）
+        if (_久坐冷却剩余 > 0f) _久坐冷却剩余 -= 设置.心跳秒;
+        if (EnvironmentSense.空闲秒 >= 60f) return false;    // 近 1 分钟无输入 = 不在电脑前/在休息
+        _活跃累计秒 += 设置.心跳秒;
+
+        if (_活跃累计秒 < 设置.久坐提醒分钟 * 60f) return false;
+        if (_久坐冷却剩余 > 0f) return false;
+        if (!允许主动()) return false;                        // 面板/悬停/忙态/全屏静默/每小时预算
+
+        久坐提醒();
+        return true;
+    }
+
+    private static void 久坐提醒()
+    {
+        var 分钟 = (int)(_活跃累计秒 / 60f);
+        记一次主动();
+        _久坐冷却剩余 = 设置.久坐提醒冷却分钟 * 60f;
+        _久坐提醒次数++;
+        EventPool.记("久坐提醒", EventPool.归属.程序, $"主人连续活跃 {分钟} 分钟 → 已提醒休息");
+        Dialogue.显示临时标题(久坐语句(), 6000);
+        SetState(Greet);   // 用「打招呼」的姿态把注意力勾过来，2.5s 后回 idle
+
+        // 提醒满 2 次 = 这次坐得太久了 → 写一条**归属 Agent** 的事件（Agent 自己决定要不要更走心地说点什么）
+        if (_久坐提醒次数 >= 2 && !_久坐升级已写)
+        {
+            _久坐升级已写 = true;
+            EventPool.记("久坐超长", EventPool.归属.Agent,
+                $"主人这一坐已经连续活跃 {分钟} 分钟（程序侧已提醒 {_久坐提醒次数} 次）。" +
+                "要不要按你自己的方式关心一下？（读 user://context.md 能看到这条）");
+        }
+    }
+
+    private static string 久坐语句()
+    {
+        var 候选 = new[]
+        {
+            "坐太久啦，起来伸个懒腰嘛～",
+            "已经连着忙好久咯，喝口水再继续？",
+            "腰要哭啦，站起来走两步吧～",
+        };
+        return 候选[Random.Shared.Next(候选.Length)];
+    }
+
+    // 探针专用
+    public static void 探针_心跳一次() => 心跳();
+    public static float 探针_活跃累计秒 => _活跃累计秒;
+    public static int 探针_久坐提醒次数 => _久坐提醒次数;
+    public static void 探针_清久坐冷却() => _久坐冷却剩余 = 0f;
+    public static void 探针_重置久坐() { _活跃累计秒 = 0f; _久坐冷却剩余 = 0f; _久坐提醒次数 = 0; _久坐升级已写 = false; _上次主人不在 = false; }
 
     private static int _走动次数; // 累计走动次数（观测用）
 
@@ -775,6 +854,8 @@ public partial class StateMachine : Node
         public static float 贴边循环间隔秒 = 2f;   // 循环动画（隐藏保持/探出）的重播间隔：主人要求「每 2 秒才播放一次」
         public static int 贴边左偏移像素 = 0;      // 微调：正=往屏内多推，负=往屏外多推（左右不对称就调这俩）
         public static int 贴边右偏移像素 = 0;
+        public static float 久坐提醒分钟 = 90f;      // 连续活跃多久提醒休息（程序侧事件）；0 = 关
+        public static float 久坐提醒冷却分钟 = 90f;  // 两次提醒的最小间隔
 
         public static void 加载()
         {
@@ -820,6 +901,8 @@ public partial class StateMachine : Node
                     贴边循环间隔秒 = 取浮点(根, "贴边循环间隔秒", 贴边循环间隔秒);
                     贴边左偏移像素 = 取整数(根, "贴边左偏移像素", 贴边左偏移像素);
                     贴边右偏移像素 = 取整数(根, "贴边右偏移像素", 贴边右偏移像素);
+                    久坐提醒分钟 = 取浮点(根, "久坐提醒分钟", 久坐提醒分钟);
+                    久坐提醒冷却分钟 = 取浮点(根, "久坐提醒冷却分钟", 久坐提醒冷却分钟);
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
