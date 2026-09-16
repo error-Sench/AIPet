@@ -19,7 +19,9 @@ public partial class CharAnim : AnimatedSprite2D
     private static readonly List<string> 内置动画组 =
         ["idle", "celerate", "drag", "dragup", "dragdown", "fidget",
          // 语义池（P2 导入资产后即自动生效；池目录不存在时加载管线自动跳过，无副作用）
-         "think", "say", "work", "listen", "sleep", "walk", "greet", "interact", "move"];
+         "think", "say", "work", "listen", "sleep", "walk", "greet", "interact", "move",
+         // 贴边隐藏（P2 剩余，素材已导入；行为接线见 plan.md 待办）
+         "edge_hide"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。</summary>
     private static readonly List<string> 循环动画组 = ["walk", "sleep"];

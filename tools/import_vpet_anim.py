@@ -64,7 +64,31 @@ SPEC = {
         ("Touch_Head/B_Nomal", "b"),
         ("Touch_Head/C_Nomal", "c"),
     ],
+    # 贴边隐藏（VPet SideHide_*）。语义已由**文件名 + 帧序**双重确认（先看图再动手）：
+    #   Main = 隐藏时的姿态序列：A(进入 9帧) → B_1(稳定 4帧) → B_2(单帧长保持 500ms) → C(退出 7帧)
+    #   Rise = 鼠标靠近时：文件名直接写着「左藏鼠标近普通A/C」= 探出 / 缩回
+    #   两侧素材是镜像（Left_* / Right_*），逐侧各导 6 段。
+    "edge_hide": [
+        ("SideHide_Left_Main/Nomal/A", "left-in"),
+        ("SideHide_Left_Main/Nomal/B_1", "left-keep"),
+        ("SideHide_Left_Main/Nomal/B_2", "left-hold"),
+        ("SideHide_Left_Main/Nomal/C", "left-out"),
+        ("SideHide_Left_Rise/Nomal/A", "left-peek"),
+        ("SideHide_Left_Rise/Nomal/C", "left-unpeek"),
+        ("SideHide_Right_Main/Nomal/A", "right-in"),
+        ("SideHide_Right_Main/Nomal/B_1", "right-keep"),
+        ("SideHide_Right_Main/Nomal/B_2", "right-hold"),
+        ("SideHide_Right_Main/Nomal/C", "right-out"),
+        ("SideHide_Right_Rise/Nomal/A", "right-peek"),
+        ("SideHide_Right_Rise/Nomal/C", "right-unpeek"),
+    ],
 }
+
+
+def 帧序(name):
+    """从 `<前缀>_<序号>_<时长>.png` 抽帧序号（按序号排序，不按文件名——见规则 4 的说明）。"""
+    m = re.search(r"_(\d+)_(\d+)\.png$", name)
+    return int(m.group(1)) if m else 0
 
 
 def 前缀(name):
@@ -97,11 +121,16 @@ def 基线():
 
 def 导入一个动画(池, 源叶子, 变体, 基线值, 报告):
     frames = sorted(f for f in os.listdir(源叶子) if f.lower().endswith(".png"))
-    # 规则 4：单目录多序列 -> 跳过
-    前缀集 = {前缀(f) for f in frames}
-    if len(前缀集) > 1:
-        报告.append(f"  [跳过] {池}/{变体}: 单目录含 {len(前缀集)} 条序列 {sorted(前缀集)[:3]} —— 需人工拆目录")
+    # 规则 4：单目录多序列 -> 跳过。
+    # 判据必须是**帧序号重复**，不能是「文件名前缀不同」——VPet 里有帧名拼写不一致的真实案例：
+    #   SideHide_Right_Main/Nomal/A 里 A_000..A_013 少一个 A_011，而第 11 帧被命名成 A01_011。
+    # 按前缀判会把它误判成两条序列（实测踩过）；按序号判既能正确合并，也能挡住真正混装的多序列。
+    序号集 = [帧序(f) for f in frames]
+    if len(set(序号集)) != len(序号集):
+        重复 = [s for s, c in Counter(序号集).items() if c > 1]
+        报告.append(f"  [跳过] {池}/{变体}: 帧序号重复 {sorted(重复)[:3]} —— 确实混了两条序列，需人工拆目录")
         return 0
+    frames = [f for _, f in sorted(zip(序号集, frames))]  # 按帧序号排序（而非文件名序）
     # 规则 5：丢灰度/1bit 遮罩
     有效 = []
     for f in frames:
