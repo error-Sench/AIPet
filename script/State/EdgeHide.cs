@@ -61,11 +61,15 @@ public static class EdgeHide
     // ================= 纯函数（探针可直接断言） =================
 
     /// <summary>窗口 X 是否算贴到边缘（返回命中的侧；没贴中返回 null）。
-    /// 宽度由调用方传入，保持纯函数（探针可用合成尺寸断言）。</summary>
+    /// 宽度由调用方传入，保持纯函数（探针可用合成尺寸断言）。
+    /// <para>
+    /// **判据对齐官方**：窗口必须**真的被推出屏外** ≥`阈值` 像素才吸附（官方 `distLeft &lt; -50×ZoomRatio`）。
+    /// 原实现是「离屏边 `阈值` 以内」就吸（还在屏内）→ 太敏感：从屏边拖回中间会像被吸住。
+    /// </para></summary>
     public static 侧? 判断贴边侧(int 窗口X, Rect2I 屏, int 阈值, int 窗口宽)
     {
-        if (窗口X <= 屏.Position.X + 阈值) return 侧.左;
-        if (窗口X + 窗口宽 >= 屏.End.X - 阈值) return 侧.右;
+        if (窗口X <= 屏.Position.X - 阈值) return 侧.左;
+        if (窗口X + 窗口宽 >= 屏.End.X + 阈值) return 侧.右;
         return null;
     }
 
@@ -144,7 +148,11 @@ public static class EdgeHide
             return;
         }
         GD.Print($"[EdgeHide] 让位（{当前相} → 回原位）");
-        if (_原位 != Vector2I.Zero) DisplayServer.WindowSetPosition(_原位);
+        // **必须夹进屏幕**：贴边触发时 _原位 本身就可能带一点屏外（比如 X=-30）。直接回原始值会把宠物留在屏外，
+        // 而相已清空 → 再也没人把它滑回来（实测 bug，探针 case 608 抓到）。
+        var 屏 = 可用屏();
+        var 回X = Math.Clamp(_原位.X, 屏.Position.X, Math.Max(屏.Position.X, 屏.End.X - 窗口宽()));
+        DisplayServer.WindowSetPosition(new Vector2I(回X, _原位.Y));
         当前相 = 相.无;
         _悬停离开计时 = 0f;
     }

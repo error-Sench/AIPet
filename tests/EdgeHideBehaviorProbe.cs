@@ -59,7 +59,7 @@ public partial class EdgeHideBehaviorProbe : Node
         {
             case 10: 纯函数组(); break;
             case 20:
-                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400)); // 贴左边缘
+                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X - 30, 400)); // 贴左边缘
                 GD.Print($"[EB] 把宠挪到左边缘: X={宠X}（屏 {屏.Position.X}）");
                 EdgeHide.检查贴边();
                 GD.Print($"[EB] 检查贴边 → 相={EdgeHide.探针_相} 目标X={EdgeHide.探针_目标位置.X}");
@@ -121,9 +121,9 @@ public partial class EdgeHideBehaviorProbe : Node
                 break;
             case 520:
                 GD.Print($"[EB] 复位后: X={宠X} 原位={EdgeHide.探针_原位.X} 相={EdgeHide.探针_相}");
-                断言(宠X == EdgeHide.探针_原位.X, $"窗口滑回原位（{宠X} == {EdgeHide.探针_原位.X}）");
+                断言(宠X == System.Math.Max(屏.Position.X, EdgeHide.探针_原位.X), $"窗口滑回原位并夹进屏幕（{宠X} == max(屏左 {屏.Position.X}, 原位 {EdgeHide.探针_原位.X})）");
                 GD.Print("--- 让位防护：别人抢状态时窗口必须回原位 ---");
-                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400));
+                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X - 30, 400));
                 EdgeHide.检查贴边();
                 break;
             case 600:
@@ -136,18 +136,27 @@ public partial class EdgeHideBehaviorProbe : Node
                 断言(宠X >= 屏.Position.X, $"**窗口被拉回屏内**（X={宠X} ≥ {屏.Position.X}）—— 不会烂在屏外");
                 GD.Print("--- 回归②：拖到屏幕中间松手，不该被拽回原位（实测 bug：持续吸附回边缘）---");
                 EdgeHide.探针_重置();
-                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400));
+                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X - 30, 400));
                 EdgeHide.探针_强制阶段(EdgeHide.侧.左, EdgeHide.相.隐藏);   // _原位 = 边缘位置
                 DisplayServer.WindowSetPosition(new Vector2I(900, 400));    // 主人把它拖到屏幕中间
                 EdgeHide.探针_设相(EdgeHide.相.退出中);                      // 复位已完成 / 主人已接管
                 StateMachine.SetState(StateMachine.Idle);                   // 松手会走这条（取消拖拽 → 标记状态）
                 break;
+            case 608:
+                // 回归③：贴边时「点击不拖动」→ 窗口被拉回屏内后 **绝不能再被判定贴边**（否则又播一遍缩进动画）
+                GD.Print($"[EB] 点击回屏后: X={宠X} 相={EdgeHide.探针_相}（屏左 {屏.Position.X}）");
+                断言(宠X >= 屏.Position.X, $"窗口已回到屏内（X={宠X} ≥ {屏.Position.X}）");
+                EdgeHide.检查贴边();   // 模拟松手路径：若手抖被当成拖动，拖拽结束就会调它
+                GD.Print($"[EB] 松手复查: 相={EdgeHide.探针_相}");
+                断言(EdgeHide.探针_相 == EdgeHide.相.无, "回归③：点击回屏后不会被立刻重新吸附（不再重播缩进动画）");
+                break;
+
             case 610:
                 GD.Print($"[EB] 松手后: X={宠X}（原位 X={EdgeHide.探针_原位.X}）相={EdgeHide.探针_相}");
                 断言(宠X == 900, $"回归②：窗口留在屏幕中间（X={宠X} == 900）—— 没被拽回原位 {EdgeHide.探针_原位.X}、没吸附回边缘");
                 GD.Print("--- 开关：关掉后贴边不生效 ---");
                 EdgeHide.启用 = false;
-                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400));
+                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X - 30, 400));
                 EdgeHide.检查贴边();
                 break;
             case 615:
@@ -176,9 +185,10 @@ public partial class EdgeHideBehaviorProbe : Node
         var 屏测 = new Rect2I(0, 0, 1920, 1040);
         const int 宽 = 282;
 
-        断言(EdgeHide.判断贴边侧(5, 屏测, 20, 宽) == EdgeHide.侧.左, "X=5 → 贴左边缘");
-        断言(EdgeHide.判断贴边侧(1920 - 宽 - 5, 屏测, 20, 宽) == EdgeHide.侧.右, "右缘留 5px → 贴右边缘");
+        断言(EdgeHide.判断贴边侧(-25, 屏测, 20, 宽) == EdgeHide.侧.左, "窗口推出屏外 25px → 贴左边缘");
+        断言(EdgeHide.判断贴边侧(1920 + 25 - 宽, 屏测, 20, 宽) == EdgeHide.侧.右, "窗口推出右缘 25px → 贴右边缘");
         断言(EdgeHide.判断贴边侧(800, 屏测, 20, 宽) == null, "屏中间 → 不贴边");
+        断言(EdgeHide.判断贴边侧(5, 屏测, 20, 宽) == null, "屏内地贴边 5px → **不再吸附**（官方判据：必须推出屏外）");
 
         var 左隐 = EdgeHide.隐藏位置X(EdgeHide.侧.左, 屏测, 宽, 0.30f);
         var 右隐 = EdgeHide.隐藏位置X(EdgeHide.侧.右, 屏测, 宽, 0.30f);
