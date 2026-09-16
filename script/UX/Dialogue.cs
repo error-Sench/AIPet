@@ -49,6 +49,8 @@ public partial class Dialogue : Node
     public static void 显示临时标题(string 文本, int 显示时间 = 3000)
     {
         探针_最近请求文本 = 文本 ?? "";
+        // 桌宠"冒泡"的话就用系统语音念出来（TTS；没有可用语音时静默降级，见 script/Audio/Tts.cs）
+        Audio.Tts.说(文本);
         if (string.IsNullOrEmpty(文本) || _单例 == null) return;
         _单例.CallDeferred(nameof(单例临时标题入口), 文本, 显示时间);
     }

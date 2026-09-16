@@ -78,7 +78,7 @@ D:/Games/Github/AIPet/
 │   ├── Agent/             #  能力层 (IAgentBackend 抽象 / AgentBackendRegistry 注册表 /
 │   │                      #     AcpClient / NullAgentBackend / AgentBridge)
 │   ├── Mode/              #  模式层 (ModeManager.cs)
-│   ├── Audio/             # Kws.cs 语音关键词 (Sherpa-onnx)
+│   ├── Audio/             # Kws.cs 语音关键词 (Sherpa-onnx) / Tts.cs 语音输出（系统 TTS，不内置）
 │   ├── Steam/             # SteamNode / WorkShop（工坊分发，保留）
 │   ── UX/ Asset/ Util/   # 现有辅助 + ChatBox.cs(聊天框) / ToolBar.cs(工具栏) /
 │                          #   SettingsWindow.cs(配置窗) / StatsWindow.cs(状态窗) / MicaTheme.cs(云母样式)

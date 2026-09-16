@@ -9,5 +9,7 @@
     <PackageReference Include="Facepunch.Steamworks" Version="2.3.3" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="org.k2fsa.sherpa.onnx" Version="1.12.22" />
+    <!-- Windows 自带语音（SAPI5）：TTS 不内置任何模型，直接用系统语音；非 Windows 平台静默降级 -->
+    <PackageReference Include="System.Speech" Version="8.0.0" />
   </ItemGroup>
 </Project>

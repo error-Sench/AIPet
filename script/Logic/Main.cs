@@ -37,6 +37,7 @@ public partial class Main:Node
 
 		LoadUtil.初始化();
 		SoulTable.Load();
+		Audio.Tts.载入配置();          // 语音输出（系统 TTS；不内置模型）
 		ContextTable.确保数据文件();   // 画像/记忆两个数据文件（只创建、不覆盖）
 		ContextTable.生成();           // 上下文接口文件 user://context.md（Agent 自主读取，见 Soul/README.md 硬规则）
 		ModLoader.加载模组();
