@@ -38,6 +38,7 @@ public partial class Main:Node
 		LoadUtil.初始化();
 		SoulTable.Load();
 		Audio.Tts.载入配置();          // 语音输出（系统 TTS；不内置模型）
+		UX.NetSpeedBubble.载入外观配置();  // 网速气泡外观（字号/边距/透明度，settings/widget.json 可调）
 		ContextTable.确保数据文件();   // 画像/记忆两个数据文件（只创建、不覆盖）
 		ContextTable.生成();           // 上下文接口文件 user://context.md（Agent 自主读取，见 Soul/README.md 硬规则）
 		// 首启引导（打包审计 A7）：第一次运行（还没有人格文件）→ 说一声，并提示数据目录怎么找

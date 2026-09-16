@@ -34,6 +34,7 @@ public sealed class AcpClient : IAgentBackend
 
     /// <summary>「本轮 prompt 进行中」标记：区分实时回复与「会话恢复时回放的历史」。</summary>
     private volatile bool _提示中;
+    private volatile bool _本轮有内容;   // 本轮 prompt 是否真的收到过内容（自愈判定用）
 
     private Process _proc;
     private readonly ConcurrentQueue<string> _incoming = new();
@@ -159,6 +160,13 @@ public sealed class AcpClient : IAgentBackend
         return null;
     }
 
+    /// <summary>丢弃记录的会话（Agent 侧已失效时调用，下次发言会新建会话）。</summary>
+    private static void 删除会话ID()
+    {
+        try { if (File.Exists(会话记录路径)) File.Delete(会话记录路径); }
+        catch (System.Exception e) { GD.PrintErr($"[AcpClient] 删除会话记录失败: {e.Message}"); }
+    }
+
     private static void 保存会话ID(string id)
     {
         if (string.IsNullOrEmpty(id)) return;
@@ -179,6 +187,7 @@ public sealed class AcpClient : IAgentBackend
         // 标记「本轮进行中」：只有在这之后到达的 agent_message_chunk 才算实时回复，
         // 其余（会话恢复时回放的历史）走 OnHistoryChunk。必须在发送前置位。
         _提示中 = true;
+        _本轮有内容 = false;
         SendRequest("session/prompt", new JsonObject
         {
             ["sessionId"] = SessionId,
@@ -186,7 +195,31 @@ public sealed class AcpClient : IAgentBackend
         }, node =>
         {
             _提示中 = false;
+            // 自愈（实测 bug）：Agent 侧可能已经没有这个会话（换过数据目录/Agent 重装/会话过期）→
+            // 响应里带 error（如 "prompt: session xxx not found"），此时**丢弃旧会话 ID**，
+            // 下次发言自动新建会话；否则桌宠会从此"哑巴"（每轮都被拒，回复恒为空）。
+            if (node?["error"] != null)
+            {
+                var 原因 = node["error"]!["message"]?.GetValue<string>() ?? node["error"]!.ToJsonString();
+                GD.PrintErr($"[AcpClient] 发言被拒：{原因} → 丢弃失效会话，下次自动新建");
+                删除会话ID();
+                SessionId = "";
+                OnError?.Invoke($"会话失效已重建（{原因}）");
+                OnTurnEnd?.Invoke("session-invalid");
+                return;
+            }
             var reason = node?["result"]?["stopReason"]?.GetValue<string>() ?? "unknown";
+            // 实测：Agent 侧会话不存在时，ACP 把它包成 `stopReason=refusal` **且回复为空**（不是 error 字段）。
+            // 「refusal + 零内容」= 会话失效 → 丢弃，下次发言自动新建（否则桌宠从此哑巴）。
+            if (reason == "refusal" && !_本轮有内容)
+            {
+                GD.PrintErr("[AcpClient] 本轮被拒且无任何内容 → 判定会话失效，丢弃旧会话（下次自动新建）");
+                删除会话ID();
+                SessionId = "";
+                OnError?.Invoke("会话失效已重建（Agent 侧没有这个会话了）");
+                OnTurnEnd?.Invoke("session-invalid");
+                return;
+            }
             OnTurnEnd?.Invoke(reason);
         });
         return true;
@@ -249,7 +282,7 @@ public sealed class AcpClient : IAgentBackend
                 if (_提示中)
                 {
                     // 本轮的实时回复（只显示助手侧；用户侧是我们自己发的，UI 已显示）
-                    if (!是用户) OnReplyChunk?.Invoke(text);
+                    if (!是用户) { _本轮有内容 = true; OnReplyChunk?.Invoke(text); }
                 }
                 else
                 {

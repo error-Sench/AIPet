@@ -134,6 +134,9 @@ public partial class AgentBridge : Node
         Backend.OnError += msg =>
         {
             GD.PrintErr($"[AgentBridge] {msg}");
+            // 「会话失效已重建」＝可自愈的正常情况（换了数据目录/Agent 重装/会话过期），
+            // 不要当成「连不上 Agent」去惊动主人（实测误报过一次）。
+            if (msg.Contains("会话失效")) { GD.Print("[AgentBridge] 会话已重建，无需提醒主人"); return; }
             提醒降级(msg);   // 配置了 Agent 却出错 → 跟主人说一声（只提醒一次）
         };
 
