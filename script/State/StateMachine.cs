@@ -65,6 +65,7 @@ public partial class StateMachine : Node
         public bool 持续;   // true = 保持到显式切换（配合锁定/兜底）；false = 定时回 idle
         public bool 锁定;   // true = 接管中（CharAnim 让位）
         public float 秒;    // 持续态 = 兜底超时（0 = 不超时）；非持续态 = 保持时长
+        public bool 免兜底; // true = 真·无限期持续态（贴边隐藏用）：不吃「持续态兜底」，否则 2 分钟被踢回 idle（实测 bug）
     }
 
     private static readonly Dictionary<string, 状态效果> _效果表 = new()
@@ -79,7 +80,8 @@ public partial class StateMachine : Node
         [Sleep] = new 状态效果 { 目标池 = "sleep", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0 },
         [Greet] = new 状态效果 { 目标池 = "greet", 兼容池 = "celerate", 持续 = false, 锁定 = false, 秒 = 2.5f },
         // 贴边隐藏：持续 + 锁定；表现不走「池内随机」，由 EdgeHide.应用表现() 按阶段精确播（见应用表现）
-        [EdgeHideState] = new 状态效果 { 目标池 = "edge_hide", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0 },
+        // 免兜底：贴边是**无限期**待着，不能吃 2 分钟的持续态兜底（否则会自己变 idle 挪回屏内 —— 实测 bug）
+        [EdgeHideState] = new 状态效果 { 目标池 = "edge_hide", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
     };
 
     /// <summary>
@@ -224,7 +226,7 @@ public partial class StateMachine : Node
         {
             _保持剩余 = 0f;
             var 上限 = 秒 >= 0f ? 秒 : 设置.持续态兜底秒;
-            _兜底剩余 = 效果.锁定 && 上限 > 0f ? 上限 : 0f; // 只在锁定的持续态上设兜底
+            _兜底剩余 = 效果.锁定 && !效果.免兜底 && 上限 > 0f ? 上限 : 0f; // 只在锁定的持续态上设兜底（免兜底者除外）
         }
         else
         {
@@ -418,8 +420,8 @@ public partial class StateMachine : Node
             if (CurrentState == Idle && 主动预算剩余() > 0) { 记一次主动(); SetState(Greet); return; }
         }
 
-        // 忙状态与拖拽中不调度自主行为
-        if (CurrentState is Drag or Think or Speak or Working or Listen or Greet or Interact) return;
+        // 忙状态与拖拽中不调度自主行为；**贴边隐藏中也不调度**（它就是「在边上待着」，不该被入睡/走动打回屏内 —— 实测 bug）
+        if (CurrentState is Drag or Think or Speak or Working or Listen or Greet or Interact or EdgeHideState) return;
 
         if (CurrentState == Sleep) return; // 已在睡，等交互唤醒
 
@@ -765,10 +767,11 @@ public partial class StateMachine : Node
         // —— P2 贴边隐藏（行为层；**默认开**：桌宠惯例行为，且让它更不打扰） ——
         public static bool 贴边隐藏启用 = true;
         public static int 贴边阈值像素 = 20;
-        public static float 隐藏可见比例 = 0.30f;
-        public static float 探出可见比例 = 0.72f;
+        public static float 隐藏可见比例 = 0.55f;   // 对齐 VPet 官方观感：贴着边但看得见半个身子（原 0.30 太像「被推出屏外」）
+        public static float 探出可见比例 = 0.82f;
         public static float 缩回延迟秒 = 1f;
-        public static float 贴边滑行速度 = 420f;
+        public static float 贴边滑行速度 = 360f;
+        public static float 探出滑行速度 = 130f;   // 探出/缩回更慢，让动作看得见
 
         public static void 加载()
         {
@@ -810,6 +813,7 @@ public partial class StateMachine : Node
                     探出可见比例 = 取浮点(根, "探出可见比例", 探出可见比例);
                     缩回延迟秒 = 取浮点(根, "缩回延迟秒", 缩回延迟秒);
                     贴边滑行速度 = 取浮点(根, "贴边滑行速度", 贴边滑行速度);
+                    探出滑行速度 = 取浮点(根, "探出滑行速度", 探出滑行速度);
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
@@ -831,6 +835,7 @@ public partial class StateMachine : Node
             EdgeHide.探出可见比例 = Math.Clamp(探出可见比例, EdgeHide.可见比例, 1f);
             EdgeHide.缩回延迟秒 = Math.Max(0.1f, 缩回延迟秒);
             EdgeHide.滑行速度像素每秒 = Math.Max(60f, 贴边滑行速度);
+            EdgeHide.探出滑行速度 = Math.Max(20f, 探出滑行速度);
         }
 
         private static bool 取布尔(JsonElement 根, string 键, bool 兜底) =>

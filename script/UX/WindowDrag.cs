@@ -101,8 +101,9 @@ public partial class WindowDrag : Node
                 // 准备中：检查移动距离是否达标
                 if (currentMousePos.DistanceTo(_pressOrigin) > DragThreshold)
                 {
-                    // 贴边隐藏中开始拖拽 → 先复位（把窗口拉回屏内再拖，避免拖着一半屏外的东西走）
-                    if (EdgeHide.占用中) EdgeHide.复位("拖拽");
+                    // 贴边隐藏中开始拖拽 → **直接让位**（不用「复位」，因为复位会同时让窗口滑向原位，
+// 与拖拽同一帧抢窗口位置，表现为「拖不动/往边缘吸」）。让位是瞬时回位且清阶段，交给拖拽独占窗口。
+                    if (EdgeHide.占用中) EdgeHide.让位();
                     _dragging = true;
                     _isPreparing = false;
                     // 正式锁定 Offset

@@ -39,6 +39,9 @@ public static class EdgeHide
     public static float 缩回延迟秒 { get; set; } = 1.0f;
     public static float 滑行速度像素每秒 { get; set; } = 420f;
 
+    /// <summary>探出/缩回的滑行速度（更慢：让「逐渐探出」看得见，而不是瞬间到位 —— 主人反馈「悬浮没有动画效果」）。</summary>
+    public static float 探出滑行速度 { get; set; } = 130f;
+
     private static Vector2I _原位;        // 隐藏前的屏内位置（复位目标）
     private static Vector2I _目标位置;    // 当前滑动目标
     private static float _悬停离开计时;
@@ -110,11 +113,24 @@ public static class EdgeHide
         StateMachine.SetState(StateMachine.EdgeHideState);
     }
 
-    /// <summary>让位给其它状态（状态机在别人抢状态时调用）：**窗口先回原位**，再清逻辑 ——
-    /// 否则宠会被留在屏外半截、而阶段已清空导致再也滑不回来（关键防护）。</summary>
+    /// <summary>让位给其它状态（状态机在别人抢状态时调用）。
+    /// <para>
+    /// **关键防护一**：若宠还在屏外（缩进/隐藏/探出/缩回），必须把窗口拉回屏内，否则阶段清空后**再也滑不回来**。
+    /// </para>
+    /// <para>
+    /// **关键防护二（实测 bug）**：`退出中` 表示已经复位过（点击/拖拽已经接管）→ **绝不能再动窗口**。
+    /// 否则「拖到屏幕中间松手」时会把它拽回原位（原位往往贴着边缘）→ 又被判定贴边 → 看起来像**持续吸附回边缘**。
+    /// </para></summary>
     public static void 让位()
     {
         if (当前相 == 相.无) return;
+        if (当前相 == 相.退出中)
+        {
+            GD.Print("[EdgeHide] 让位（退出中 → 只清阶段，不动窗口：主人已接管）");
+            当前相 = 相.无;
+            _悬停离开计时 = 0f;
+            return;
+        }
         GD.Print($"[EdgeHide] 让位（{当前相} → 回原位）");
         if (_原位 != Vector2I.Zero) DisplayServer.WindowSetPosition(_原位);
         当前相 = 相.无;
@@ -133,7 +149,9 @@ public static class EdgeHide
         if (位.X != _目标位置.X)
         {
             var 方向 = Math.Sign(_目标位置.X - 位.X);
-            var 步 = (int)Math.Max(1f, 滑行速度像素每秒 * delta);
+            // 探出/缩回用更慢的速度：让「逐渐探出」看得见（主人反馈悬浮没有动画效果）
+            var 速度 = 当前相 is 相.探出中 or 相.缩回中 ? 探出滑行速度 : 滑行速度像素每秒;
+            var 步 = (int)Math.Max(1f, 速度 * delta);
             var 新X = 方向 > 0 ? Math.Min(_目标位置.X, 位.X + 步) : Math.Max(_目标位置.X, 位.X - 步);
             DisplayServer.WindowSetPosition(new Vector2I(新X, 位.Y));
             位 = DisplayServer.WindowGetPosition();
@@ -237,6 +255,9 @@ public static class EdgeHide
         当前相 = 相;
         _原位 = DisplayServer.WindowGetPosition();
     }
+
+    /// <summary>探针：只改阶段、**不动 _原位**（用于精确复现「拖走后松手」这类场景）。</summary>
+    public static void 探针_设相(相 相) { 当前相 = 相; }
 
     public static void 探针_重置()
     {

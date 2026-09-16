@@ -42,6 +42,16 @@ public partial class EdgeHideBehaviorProbe : Node
     private static Vector2I 宠尺 => DisplayServer.WindowGetSize();
     private static int 宠X => DisplayServer.WindowGetPosition().X;
 
+    /// <summary>把桌宠窗口的内容存成 PNG（供视觉复核：隐藏/探出时露了多少）。</summary>
+    private void 存窗口图(string 文件名)
+    {
+        var 图 = GetWindow()?.GetTexture()?.GetImage();
+        if (图 == null) { GD.PrintErr($"[EB] 截图失败：{文件名}"); return; }
+        var 路径 = ProjectSettings.GlobalizePath($"user://{文件名}");
+        图.SavePng(路径);
+        GD.Print($"[EB] 截图: {路径} ({图.GetWidth()}x{图.GetHeight()})");
+    }
+
     public override void _Process(double delta)
     {
         _帧++;
@@ -65,6 +75,13 @@ public partial class EdgeHideBehaviorProbe : Node
             case 100:
                 GD.Print($"[EB] 推进后 相={EdgeHide.探针_相} 动画={CharAnim.当前动画名_只读}");
                 断言(EdgeHide.探针_相 == EdgeHide.相.隐藏, "缩进动画播完 → 进入「隐藏」静止相");
+                存窗口图("edgehide_hidden.png");
+                // ===== 回归 ①：隐藏态不该被「持续态兜底」踢回 idle（实测 bug：自动变待机并挪回屏内）=====
+                StateMachine.探针_推进时间(130f);   // 模拟经过 130 秒（兜底默认 120s）
+                GD.Print($"[EB] 模拟 130s 后: 状态={StateMachine.CurrentState} 相={EdgeHide.探针_相} X={宠X}");
+                断言(StateMachine.CurrentState == StateMachine.EdgeHideState && EdgeHide.探针_相 != EdgeHide.相.无,
+                    "回归①：贴边 130 秒后仍保持隐藏（免兜底生效，不会自己变待机挪回屏内）");
+                断言(宠X < 屏.Position.X, $"回归①：窗口仍在屏外（X={宠X} < {屏.Position.X}）");
                 // 把光标移到「屏内可见条」上
                 var 位 = DisplayServer.WindowGetPosition();
                 var 可见条中心 = new Vector2I(屏.Position.X + 10, 位.Y + 宠尺.Y / 2);
@@ -79,6 +96,7 @@ public partial class EdgeHideBehaviorProbe : Node
                 break;
             case 150:
                 断言(EdgeHide.探针_相 == EdgeHide.相.已探出, $"探出动画播完 → 停在「已探出」（相={EdgeHide.探针_相}）");
+                存窗口图("edgehide_peek.png");
                 // 光标移走（挪到屏中间偏上，远离可见条）
                 DisplayServer.WarpMouse(new Vector2I(300, 200) - DisplayServer.WindowGetPosition());
                 break;
@@ -105,12 +123,24 @@ public partial class EdgeHideBehaviorProbe : Node
                 GD.Print($"[EB] 抢状态后: X={宠X} 相={EdgeHide.探针_相}");
                 断言(EdgeHide.探针_相 == EdgeHide.相.无, "让位后阶段清空");
                 断言(宠X >= 屏.Position.X, $"**窗口被拉回屏内**（X={宠X} ≥ {屏.Position.X}）—— 不会烂在屏外");
+                GD.Print("--- 回归②：拖到屏幕中间松手，不该被拽回原位（实测 bug：持续吸附回边缘）---");
+                EdgeHide.探针_重置();
+                DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400));
+                EdgeHide.探针_强制阶段(EdgeHide.侧.左, EdgeHide.相.隐藏);   // _原位 = 边缘位置
+                DisplayServer.WindowSetPosition(new Vector2I(900, 400));    // 主人把它拖到屏幕中间
+                EdgeHide.探针_设相(EdgeHide.相.退出中);                      // 复位已完成 / 主人已接管
+                StateMachine.SetState(StateMachine.Idle);                   // 松手会走这条（取消拖拽 → 标记状态）
+                break;
+            case 410:
+                GD.Print($"[EB] 松手后: X={宠X}（原位 X={EdgeHide.探针_原位.X}）相={EdgeHide.探针_相}");
+                断言(宠X == 900, $"回归②：窗口留在屏幕中间（X={宠X} == 900）—— 没被拽回原位 {EdgeHide.探针_原位.X}、没吸附回边缘");
                 GD.Print("--- 开关：关掉后贴边不生效 ---");
                 EdgeHide.启用 = false;
                 DisplayServer.WindowSetPosition(new Vector2I(屏.Position.X + 3, 400));
                 EdgeHide.检查贴边();
                 break;
-            case 412:
+            case 415:
+                GD.Print($"[EB] 关掉开关后: X={宠X} 相={EdgeHide.探针_相}");
                 断言(EdgeHide.探针_相 == EdgeHide.相.无, "启用=false 时贴边检查不生效（开关关得住）");
 
                 // 收尾：恢复
