@@ -20,11 +20,13 @@ public sealed class PetCommand
 }
 
 /// <summary>
-/// 指令通道（能力层的**下行面**）：Agent 在回复里内嵌指令块，桌宠解析后执行。
+/// 指令通道（能力层的**下行面**）：两条通道（MCP 工具 / 回复内嵌块），桌宠解析校验后执行。
 /// <para>
-/// **为什么是文本内嵌、而不是 JSON-RPC 字段**：ACP 的 `session/prompt` 响应只有 `stopReason`，
-/// 没有自定义字段通道；而各 Agent 结构不同（见 script/Soul/README.md 硬规则（Agent 自主读取，不做注入））。把协议定在**回复文本**上，
-/// 任何 Agent（Hermes / 别的 ACP 客户端 / 甚至纯 HTTP 兜底）都能用，桌宠侧零耦合。
+/// **下行有两条通道，一个执行口**（白名单与参数校验都在本类）：
+/// 1. **工具通道（首选）**：Agent 调 MCP 工具 `pet_command` → `aipet-mcp` 写 `user://actions.jsonl`
+///    → `ActionInbox` 轮询执行并写回执（正文保持干净；Agent 还能拿到真实执行结果）。
+/// 2. **文本通道（兼容）**：Agent 在回复里内嵌围栏块 —— 没有 MCP 的 Agent 用这条，任何环境都能兜
+///    （ACP 的 `session/prompt` 响应没有自定义字段通道，所以文本是最后的公共通道）。
 /// </para>
 /// <para>
 /// **语法**（围栏块，块内一行一条指令；两种行格式都收）：

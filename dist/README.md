@@ -23,7 +23,7 @@ AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 | 交付物 | 文件 | 给谁 |
 |---|---|---|
 | skill | `skill/SKILL.md` | **给用户 Agent 的一次性内化文档**（读一遍：先给自己取名，再把「桌宠的职责与互动」写进自己的人设；之后不必再读） |
-| MCP 工具 | `aipet-mcp/aipet_mcp.py` | 给用户的 Agent（支持 MCP 时注册后，一次调用拿到**实时**上下文） |
+| MCP 工具 | `aipet-mcp/aipet_mcp.py` | 给用户的 Agent（注册后：`pet_context` 拿实时上下文；`pet_command` 下指令——正文保持干净、有真实回执） |
 | 灵魂模板 | `soul_template.md` | 给用户（人格文件的结构与写法；现有 `config/soul_template.md` 的改进版） |
 
 > 本目录只**新增文件**，不改动仓库里的任何代码与文档。`soul_template.md` 是 `config/soul_template.md` 的**改进版**（多了「说话风格」「口头禅与禁忌」「与数值的关系」三节），要不要替换原文件由项目主进程决定。

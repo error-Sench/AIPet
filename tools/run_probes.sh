@@ -156,8 +156,14 @@ run_with_timeout() {
   if [ -f "$flag" ] && [ $((end_ms - start_ms)) -ge $((secs * 1000)) ]; then
     [ "$RC" = 125 ] || RC=124
   fi
+  # 收掉看门狗：MSYS 在高负载下 kill 偶发丢信号，裸 `wait` 会干等到 sleep 自然走完（实测空转 176s）——
+  # 改成有界等待；没退就当孤儿放着（它自然结束时只会对已死 pid 做一次无害的空 kill_tree）。
   kill "$watchdog" >/dev/null 2>&1 || true
-  wait "$watchdog" 2>/dev/null || true
+  i=0
+  while kill -0 "$watchdog" 2>/dev/null && [ "$i" -lt 20 ]; do sleep 0.1; i=$((i + 1)); done
+  if ! kill -0 "$watchdog" 2>/dev/null; then
+    wait "$watchdog" 2>/dev/null || true
+  fi
   rm -f "$flag"
   return 0
 }

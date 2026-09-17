@@ -52,9 +52,10 @@ public partial class ToolBarProbe : Node
             case 4: A组_工具格与动作(); break;
             case 6: B组_点击开(); break;
             case 8: C组_再点关(); break;
-            case 10: D组_启动恢复(); break;
-            case 12: E组_自包含(); break;
-            case 14:
+            case 10: D组_启动恢复_请求(); break;
+            case 14: D组_启动恢复_断言(); break;
+            case 18: D组_启动恢复_负例断言(); E组_自包含(); break;
+            case 22:
                 ToolBar.隐藏();
                 断言(_工具栏 is { Visible: false }, "工具栏已关闭");
                 GD.Print($"[TB] ===== 失败数 = {_失败} =====");
@@ -108,15 +109,22 @@ public partial class ToolBarProbe : Node
         断言(新按钮 != null && 新按钮.Text.Contains("·关"), $"按钮标题回「·关」（现在是「{新按钮?.Text}」）");
     }
 
-    private void D组_启动恢复()
+    private void D组_启动恢复_请求()
     {
-        GD.Print("--- D 组：启动恢复（enabled + 工具栏入口仍在） ---");
+        GD.Print("--- D 组：启动恢复（推迟一帧生效——启动窗口期根节点正忙） ---");
         File.WriteAllText(临时配置, "{\"x\":120,\"y\":120,\"enabled\":true}");
         NetSpeedBubble.启动恢复();
-        断言(NetSpeedBubble.可见, "enabled=true → 启动恢复自动显示（正例）");
+    }
 
-        NetSpeedBubble.隐藏();
-        NetSpeedBubble.启动恢复();
+    private void D组_启动恢复_断言()
+    {
+        断言(NetSpeedBubble.可见, "enabled=true → 启动恢复自动显示（正例）");
+        NetSpeedBubble.隐藏();          // 写回 enabled=false
+        NetSpeedBubble.启动恢复();      // 负例：不应再打开
+    }
+
+    private void D组_启动恢复_负例断言()
+    {
         断言(!NetSpeedBubble.可见, "enabled=false → 启动恢复不开（负例）");
     }
 

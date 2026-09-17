@@ -50,6 +50,7 @@ public partial class Main:Node
 		}
 
 		ModLoader.加载模组();
+		Agent.ActionInbox.启动();     // 指令收件箱（工具通道）：MCP pet_command → user://actions.jsonl
 		
 		Kws.TurnOn();
 		Context.显示指令列表();

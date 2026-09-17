@@ -25,7 +25,7 @@ Agent：按 skill 指引**自己来读**这些文件 ──► 当场按它演
 | 画像（P4） | `user://soul/profile.md` | Agent |
 | 记忆（P4） | `user://soul/memory.jsonl` | Agent |
 | **上下文接口** | `user://context.md` | **程序自动生成**（**只此两处**：启动 + 事件池变动时——数值漂移不触发）|
-| 指令协议（Agent → 桌宠） | 本仓库 `script/Agent/README.md` 的「指令通道」：回复文本内嵌 ` ```pet ` 围栏块 | 我们 |
+| 指令协议（Agent → 桌宠） | `script/Agent/README.md` 的「指令通道」：**MCP 工具 `pet_command`**（首选，有回执）/ 回复文本内嵌 ` ```pet ` 围栏块（兼容） | 我们 |
 
 ### 上下文接口（`user://context.md`）—— 「Agent 不必到处翻文件」
 

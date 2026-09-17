@@ -62,10 +62,14 @@
   ```
 - **Agent → 桌宠**（响应）：`{ "reply": "用户可见回复文本", "commands": [ { "cmd": "set_state", "state": "interact" }, ... ] }`
 
-**指令通道（下行面）落地（✅ 已实测 2026-09-16）**：
+**指令通道（下行面）：两条通道、一个执行口（✅ 工具通道 2026-09-17 落地）**：
 
-ACP 的 `session/prompt` 响应只有 `stopReason`，**没有自定义字段通道**；而各 Agent 结构不同（人格与数据的获取方式见 §2：**Agent 自主读取，不做注入**）。
-因此协议定在**回复文本内嵌围栏块**上——任何 Agent（Hermes / 别的 ACP 客户端 / HTTP 兜底）都能用，桌宠侧零耦合：
+ACP 的 `session/prompt` 响应只有 `stopReason`、没有自定义字段通道，所以下行这样分工：
+
+1. **工具通道（首选）**：Agent 调 MCP 工具 **`pet_command`** → `aipet-mcp`（随包 stdio 服务）把请求写进
+   `user://actions.jsonl` → `ActionInbox` 轮询读取、交 `PetCommands` 校验执行、把回执写回同一文件
+   → 工具进程读回执返回给 Agent。**正文保持干净，Agent 拿到的是真实执行结果**（✓ / ✗ + 原因）。
+2. **文本通道（兼容）**：Agent 在回复里内嵌围栏块 —— 没有 MCP 的 Agent（或注册前的过渡期）用这条：
 
 ````
 好的，我这就去看看喵~
@@ -80,9 +84,11 @@ ACP 的 `session/prompt` 响应只有 `stopReason`，**没有自定义字段通�
 - **围栏块永不显示**：流式路径逐 chunk 过滤（跨 chunk 拼接也不会漏），**历史回放路径同样过滤**
   （hermes 存的是 Agent 原始回复，不过滤就会在恢复会话时露出围栏）。
 - 块内 JSON 半截时**静默忽略**：流式每来一个 chunk 都会整段重解析，不能报错刷屏。
-- 实现：`script/Agent/PetCommands.cs`（解析/校验/执行）＋`AgentBridge.处理回复()`（轮末挂接，指令先执行、再把干净文本当回复）
-  ＋`ChatBox`（显示过滤）。
-- 验证：`CommandProbe`（27 断言，合成文本）＋ `CommandE2E`（真实 Agent 下发 → 执行 → 无残留）。
+- 工具通道**不吃旧账**：`ActionInbox` 启动时把读取偏移定位到文件末尾（桌宠不在时写下的指令不会事后诈尸）。
+- 实现：`script/Agent/PetCommands.cs`（解析/校验/执行，两条通道共用）＋ `script/Agent/ActionInbox.cs`（工具通道收件箱）
+  ＋ `AgentBridge.处理回复()`（文本通道末钩）＋ `ChatBox`（显示过滤）＋ `dist/aipet-mcp/aipet_mcp.py`（工具定义）。
+- 验证：`CommandProbe`（合成文本）＋ `ToolChannelProbe`（收件箱协议：执行/回执/拒绝/不吃旧账）
+  ＋ `CommandE2E`（真实 Agent 下发 → 执行 → 无残留）。
 
 **Agent 可下发命令白名单（v1，保守默认）**：
 

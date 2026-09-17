@@ -24,7 +24,7 @@
 | **身体** | 状态机自主行为：待机小动作、自主走动、打瞌睡、打招呼、被摸摸（三段动画）、**贴边隐藏**（拖到屏幕边缩进去、鼠标靠近探出；判据与对齐方式对照 VPet 官方源码实现）|
 | **灵魂** | `soul.md` 人格文件（改文件即改性格，显示名取自 frontmatter 的 `name`）+ 数值层（心情/精力/亲密，驱动表情变体与行为频率）|
 | **记忆** | `profile.md` 用户画像 + `memory.jsonl` 记忆流水（**由 Agent 自己写**）+ 事件池 `events.jsonl`（行为日志 + 待 Agent 处理的事件）|
-| **能力** | ACP 协议接外部 Agent（Hermes 实测打通）：流式对话、会话恢复、**指令通道**（Agent 用 ` ```pet ` 围栏块指挥桌宠：set_state / speak / play_anim / set_mode / queue_chain / set_mood …）|
+| **能力** | ACP 协议接外部 Agent（Hermes 实测打通）：流式对话、会话恢复、**指令通道**（Agent 用 MCP 工具 `pet_command` 或 ` ```pet ` 围栏块指挥桌宠：set_state / speak / play_anim / set_mode / queue_chain / set_mood …）|
 | **感知** | 环境感知（**默认关**）：只读「键鼠空闲秒数」与「前台是否全屏」→ 全屏静默、离开/回来打招呼、久坐提醒 |
 | **表达** | 语音输出（默认 **Edge 在线语音（晓晓）**，可切 Windows 自带；不内置模型，`config/tts.json` 可关）+ 气泡 + 动画 |
 | **接口** | **上下文接口** `context.md`：把人格/数值/画像/最近记忆/待办事件组装成一份文件，Agent 读一份就够，不必到处翻文件 |

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""AIPet 桌宠 · MCP 工具（stdio 服务）—— 让 Agent 随时拿到桌宠「最新」的上下文。
+"""AIPet 桌宠 · MCP 工具（stdio 服务）—— 让 Agent 读实时上下文、下结构化指令。
 
-为什么有它：
-    桌宠的硬规则是「不做主动注入」——不推送、不写钩子、不碰 Agent 的 system prompt。
-    所以除了让 Agent 自己读文件，我们还提供一个**被动式读取工具**：
-    Agent 调用 `pet_context` 的那一刻，本服务**当场读盘**组装（人格 / 数值 / 画像 /
-    记忆 / 事件池 / 指令说明），因此拿到的永远是最新状态，不受桌面程序刷新节奏影响。
+两个工具：
+- `pet_context`（读）：调用即**当场读盘**组装（人格 / 数值 / 画像 / 记忆 / 事件池 / 指令说明），
+  永远是最新状态——桌宠「不做主动注入」，读取靠 Agent 自己发起。
+- `pet_command`（写）：把一条指令写进桌宠的收件箱 `user://actions.jsonl`，等桌宠轮询执行并写回执，
+  再把**真实执行结果**（✓ / ✗ + 原因）返回。正文里不再需要嵌指令块（那是没有 MCP 时的兼容通道）。
 
 怎么用（以 Hermes 为例）：
-    hermes mcp add aipet -- python "<本文件路径>"
-    注册后 Agent 侧会多出工具 `pet_context`。其它 Agent 按其 MCP 文档添加 stdio server
+    hermes mcp add aipet --command python --args "<本文件路径>"
+    注册后 Agent 侧多出 `pet_context` 与 `pet_command`。其它 Agent 按其 MCP 文档添加 stdio server
     （命令 `python`，参数为本脚本路径）即可。
 
 数据目录：
@@ -26,6 +26,8 @@ import io
 import json
 import os
 import sys
+import time
+import uuid
 
 # stdout / stdin 必须是 UTF-8（中文环境默认可能是 GBK，会破坏协议）
 sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
@@ -33,8 +35,11 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", write_through
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 
 SERVER_NAME = "aipet-mcp"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 DEFAULT_PROTOCOL = "2024-11-05"
+
+ACTIONS_FILE = "actions.jsonl"
+回执等待秒 = 2.0
 
 
 def log(msg):
@@ -56,6 +61,8 @@ def find_data_dir():
             return c
     return None
 
+
+# ============================ pet_context（读） ============================
 
 def read_text(path, default=""):
     try:
@@ -188,16 +195,78 @@ def build_context():
     out.append(recent_text)
     out.append("")
     out.append("## 你能指挥桌宠做什么（指令通道）")
-    out.append("在你的回复文本里内嵌一个 pet 围栏块（三个反引号 + 语言标记 pet），块内每行一条 JSON 指令，桌宠会执行并把围栏块从聊天里隐藏：")
+    out.append("**首选：调工具 `pet_command`** —— 一次一条、正文保持干净，还会拿到真实回执（成功 / 被拒 + 原因）。")
+    out.append("没有 MCP 时（兼容通道）：在回复文本里内嵌一个 pet 围栏块（三个反引号 + 语言标记 pet），块内每行一条 JSON 指令，桌宠会执行并把围栏块从聊天里隐藏：")
     out.append("- `{\"cmd\":\"set_state\",\"state\":\"think|idle|sleep|working|speak…\"}` —— 切状态（10 个合法值，详见 skill）")
     out.append("- `{\"cmd\":\"speak\",\"text\":\"…\"}` —— 让它冒个气泡（≤200 字，别复述正文）")
     out.append("- `{\"cmd\":\"play_anim\",\"anim\":\"…\"}` —— 播指定动画（键名是 **anim**，不是 name）")
     out.append("- `{\"cmd\":\"set_mood\",\"mood\":65}` —— 改心情（0–100，或 happy / tired / sad…）")
-    out.append("- 每轮最多 6 条；写错了会被忽略并记日志。")
+    out.append("- 文本通道每轮最多 6 条；写错了会被忽略并记日志。")
     out.append("")
     out.append("（完整规则见随桌宠交付的 skill：`aipet-desktop-pet`。）")
     return "\n".join(out)
 
+
+# ============================ pet_command（写） ============================
+
+def _find_reply(path, rid):
+    """在收件箱里找这条 id 的回执行。返回 (ok, note) 或 None。"""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except Exception:
+        return None
+    for ln in lines:
+        ln = ln.strip()
+        if not ln or rid not in ln:
+            continue
+        try:
+            row = json.loads(ln)
+        except Exception:
+            continue
+        if row.get("repl") == rid:
+            return (bool(row.get("ok")), str(row.get("note", "")))
+    return None
+
+
+def run_command(arguments):
+    """把一条指令写进桌宠收件箱并等回执。返回 (result_text, is_error)。"""
+    cmd = arguments.get("cmd")
+    if not cmd:
+        return ("缺少 cmd —— 必须给一条指令名（set_state / speak / play_anim / set_mood / queue_chain / set_mode / open_url）", True)
+
+    data_dir = find_data_dir()
+    if not data_dir:
+        return ("找不到桌宠数据目录（桌宠至少运行过一次吗？）", True)
+
+    path = os.path.join(data_dir, ACTIONS_FILE)
+    rid = uuid.uuid4().hex[:12]
+    行 = {"id": rid, "t": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+    for k, v in arguments.items():
+        if v is None:
+            continue
+        行[k] = v if isinstance(v, str) else str(v)
+
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(行, ensure_ascii=False) + "\n")
+            f.flush()
+    except Exception as e:
+        return (f"写收件箱失败：{e}", True)
+
+    # 等桌宠回执（它每 0.25 秒轮询一轮）
+    deadline = time.time() + 回执等待秒
+    while time.time() < deadline:
+        reply = _find_reply(path, rid)
+        if reply is not None:
+            ok, note = reply
+            return ((f"✓ {note}" if ok else f"✗ {note}"), False)
+        time.sleep(0.05)
+
+    return (f"已发送，但 {回执等待秒:g} 秒内没收到回执 —— 桌宠好像没在运行，这条指令不会被执行。", False)
+
+
+# ============================ MCP 协议 ============================
 
 TOOLS = [
     {
@@ -208,6 +277,35 @@ TOOLS = [
             "需要了解桌宠、准备下发指令、或处理它的事件池时调用。"
         ),
         "inputSchema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "pet_command",
+        "description": (
+            "给桌宠下一条指令并拿到真实回执（✓ 已执行 / ✗ 被拒 + 原因）。这是指令通道的**首选**："
+            "正文保持干净，不要往回复文本里嵌指令块（那是没有 MCP 时的兼容通道）。一次一条；"
+            "大多数回复**不要**调用它——只在真有表达价值时用。可用 cmd："
+            "set_state（state：idle/interact/drag/think/speak/listen/working/sleep/greet/edge_hide）、"
+            "speak（text：短气泡，≤200 字，别复述正文）、play_anim（anim：如 walk-left）、"
+            "set_mood（mood：0-100 或 happy/tired/sad 等）、queue_chain（steps：如 greet:3,think:10,idle:0，≤5 步）、"
+            "set_mode（mode：office/game）、open_url（url：仅主人开启了 aggressiveMode 时可用）。"
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "cmd": {"type": "string",
+                        "enum": ["set_state", "speak", "play_anim", "set_mood", "queue_chain", "set_mode", "open_url"],
+                        "description": "指令名（白名单内）"},
+                "state": {"type": "string", "description": "set_state 用：10 个合法值之一"},
+                "text": {"type": "string", "description": "speak 用：要冒的短气泡（≤200 字）"},
+                "anim": {"type": "string", "description": "play_anim 用：动画名（池-变体，如 walk-left；不确定就别用）"},
+                "mood": {"type": ["string", "number"], "description": "set_mood 用：0-100 或关键词（happy/tired/sad 等）"},
+                "steps": {"type": "string", "description": "queue_chain 用：如 greet:3,think:10,idle:0（≤5 步）"},
+                "mode": {"type": "string", "enum": ["office", "game"], "description": "set_mode 用"},
+                "url": {"type": "string", "description": "open_url 用（仅 aggressiveMode 时）"},
+            },
+            "required": ["cmd"],
+            "additionalProperties": False,
+        },
     },
 ]
 
@@ -234,6 +332,9 @@ def handle(request):
         return {"jsonrpc": "2.0", "id": rid, "result": {"tools": TOOLS}}
     if method == "tools/call":
         name = params.get("name")
+        arguments = params.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {}
         if name == "pet_context":
             try:
                 text = build_context()
@@ -243,8 +344,16 @@ def handle(request):
                 log(f"组装上下文失败: {e}")
                 return {"jsonrpc": "2.0", "id": rid, "result": {
                     "content": [{"type": "text", "text": f"读取失败：{e}"}], "isError": True}}
+        if name == "pet_command":
+            try:
+                text, is_err = run_command(arguments)
+            except Exception as e:
+                log(f"下发指令失败: {e}")
+                text, is_err = f"下发失败：{e}", True
+            return {"jsonrpc": "2.0", "id": rid, "result": {
+                "content": [{"type": "text", "text": text}], "isError": is_err}}
         return {"jsonrpc": "2.0", "id": rid, "result": {
-            "content": [{"type": "text", "text": f"未知工具：{name}（本服务只提供 pet_context）"}],
+            "content": [{"type": "text", "text": f"未知工具：{name}（本服务提供 pet_context / pet_command）"}],
             "isError": True}}
     if method == "resources/list":
         return {"jsonrpc": "2.0", "id": rid, "result": {"resources": []}}

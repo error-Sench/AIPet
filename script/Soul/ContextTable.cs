@@ -120,7 +120,8 @@ public static class ContextTable
 
         // —— 指令协议 ——
         sb.AppendLine("## 你能指挥桌宠做什么（指令通道）");
-        sb.AppendLine("在你的回复文本里内嵌一个 ```pet 围栏块，块内每行一条 JSON 指令，桌宠会执行并把围栏块从聊天里隐藏：");
+        sb.AppendLine("**首选：调 MCP 工具 `pet_command`**（注册过 `aipet-mcp` 时）—— 一次一条、正文保持干净，还会拿到真实回执。");
+        sb.AppendLine("没有 MCP 时（兼容通道）：在回复文本里内嵌一个 ```pet 围栏块，块内每行一条 JSON 指令，桌宠会执行并把围栏块从聊天里隐藏：");
         sb.AppendLine("- `{\"cmd\":\"set_state\",\"state\":\"think|idle|sleep|working|speak…\"}` —— 切状态");
         sb.AppendLine("- `{\"cmd\":\"speak\",\"text\":\"…\"}` —— 让它冒个气泡（≤200 字，别复述你正文）");
         sb.AppendLine("- `{\"cmd\":\"play_anim\",\"anim\":\"…\"}` —— 播指定动画（如 `walk-left`、`edge_hide-left-keep`；键名是 **anim**，不是 name）");

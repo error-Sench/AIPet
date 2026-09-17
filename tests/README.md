@@ -47,6 +47,7 @@
 | `HistoryProbe` | headless | 会话恢复回放的历史是否被切成**独立消息**（不再合并成一大段）。会真实连接 Agent |
 | `DragProbe` | **非 headless** | 桌宠贴近**屏幕上边缘**时仍能起手拖拽、窗口精确跟随光标（真实光标 + 注入按键；结束会恢复窗口与光标位置） |
 | `CommandProbe` | headless | 指令通道三组：解析（未闭合块/非 pet 围栏不误伤/坏 JSON 容忍）、执行（越权与超限的拒绝）、显示（跨 chunk 拼接不漏围栏） |
+| `ToolChannelProbe` | headless | 工具通道（收件箱协议）：MCP `pet_command` → `actions.jsonl` → `ActionInbox` 执行 + 回执；含「不吃旧账」/越权拒绝/坏 JSON 容忍 |
 | `CommandE2E` | headless | **真实 Agent** 下发指令 → 解析 → 执行 → 回复与历史都无残留。会真实调用一次 LLM |
 | `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并删测试存档） |
 | `ContextProbe` | headless | 上下文接口（`user://context.md`）：组装内容 / 脚手架只建不覆盖 / 只读不推送 |

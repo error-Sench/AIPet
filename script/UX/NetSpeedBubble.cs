@@ -103,8 +103,12 @@ public partial class NetSpeedBubble : Window
         GD.Print("[NetSpeed] 气泡已显示");
     }
 
-    /// <summary>启动恢复：上次开着（enabled=true）且工具栏入口还在 → 自动显示；否则保持隐藏。</summary>
-    public static void 启动恢复()
+    /// <summary>启动恢复：上次开着（enabled=true）且工具栏入口还在 → 自动显示；否则保持隐藏。
+    /// 注意：启动窗口期（Main._Ready 内）根节点正忙，直接往 root add_child 会被引擎**静默拒绝**
+    ///（"Parent node is busy setting up children"）→ 整个恢复推迟一帧执行（修掉一个静默 bug）。</summary>
+    public static void 启动恢复() => Callable.From(启动恢复_立即).CallDeferred();
+
+    private static void 启动恢复_立即()
     {
         try
         {
