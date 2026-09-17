@@ -163,15 +163,15 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 ## 10. 踩坑清单（全部为实测结论，改代码前先看这一节）
 
 > **本清单已按层拆分**：与某一层强相关的条目在那一层的 README 里（**编号保持全局不变**，所以「见坑 #N」这类引用仍然有效）。
-> 本文件只保留**跨层**的几条（下面 4 条）：
+> 本文件只保留**跨层**的几条（下面 5 条）：
 >
 > | 编号 | 在哪 |
 > |---|---|
 > | #1 / #2 / #3 / #5 / #12 | `script/UX/README.md`（界面 / 窗口） |
-> | #14 | `script/State/README.md`（状态机是动画的所有者） |
+> | #14 / #19–#24 | `script/State/README.md`（状态机是动画的所有者） |
 > | #9 / #10 / #11 / #13 | `script/Agent/README.md`（协议 / 指令通道） |
 > | #6 / #15 / #17 / #18 | `tests/README.md`（探针方法论） |
-> | #4 / #7 / #8 / #16 | **本文件**（跨层：启动 / 目录约定 / C# 命名冲突） |
+> | #4 / #7 / #8 / #16 / #25 | **本文件**（跨层：启动 / 目录约定 / C# 命名冲突） |
 
 4. **麦克风不要在启动时打开**。`AudioStreamPlayer2D` 挂 `AudioStreamMicrophone` + `autoplay=true` 会让程序一启动就占用录音设备，无设备时报 `WASAPI: init_input_device error`（且属隐私问题）。→ 规则：**按需启动**（`Kws` 只在语音模型真加载成功后才开）。
 
@@ -183,3 +183,5 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
     - `Environment`：`Godot.Environment` vs `System.Environment`（用 `TickCount` 必炸）→ `System.Environment.TickCount`。
     - `FileAccess`：`Godot.FileAccess` vs `System.IO.FileAccess`。
     规律：Godot 的 C# 命名空间里有一批与 BCL 同名的类型，凡是用「名字很通用」的 BCL 类型，一律全限定。
+
+25. **启动窗口期不要直接往 root `add_child`**（`Main._ready` 及其向下链路里）：引擎会**静默拒绝**（只打一行 `Parent node is busy setting up children`，`AddChild` 既不抛异常也不生效——曾让「网速气泡启动恢复」一直没生效，且日志还谎报成功）。→ 规则：**延迟一帧**（`root.CallDeferred(Node.MethodName.AddChild, 节点)`，或 `Callable.From(方法).CallDeferred()`）；探针在 `_Ready` 里实例化 `game.tscn` 时同理。
