@@ -62,30 +62,11 @@ public static class ContextTable
 
     // ================= 组装 / 生成 =================
 
-    /// <summary>重新组装并写入 `user://context.md`（启动、数值存盘、事件追加时调用；变更路径走 请求刷新() 节流）。</summary>
+    /// <summary>重新组装并写入 `user://context.md`（**只此两处**：启动时 + 事件池变动时——数值漂移与存盘刻意不触发，避免无谓重写）。</summary>
     public static void 生成()
     {
         try { File.WriteAllText(上下文路径, 组装(), new UTF8Encoding(false)); }
         catch (Exception e) { GD.PrintErr($"[Context] 生成失败: {e.Message}"); }
-    }
-
-    private static long _上次刷新毫秒;
-
-    /// <summary>
-    /// 节流刷新（**数据变更时调用**）—— 让 `context.md` 尽量贴近最新：事件追加 / 互动 / 任务完成等
-    /// 都会走到这里；最小间隔 2 秒（更频繁地写盘没意义）。要**绝对最新**时，Agent 可调 MCP 工具
-    /// `pet_context`（当场读盘）；没有 MCP 时读到的也可能滞后几秒，属正常。
-    /// </summary>
-    public static void 请求刷新()
-    {
-        try
-        {
-            var 现在 = (long)Time.GetTicksMsec();
-            if (现在 - _上次刷新毫秒 < 2000) return;
-            _上次刷新毫秒 = 现在;
-            生成();
-        }
-        catch (Exception e) { GD.PrintErr($"[Context] 刷新失败: {e.Message}"); }
     }
 
     /// <summary>组装上下文文本（**纯函数**，探针可直接断言）。</summary>

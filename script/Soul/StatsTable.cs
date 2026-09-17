@@ -140,7 +140,6 @@ public static class StatsTable
         {
             _存盘累计 = 0;
             存盘();
-            上下文刷新();
         }
     }
 
@@ -220,9 +219,6 @@ public static class StatsTable
 
     /// <summary>当前心情的文字状态。</summary>
     public static string 当前心情文字 => 心情文字(当前心情);
-
-    /// <summary>数值存盘时顺手刷新上下文接口文件（`user://context.md`，Agent 自主读取用）。</summary>
-    private static void 上下文刷新() => ContextTable.生成();
 
     /// <summary>当前是否「精力不济」。</summary>
     public static bool 精力不济 => 当前精力 < 20f;

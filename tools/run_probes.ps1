@@ -11,7 +11,7 @@
 #   powershell ... -File tools\run_probes.ps1 -All               # include real-window probes
 #   powershell ... -File tools\run_probes.ps1 -Only PanelProbe
 #   powershell ... -File tools\run_probes.ps1 -Only PanelProbe,StateProbe
-#   powershell ... -File tools\run_probes.ps1 -NoAgent           # skip Agent/LLM probes
+#   powershell ... -File tools\run_probes.ps1 -Agent            # add the Agent/LLM probes (skipped by default)
 #   powershell ... -File tools\run_probes.ps1 -Timeout 300
 #   powershell ... -File tools\run_probes.ps1 -Godot <exe> -Logs <dir>
 #   powershell ... -File tools\run_probes.ps1 -Only SessionProbe -ProbeArgs read
@@ -31,7 +31,8 @@
 param(
     [switch]$All,
     [switch]$List,
-    [switch]$NoAgent,
+    [switch]$NoAgent,   # 兼容保留（跳过现在是默认行为）
+    [switch]$Agent,     # 要跑需真实 Agent 的探针时显式加
     [string[]]$Only = @(),
     [string[]]$Skip = @(),
     [int]$Timeout = 0,
@@ -52,7 +53,7 @@ $DefaultGodot = 'D:/Games/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stab
 #     gives up when screen size is 0, so a headless run is a false green.
 $NonHeadless = @('DragProbe', 'SettingsProbe', 'StatsWindowProbe', 'EdgeHideBehaviorProbe', 'EnterProbe', 'WalkProbe')
 
-# Probes that need a live Agent (LLM). Skipped when -NoAgent is used.
+# Probes that need a live Agent (LLM). Skipped by default (flaky / env-dependent); run with -Agent.
 $AgentProbes = @('AcpTest', 'ChatFlowTest', 'CommandE2E', 'HistoryProbe', 'SessionProbe')
 
 $DefaultTimeout = 180
@@ -257,7 +258,7 @@ if ($Only.Count -gt 0) {
 } else {
     foreach ($p in $AllProbes) {
         if ((-not $All) -and (Test-In $p $NonHeadless)) { $Skipped += $p; $SkippedNh += $p; continue }
-        if ($NoAgent -and (Test-In $p $AgentProbes)) { $Skipped += $p; $SkippedAgent += $p; continue }
+        if ((-not $Agent) -and (Test-In $p $AgentProbes)) { $Skipped += $p; $SkippedAgent += $p; continue }
         if (Test-In $p $NonHeadless) { $SelModes += 'window' } else { $SelModes += 'headless' }
         $SelNames += $p
     }
@@ -302,7 +303,7 @@ if ($SkippedNh.Count -gt 0) {
 }
 if ($SkippedAgent.Count -gt 0) {
     Write-Host ("skipped : {0}" -f ($SkippedAgent -join ' '))
-    Write-Host '          (need a live Agent: drop -NoAgent to run them)'
+    Write-Host '          (skipped by default: live-LLM probes are flaky; use -Agent to run)'
 }
 Write-Host ''
 

@@ -11,7 +11,7 @@
 #   bash tools/run_probes.sh --only PanelProbe
 #   bash tools/run_probes.sh --only PanelProbe,StateProbe
 #   bash tools/run_probes.sh --list         # 只列探针与分类，不跑（安全）
-#   bash tools/run_probes.sh --no-agent     # 跳过需要真实 Agent（LLM）的探针
+#   bash tools/run_probes.sh --agent        # 额外跑需要真实 Agent（LLM）的探针（默认跳过）
 #   bash tools/run_probes.sh --skip Foo     # 额外把 Foo 当非 headless 跳过（临时白名单）
 #   bash tools/run_probes.sh --timeout 300  # 单个探针超时秒数（默认 180）
 #   bash tools/run_probes.sh --godot <exe>  # 指定 Godot 可执行文件
@@ -44,7 +44,8 @@ PROJECT_DEFAULT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 #     `尝试走动` 直接放弃，headless 跑出来是假绿，所以也放白名单。
 NON_HEADLESS=(DragProbe SettingsProbe StatsWindowProbe EdgeHideBehaviorProbe EnterProbe WalkProbe)
 
-# 需要真实 Agent（LLM）的探针：没配 Agent 时会内部超时 → 失败。--no-agent 跳过。
+# 需要真实 Agent（LLM）的探针：**默认不跑** —— 真调模型受网络/环境延迟影响、不稳定，不适合当回归；
+# 要手动验证用 --agent（单跑也可 --only <名字>，--only 不受此默认影响）。
 AGENT_PROBES=(AcpTest ChatFlowTest CommandE2E HistoryProbe SessionProbe)
 
 # 默认超时（秒）。单个探针超过就 taskkill 掉整棵进程树，并按失败计。
@@ -57,7 +58,7 @@ LOG_DIR=""
 MODE="headless"        # headless | all
 ONLY=()                # 显式指定的探针（跳过一切默认筛选）
 LIST_ONLY=0
-SKIP_AGENT=0
+SKIP_AGENT=1        # 默认跳过需真实 Agent 的探针（要跑用 --agent）
 EXTRA_ARGS=()          # `--` 之后透传给探针的参数
 
 # ---------------------------------------------------------------- 小工具 -----
@@ -320,7 +321,7 @@ if [ "${#SKIPPED[@]}" -gt 0 ]; then
   fi
   if [ "${#SKIPPED_AGENT[@]}" -gt 0 ]; then
     printf '跳过   : %s\n' "${SKIPPED_AGENT[*]}"
-    printf '         （需要真实 Agent：去掉 --no-agent 就会跑）\n'
+    printf '         （默认跳过：真调 LLM 不稳定；要跑用 --agent）\n'
   fi
 fi
 printf '\n'

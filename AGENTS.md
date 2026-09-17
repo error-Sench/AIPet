@@ -153,8 +153,8 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 - 灵魂职责已重新定义为「人格 prompt 资产」：数值归 `stats.json`，用户画像归 `soul/profile.md`，记忆流水归 `soul/memory.jsonl`，三者独立于 soul.md。
 - **人格与数据的获取方式 = Agent 自主读取（硬规则，主人三次强调 2026-09-16 定稿）**：桌宠**不做任何主动注入**——
   不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent），
-  Agent 按 skill 指引自己读 `soul.md` / `stats.json` / `profile.md` / `memory.jsonl`。skill 与模板**在项目完工时才写**（P8）。
-- **上下文组装照做，形态是接口**：`ContextTable` 把「人格 + 数值 + 画像 + 最近记忆 + 指令通道 + 源文件路径」组装成 `user://context.md`（启动 + 数据变更时刷新〔事件/存盘，约 2s 节流〕+ 30s 兜底；文件头标只读）；
+  **skill 是一次性内化文档**：Agent 读一次 → 先问主人「我叫什么？」→ 把「桌宠的职责与互动」写进自己的人设（自主注入），之后不必再读 skill、按需读数据文件。skill 与模板**在项目完工时定稿**（P8）。
+- **上下文组装照做，形态是接口**：`ContextTable` 把「人格 + 数值 + 画像 + 最近记忆 + 指令通道 + 源文件路径」组装成 `user://context.md`（**只在启动 + 事件池变动时**刷新——数值漂移不触发；文件头标只读）；
   另有 **MCP 工具 `pet_context`**（`dist/aipet-mcp/`，Agent 调用即当场读盘、永远最新）。
   Agent **读这一份就够**、不必到处翻文件；要深挖再顺路径去读源文件。
 

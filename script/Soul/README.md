@@ -24,14 +24,14 @@ Agent：按 skill 指引**自己来读**这些文件 ──► 当场按它演
 | 数值 | `user://stats.json` | 程序高频写 |
 | 画像（P4） | `user://soul/profile.md` | Agent |
 | 记忆（P4） | `user://soul/memory.jsonl` | Agent |
-| **上下文接口** | `user://context.md` | **程序自动生成**（启动 + 数据变更时〔约 2s 节流〕+ 30s 兜底）|
+| **上下文接口** | `user://context.md` | **程序自动生成**（**只此两处**：启动 + 事件池变动时——数值漂移不触发）|
 | 指令协议（Agent → 桌宠） | 本仓库 `script/Agent/README.md` 的「指令通道」：回复文本内嵌 ` ```pet ` 围栏块 | 我们 |
 
 ### 上下文接口（`user://context.md`）—— 「Agent 不必到处翻文件」
 
 主人定调（接口思想）：**上下文组装照做，但形态是「组装成一份文件让 Agent 来读」**，不是我们推送。
 `ContextTable.组装()` 把「人格全文 + 数值摘要 + 画像 + 最近 12 条记忆 + 指令通道说明 + 四个源文件路径」拼成一份 md，
-写到 `user://context.md`；启动时 + 数据变更时（事件/互动/存盘，约 2s 节流）刷新，另有 30 秒兜底；要绝对最新可走 MCP 工具 `pet_context`（随包 `dist/aipet-mcp/`，调用即读盘）。文件头写明**只读**（下次生成覆盖）与**每个源文件归谁写**
+写到 `user://context.md`；**只在两处刷新**：启动时 + 事件池变动时（数值漂移/存盘刻意不触发——它不产生任何无谓 I/O）；要绝对最新可走 MCP 工具 `pet_context`（随包 `dist/aipet-mcp/`，调用即读盘）。文件头写明**只读**（下次生成覆盖）与**每个源文件归谁写**
 （数值 → 程序；画像/记忆 → Agent 自己写）。
 
 实现：`script/Soul/ContextTable.cs`；探针：`tests/ContextProbe.cs`（17 断言：组装内容 / 脚手架只建不覆盖 / 只读不推送）。

@@ -52,7 +52,7 @@ public static class EventPool
             };
             File.AppendAllText(有效路径, JsonSerializer.Serialize(行, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }) + "\n", new UTF8Encoding(false));
             裁剪();
-            Soul.ContextTable.请求刷新();   // 事件变了 → 让 context.md 尽快跟上（节流）
+            Soul.ContextTable.生成();   // 事件池变动 → 刷新 context.md（无 MCP 的 Agent 靠它看到新事件）
         }
         catch (Exception e) { GD.PrintErr($"[EventPool] 记事件失败: {e.Message}"); }
     }
@@ -75,7 +75,7 @@ public static class EventPool
                 JsonSerializer.Serialize(行, new JsonSerializerOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }) + "\n",
                 new UTF8Encoding(false));
             裁剪();
-            Soul.ContextTable.请求刷新();   // ack 也会影响「待处理摘要」
+            Soul.ContextTable.生成();   // ack 改变「待处理摘要」→ 同样刷新
         }
         catch (Exception e) { GD.PrintErr($"[EventPool] 追加失败: {e.Message}"); }
     }

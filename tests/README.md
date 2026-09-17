@@ -72,7 +72,7 @@
 | 先看清单与分类（不跑，安全） | `bash tools/run_probes.sh --list` | `... -File tools\run_probes.ps1 -List` |
 | 含非 headless（会弹窗、动光标） | `bash tools/run_probes.sh --all` | `... -File tools\run_probes.ps1 -All` |
 | 只跑单个 / 几个 | `--only PanelProbe,StateProbe` | `-Only PanelProbe,StateProbe` |
-| 跳过需要真 Agent 的探针 | `--no-agent` | `-NoAgent` |
+| **额外**跑需要真 Agent 的探针（默认不跑） | `--agent` | `-Agent` |
 | 单个探针超时秒数（默认 180） | `--timeout 300` | `-Timeout 300` |
 | 透传给探针的参数 | `--only SessionProbe -- -- read` | `-Only SessionProbe -ProbeArgs read` |
 | 指定 Godot 可执行文件 / 日志目录 | `--godot <exe> --logs <dir>` | `-Godot <exe> -Logs <dir>` |
@@ -88,7 +88,7 @@
 
 **超时怎么看**：单个探针跑过 `--timeout`（默认 180s）→ 记 `TIMEOUT`、按失败计（退出码 124），并把**整棵进程树**杀掉，再按「命令行里含 `res://tests/<本探针>.tscn`」精确补一刀（只撞本探针的 Godot 进程，不会碰编辑器 / 别的项目）。两步都要的原因：`*_console.exe` 只是个启动器，只杀它会留一个孤儿窗口；MSYS 下 `taskkill /T` 还可能漏杀（子进程被重新挂父）。
 
-- **慢探针**：真连 Agent（LLM）的 `HistoryProbe` / `CommandE2E` / `AcpTest` / `ChatFlowTest` / `SessionProbe`（`--list` 里标了 `[需 Agent]`）——网络/机器慢就给 `--timeout 300`；没配 Agent 就用 `--no-agent` 跳过。
+- **默认不跑**：真连 Agent（LLM）的 `HistoryProbe` / `CommandE2E` / `AcpTest` / `ChatFlowTest` / `SessionProbe`（`--list` 里标了 `[需 Agent]`）——真调模型受网络/环境延迟影响、不稳定，已从默认回归摘除；要手动验证用 `--agent`（慢时配 `--timeout 300`）。
 - **失败时看什么**：脚本会把该探针的 `FAIL` 行直接打在结果下面（一条 FAIL 行都没有，就贴日志末尾 8 行）；每个探针的完整日志在汇总下面的「失败日志」里给路径，默认落在系统临时目录（`aipet_probes/<时间戳>/`）。
 - **找不到 Godot**：脚本**一开始就报错退出**（`rc=3`，并提示改脚本顶部的 `GODOT_EXE` / `$DefaultGodot`，或用 `--godot` / `-Godot` / 环境变量 `GODOT_EXE` 指定），不会每个探针都炸一遍。
 

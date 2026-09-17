@@ -16,13 +16,13 @@
 AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 
 > 它不会把人格、数值、记忆拼进发给 Agent 的消息，不写插件钩子，也不改 Agent 的 system prompt。
-> 它只把文件**放在磁盘上**；用户把 **skill 提交给自己的 Agent**，Agent 按 skill 指引**自主读取**这些文件。
+> 它只把文件**放在磁盘上**；用户把 **skill 提交给自己的 Agent**——Agent 读一次，把这份职责**内化进自己的人设**（自主注入），之后按需读数据文件。
 
-所以交付物不是插件、不是配置，而是两份文本：
+所以交付物不是插件、不是配置，而是这些：
 
 | 交付物 | 文件 | 给谁 |
 |---|---|---|
-| skill | `skill/SKILL.md` | **给用户的 Agent**（告诉它去哪读、怎么指挥桌宠、怎么写记忆） |
+| skill | `skill/SKILL.md` | **给用户 Agent 的一次性内化文档**（读一遍：先给自己取名，再把「桌宠的职责与互动」写进自己的人设；之后不必再读） |
 | MCP 工具 | `aipet-mcp/aipet_mcp.py` | 给用户的 Agent（支持 MCP 时注册后，一次调用拿到**实时**上下文） |
 | 灵魂模板 | `soul_template.md` | 给用户（人格文件的结构与写法；现有 `config/soul_template.md` 的改进版） |
 
@@ -31,7 +31,7 @@ AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 ## 三步用起来
 
 1. **接上你的 Agent**：桌宠通过 ACP 驱动 Agent（`config/agent.json` 里 `backend: hermes-acp` + `executable` 指向你的 agent CLI）。接好之后，聊天窗里你说的话会原样发给它，它的回复显示回来。
-2. **把 skill 交给你的 Agent**（下一节）。
+2. **把 skill 交给你的 Agent**（下一节）——它读一次就会把职责内化成自己的人设，不需要每次重读。
 3. **想改人格** → 编辑桌宠的 `soul/soul.md`（或者把 `soul_template.md` 复制过去当底稿）。
 
 ## 怎么把 skill 交给自己的 Agent
@@ -57,7 +57,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 
 | 文件 | 谁写 | 说明 |
 |---|---|---|
-| `context.md` | **程序**（启动 + 数据变化时；30s 兜底） | 只读入口：人格全文 + 数值摘要 + 画像 + 最近 12 条记忆 + 待处理事件 + 指令说明 + 全部源文件路径 |
+| `context.md` | **程序**（启动 + 事件池变动时） | 只读入口：人格全文 + 数值摘要 + 画像 + 最近 12 条记忆 + 待处理事件 + 指令说明 + 全部源文件路径 |
 | `soul/soul.md` | 主人 / Agent | 人格（prompt 资产） |
 | `soul/profile.md` | **Agent** | 用户画像，≤ 5000 字符 |
 | `soul/memory.jsonl` | **Agent** | 记忆流水（短期 6 → 中期 6 → 永久 20 的提炼链） |
@@ -69,7 +69,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 1. 打开 `...\AIPet\soul\soul.md`（不存在时会自动落一份模板）。
 2. 按 `soul_template.md` 的结构写：frontmatter（`version` / `name`）+ 正文（我是谁 / 性格 / 说话风格 / 口头禅与禁忌 / 原则 / 思维范式 / 情绪表达 / 与数值的关系）。
 3. **只放人格**：数值归 `stats.json`，记忆归 `soul/memory.jsonl`，画像归 `soul/profile.md`，游戏进度归 `game/save.json`。
-4. 改结构时把 `version` +1。保存即可 —— 桌宠会在数据变化时（最迟 30 秒内）重新生成 `context.md`，Agent 下次读取就是新内容（重启桌宠同样生效；目前没有接线热重载）。
+4. 改结构时把 `version` +1。保存即可 —— 重启桌宠后生效（看实时状态：有 MCP 调 `pet_context`，否则读数据目录的 `context.md` / `soul.md`；目前没有接线热重载）。
 
 ## 已知事项（写给接手的人）
 
