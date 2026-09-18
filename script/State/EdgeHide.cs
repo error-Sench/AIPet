@@ -8,8 +8,14 @@ namespace desktop.script.State;
 /// 贴边隐藏（P2 剩余 —— **行为层**）：拖到屏幕左/右边缘 → 缩进边缘待着；鼠标靠近 → 探出；离开 → 缩回。
 /// <para>
 /// 素材语义（VPet `SideHide_*`，判据见 `tools/README.md`）：
-/// `{left,right}-in` 缩进 / `-keep` 稳定 / `-hold` 长保持（单帧，当静止姿势用）/ `-out` 退出 /
-/// `-peek` 探出 / `-unpeek` 缩回。
+/// `{left,right}-in` 缩进 / `-keep` 稳定（微动循环）/ `-hold` 长保持（单帧，当静止姿势用）/ `-out` 退出 /
+/// `-peek` 探出（弹出动作，一次性）/ `-rise` **探出后的微动循环**（官方：鼠标靠近 → 循环 Rise/B）/
+/// `-unpeek` 缩回（= 探出动作的逆序）。
+/// <para>
+/// 左右素材**逐段一一对应**（各 in9/keep4/hold1/out7/peek4/rise10/unpeek3 帧）：
+/// VPet 的 `SideHide_Right_Main/A` 里多粘了 5 帧（2 帧「退出」起跳帧 + 3 帧收尾），
+/// 导入时按帧切片重切（见 `tools/anim/import_vpet_anim.py` 规则 7）。
+/// </para>
 /// </para>
 /// <para>
 /// 设计（主人授权「你自己定吧」定的默认，见 `script/State/README.md`）：
@@ -47,11 +53,18 @@ public static class EdgeHide
     public static int 左偏移像素 { get; set; }
     public static int 右偏移像素 { get; set; }
 
-    /// <summary>循环动画的**重播间隔**（秒）：隐藏/探出的循环不是连续播，而是「播一次 → 隔这么久 → 再播一次」。
-    /// 主人要求「贴边动画播放要有延迟，每 2 秒才播放一次」。</summary>
+    /// <summary>循环动画的**周期**（秒）：隐藏/探出的循环不是连续播，而是「一个周期里循环几次」。
+    /// 主人要求「每两秒循环两次贴边动画」→ 周期 2s、每周期循环 2 次、循环内间隔 0.5s。</summary>
     public static float 循环间隔秒 { get; set; } = 2f;
 
+    /// <summary>一轮里循环几次（1 = 老行为「每周期一次」）。</summary>
+    public static int 循环次数 { get; set; } = 2;
+
+    /// <summary>循环内部的间隔（秒）。</summary>
+    public static float 循环内间隔秒 { get; set; } = 0.5f;
+
     private static float _重播计时;      // 循环动画的下次重播倒计时
+    private static int _本轮剩余;        // 本周期里还差几次没循环
 
     private static Vector2I _原位;        // 隐藏前的屏内位置（复位目标）
     private static Vector2I _目标位置;    // 当前滑动目标
@@ -177,7 +190,7 @@ public static class EdgeHide
             位 = DisplayServer.WindowGetPosition();
         }
 
-        // 3. 循环动画的重播节拍：播一次 → 隔 循环间隔秒 → 再播一次（主人要求「每 2 秒才播放一次」）
+        // 3. 循环动画的重播节拍：一个周期内循环「循环次数」次（主人：「每两秒循环两次贴边动画」）
         if (_重播计时 > 0f)
         {
             _重播计时 -= delta;
@@ -212,10 +225,10 @@ public static class EdgeHide
                 播(静止动画());
                 break;
             case 相.隐藏:
-                break;   // 不立刻重播：等 循环间隔秒 的节拍（主人要求「每 2 秒才播放一次」）
+                break;   // 不立刻重播：等 循环间隔秒 的节拍（主人要求「每两秒循环两次贴边动画」）
             case 相.探出中:
                 当前相 = 相.已探出;
-                播(探出动画());   // 循环播探出动作：**不能停帧**（停帧 = 静止画面，主人反馈「没动画」）
+                播(探出动画());   // 探出后转「微动循环」（Rise/B）——**不能停帧**（停帧 = 静止画面，主人反馈「没动画」）
                 break;
             case 相.缩回中:
                 当前相 = 相.隐藏;
@@ -256,8 +269,8 @@ public static class EdgeHide
         }
     }
 
-    private static string 静止动画() => $"{前缀()}-keep";   // 4 帧微动循环（不是 -hold 单帧：那是静止画面，主人反馈「没动画」）
-    private static string 探出动画() => $"{前缀()}-peek";   // 4 帧探出动作，循环播 = 「一直在探头」的活状态
+    private static string 静止动画() => $"{前缀()}-keep";   // Main/B_1：4 帧微动循环（不是 -hold 单帧：那是静止画面，主人反馈「没动画」）
+    private static string 探出动画() => $"{前缀()}-rise";   // Rise/B：**探出后的**微动循环（官方：鼠标进 → 循环 B；早先漏导 → 「探出没动画」）
     private static string 前缀() => 当前侧 == 侧.左 ? "edge_hide-left" : "edge_hide-right";
 
     /// <summary>该侧的微调偏移（修左右不对称）。
@@ -270,10 +283,7 @@ public static class EdgeHide
         if (CharAnim.有动画(动画名))
         {
             CharAnim.PlayNamed(动画名);
-            // 循环类动画（-keep/-peek）不连续播：播完隔 循环间隔秒 再播（主人要求「贴边动画每 2 秒才播放一次」）
-            var 循环 = 动画名.EndsWith("-keep") || 动画名.EndsWith("-peek");
-            _重播计时 = 循环 ? 循环间隔秒 : 0f;
-            if (循环) 探针_循环播次数++;
+            安排重播(动画名);
             return;
         }
         if (当前相 == 相.已探出) return; // 探出后本就不该重播：素材缺失也不报
@@ -281,6 +291,31 @@ public static class EdgeHide
         {
             _已报警告 = true;
             GD.PrintErr($"[EdgeHide] 素材缺失：{动画名}（贴边隐藏已降级为纯窗口位移；检查 mods/main_anim/anim/loris/edge_hide/）");
+        }
+    }
+
+    /// <summary>
+    /// 循环类动画（`-keep` 隐藏保持 / `-rise` 探出微动）的**重播节拍**：一个周期内循环「循环次数」次。
+    /// 主人要求「每两秒循环两次贴边动画」→ 周期 2s / 循环 2 次 / 内间隔 0.5s：
+    /// 播 → 0.5s 后再播 → 再等 1.5s 进下一周期（每两秒循环两次贴边动画）。
+    /// 循环次数 = 1 时退化为老行为（每周期播一次）。
+    /// </summary>
+    private static void 安排重播(string 动画名)
+    {
+        var 循环 = 动画名.EndsWith("-keep") || 动画名.EndsWith("-rise");
+        if (!循环) { _重播计时 = 0f; _本轮剩余 = 0; return; }
+        探针_循环播次数++;
+        if (_本轮剩余 > 0)
+        {
+            _本轮剩余--;
+            _重播计时 = _本轮剩余 > 0
+                ? 循环内间隔秒
+                : Math.Max(0.1f, 循环间隔秒 - (循环次数 - 1) * 循环内间隔秒);
+        }
+        else
+        {
+            _本轮剩余 = Math.Max(0, 循环次数 - 1);
+            _重播计时 = _本轮剩余 > 0 ? 循环内间隔秒 : Math.Max(0.1f, 循环间隔秒);
         }
     }
 
@@ -311,6 +346,8 @@ public static class EdgeHide
     {
         当前相 = 相.无;
         _悬停离开计时 = 0f;
+        _重播计时 = 0f;
+        _本轮剩余 = 0;
         _已报警告 = false;
     }
 }

@@ -84,12 +84,16 @@ public partial class EdgeHideBehaviorProbe : Node
                 断言(宠X < 屏.Position.X, $"回归①：窗口仍在屏外（X={宠X} < {屏.Position.X}）");                break;
             case 130:
                 GD.Print($"[EB] 隐藏后 0.5s: 循环播次数={EdgeHide.探针_循环播次数} 剩余={EdgeHide.探针_重播计时:0.00}s 动画={CharAnim.当前动画名_只读}");
-                断言(EdgeHide.探针_循环播次数 == 1, $"不到 2 秒不重播（已播 {EdgeHide.探针_循环播次数} 次）");
                 断言(CharAnim.当前动画名_只读.EndsWith("-keep"), "隐藏保持用的是 -keep 循环动画（不是静止单帧）");
+                break;
+            case 145:
+                // 节拍：「每隔两秒眨两次眼」= 周期 2s 内循环 2 次（内间隔 0.5s）→ 0.75s 时应该已经播了 2 次
+                GD.Print($"[EB] 隐藏后 0.75s: 循环播次数={EdgeHide.探针_循环播次数} 剩余={EdgeHide.探针_重播计时:0.00}s");
+                断言(EdgeHide.探针_循环播次数 == 2, $"**每两秒循环两次贴边动画**：0.75s 时已循环 2 次（已播 {EdgeHide.探针_循环播次数} 次）");
                 break;
             case 270:
                 GD.Print($"[EB] 隐藏后 2.8s: 循环播次数={EdgeHide.探针_循环播次数}");
-                断言(EdgeHide.探针_循环播次数 == 2, $"**每 2 秒才播放一次**：2.8s 时正好第二次（已播 {EdgeHide.探针_循环播次数} 次）");
+                断言(EdgeHide.探针_循环播次数 == 4, $"2.8s 时应播满两轮 = 4 次（已播 {EdgeHide.探针_循环播次数} 次）");
                 break;
 
             case 280:
@@ -103,10 +107,13 @@ public partial class EdgeHideBehaviorProbe : Node
                 GD.Print($"[EB] 悬停后 相={EdgeHide.探针_相} 目标X={EdgeHide.探针_目标位置.X} 动画={CharAnim.当前动画名_只读}");
                 断言(EdgeHide.探针_相 is EdgeHide.相.探出中 or EdgeHide.相.已探出, "鼠标靠到可见条 → 探出");
                 断言(EdgeHide.探针_目标位置.X > 屏.Position.X - 宠尺.X * 0.5f, "探出时窗口往屏内回收");
+                if (EdgeHide.探针_相 == EdgeHide.相.探出中)
+                    断言(CharAnim.当前动画名_只读.EndsWith("-peek"), $"探出的进入段用 -peek（Rise/A）：{CharAnim.当前动画名_只读}");
                 StateMachine.重播当前状态(); // 模拟「探出动画播完」
                 break;
             case 350:
                 断言(EdgeHide.探针_相 == EdgeHide.相.已探出, $"探出动画播完 → 停在「已探出」（相={EdgeHide.探针_相}）");
+                断言(CharAnim.当前动画名_只读.EndsWith("-rise"), $"**探出后的活状态用 -rise 微动循环**（Rise/B，不是重复弹出的 -peek）：{CharAnim.当前动画名_只读}");
                 存窗口图("edgehide_peek.png");
                 // 光标移走（挪到屏中间偏上，远离可见条）
                 DisplayServer.WarpMouse(new Vector2I(300, 200) - DisplayServer.WindowGetPosition());

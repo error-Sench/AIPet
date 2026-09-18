@@ -47,6 +47,18 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 
 → **规则：按帧序号判重复**——序号唯一就合并并按序号排序；序号重复才是真的混装（此时才跳过并要求人工拆目录）。
 
+### 坑：VPet 的目录里可能**多粘/少装**帧（要用帧切片，规则 7）
+
+实测（2026-09-19，数值核对 + 左右镜像比对）：
+
+* `SideHide_Right_Main/Nomal/A` 有 14 帧，其中**只有前 9 帧是「缩进」**（与左 A 逐帧镜像一致）；
+  第 9/10 帧其实是「退出」的起跳两帧（与 `Left_Main/C` 的第 0/1 帧镜像一致），11-13 帧是收尾。
+  → 右「缩进」切 `0..8`，那两帧起跳帧拼进右「退出」，两侧这才真正一一对应。
+* `SideHide_*_Rise/Nomal/B`（10 帧）是**探出后的微动循环**，早先漏导 → 表现为「探出没动画」。
+
+→ **规则：导入 spec 支持 `(源, 起帧序号, 止帧序号)` 切片，一个变体可以由多个片段按序拼接**
+（`import_vpet_anim.py` 的 `收集片段()`）。判据仍先看图/量包围盒，别凭目录名想当然。
+
 ### 坑：新增池必须改 2 处代码（见 `script/UX/README.md` 的动画池机制）
 
 只导入资产不够，还要登记 `CharAnim.内置动画组`，否则不预载、播放失败。`edge_hide` 就是照这条接的。
@@ -62,6 +74,6 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `sleep` | loop / happy | 6+6 | 睡觉（循环） |
 | `greet` | amuse / meow | 11/20 | 打招呼（VPet 无专用动作，用开心姿势） |
 | `interact` | a / b / c | 9/11/2 | 摸头反应**三段序列**（进入→保持→退出） |
-| `edge_hide` | {left,right}-{in,keep,hold,out,peek,unpeek} | 共 59 | 贴边隐藏（`Main`=隐藏姿态序列；`Rise`=鼠标靠近探出） |
+| `edge_hide` | {left,right}-{in,keep,hold,out,peek,rise,unpeek} | 共 76 | 贴边隐藏：`Main`=隐藏姿态序列（in/keep/hold/out），`Rise`=探出（A 弹出 → **B 探出后微动循环** → C 缩回）。左右**逐段一一对应**（每侧 in9/keep4/hold1/out7/peek4/rise10/unpeek3） |
 
 **验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）。

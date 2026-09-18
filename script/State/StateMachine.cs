@@ -865,7 +865,9 @@ public partial class StateMachine : Node
         public static float 缩回延迟秒 = 1f;
         public static float 贴边滑行速度 = 360f;
         public static float 探出滑行速度 = 130f;   // 探出/缩回更慢，让动作看得见
-        public static float 贴边循环间隔秒 = 2f;   // 循环动画（隐藏保持/探出）的重播间隔：主人要求「每 2 秒才播放一次」
+        public static float 贴边循环间隔秒 = 2f;   // 循环动画（隐藏保持/探出）的**周期**：主人要求「每两秒循环两次贴边动画」
+        public static int 贴边循环次数 = 2;        // 一个周期里循环几次（2 = 每 2 秒眨两次）
+        public static float 贴边循环内间隔秒 = 0.5f;  // 循环内部间隔（同周期两次之间隔多久）
         public static int 贴边左偏移像素 = 0;      // 微调：正=往屏内多推，负=往屏外多推（左右不对称就调这俩）
         public static int 贴边右偏移像素 = 0;
         public static float 久坐提醒分钟 = 90f;      // 连续活跃多久提醒休息（程序侧事件）；0 = 关
@@ -915,6 +917,8 @@ public partial class StateMachine : Node
                     贴边滑行速度 = 取浮点(根, "贴边滑行速度", 贴边滑行速度);
                     探出滑行速度 = 取浮点(根, "探出滑行速度", 探出滑行速度);
                     贴边循环间隔秒 = 取浮点(根, "贴边循环间隔秒", 贴边循环间隔秒);
+                    贴边循环次数 = Math.Clamp(取整数(根, "贴边循环次数", 贴边循环次数), 1, 6);
+                    贴边循环内间隔秒 = 取浮点(根, "贴边循环内间隔秒", 贴边循环内间隔秒);
                     贴边左偏移像素 = 取整数(根, "贴边左偏移像素", 贴边左偏移像素);
                     贴边右偏移像素 = 取整数(根, "贴边右偏移像素", 贴边右偏移像素);
                     久坐提醒分钟 = 取浮点(根, "久坐提醒分钟", 久坐提醒分钟);
@@ -945,6 +949,8 @@ public partial class StateMachine : Node
             EdgeHide.滑行速度像素每秒 = Math.Max(60f, 贴边滑行速度);
             EdgeHide.探出滑行速度 = Math.Max(20f, 探出滑行速度);
             EdgeHide.循环间隔秒 = Math.Clamp(贴边循环间隔秒, 0.2f, 30f);
+            EdgeHide.循环次数 = Math.Clamp(贴边循环次数, 1, 6);
+            EdgeHide.循环内间隔秒 = Math.Clamp(贴边循环内间隔秒, 0.1f, 10f);
             EdgeHide.左偏移像素 = Math.Clamp(贴边左偏移像素, -400, 400);
             EdgeHide.右偏移像素 = Math.Clamp(贴边右偏移像素, -400, 400);
 

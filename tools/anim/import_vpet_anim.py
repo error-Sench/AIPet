@@ -1,7 +1,7 @@
 """通用 VPet 动画导入器：VPet vup 资产 -> mods/main_anim/anim/loris/<语义池>/<变体>/
 
-用法： python tools/import_vpet_anim.py            # 导入 SPEC 里全部池
-       python tools/import_vpet_anim.py think      # 只导某个池
+用法： python tools/anim/import_vpet_anim.py            # 导入 SPEC 里全部池
+       python tools/anim/import_vpet_anim.py edge_hide  # 只导某个池
 
 硬规则（全部来自实测，见 AGENTS.md §3 / plan.md P2）：
   1. 帧名重编号为三位零填充从 000 起 —— CharAnim 的帧排序是**字符串序**，不是数值序
@@ -11,6 +11,9 @@
      （VPet 常在单目录塞两条序列，如 `1毛笔开心_*` + `2…退出通用_*`、`FLA_*` + `FLB_*`）
   5. 丢弃 1bit/灰度遮罩层（`*_lay` / `front` / `back` 这类不是帧序列）
   6. info.json 只写 rate（由文件名里的 `_<ms>` 后缀折算，取众数）
+  7. **帧切片**：VPet 有的目录里混了不属于该段的帧（实测 `SideHide_Right_Main/Nomal/A` 多粘了
+     2 帧「迸出」开头 + 3 帧收尾）。片段写法 `(源, 起帧序号, 止帧序号)`（含端点，None = 全段），
+     一个变体可以由**多个片段拼接**（顺序即拼接顺序）。
 """
 import os
 import re
@@ -31,56 +34,65 @@ CANVAS = 512
 #   固定缩放 = 所有姿势保持同一角色比例，姿势天然变矮就是变矮。
 固定缩放 = 485 / 948
 
-# 池 -> [(源叶子相对路径, 目标变体名), ...]
+# 池 -> [(变体, [片段, ...]), ...]；片段 = (源叶子相对路径, 起帧序号|None, 止帧序号|None)
 # 语义说明：Touch_Head/Touch_Body 是「被摸的反应」→ interact；greet 用开心姿势（VPet 无专门打招呼动作）
 SPEC = {
     "think": [
-        ("Think/Nomal/B", "nomal"),
-        ("Think/Happy/B", "happy"),
-        ("Think/PoorCondition/B", "poor"),
+        ("nomal", [("Think/Nomal/B", None, None)]),
+        ("happy", [("Think/Happy/B", None, None)]),
+        ("poor", [("Think/PoorCondition/B", None, None)]),
     ],
     "sleep": [
-        ("Sleep/B_Nomal", "loop"),
-        ("Sleep/B_Happy", "happy"),
+        ("loop", [("Sleep/B_Nomal", None, None)]),
+        ("happy", [("Sleep/B_Happy", None, None)]),
     ],
     "greet": [
-        ("IDEL/amusement_B", "amuse"),
-        ("IDEL/Meow/Happy/1", "meow"),
+        ("amuse", [("IDEL/amusement_B", None, None)]),
+        ("meow", [("IDEL/Meow/Happy/1", None, None)]),
     ],
     "say": [
-        ("Say/Shining/B_2", "smile"),
-        ("Say/Self/B_1", "self"),
-        ("Say/Serious/B", "serious"),
+        ("smile", [("Say/Shining/B_2", None, None)]),
+        ("self", [("Say/Self/B_1", None, None)]),
+        ("serious", [("Say/Serious/B", None, None)]),
     ],
     "work": [
-        ("WORK/WorkTWO/A_Nomal", "pc"),
-        ("WORK/Study/A_Nomal", "read"),
-        ("WORK/WorkONE/A_Nomal", "write"),
+        ("pc", [("WORK/WorkTWO/A_Nomal", None, None)]),
+        ("read", [("WORK/Study/A_Nomal", None, None)]),
+        ("write", [("WORK/WorkONE/A_Nomal", None, None)]),
     ],
     "interact": [
         # 摸头反应其实是三段：A=进入(中立→抱头) B=保持(抱头) C=退出(抱头→中立)。
         # 三段连着播 = 自然的「被摸 → 回到待机」，单播 B 会在抱头姿势上硬切到待机（用户反馈：突兀）。
-        ("Touch_Head/A_Nomal", "a"),
-        ("Touch_Head/B_Nomal", "b"),
-        ("Touch_Head/C_Nomal", "c"),
+        ("a", [("Touch_Head/A_Nomal", None, None)]),
+        ("b", [("Touch_Head/B_Nomal", None, None)]),
+        ("c", [("Touch_Head/C_Nomal", None, None)]),
     ],
-    # 贴边隐藏（VPet SideHide_*）。语义已由**文件名 + 帧序**双重确认（先看图再动手）：
-    #   Main = 隐藏时的姿态序列：A(进入 9帧) → B_1(稳定 4帧) → B_2(单帧长保持 500ms) → C(退出 7帧)
-    #   Rise = 鼠标靠近时：文件名直接写着「左藏鼠标近普通A/C」= 探出 / 缩回
-    #   两侧素材是镜像（Left_* / Right_*），逐侧各导 6 段。
+    # 贴边隐藏（VPet SideHide_*）。**官方用法**（VPet 源码 `Main.xaml.cs` / `MainLogic.cs`）：
+    #   躲到边缘  → 播 `SideHide_<侧>_Main` 的 A_Start 然后循环 B
+    #   鼠标进入  → 播 `SideHide_<侧>_Rise` 的 **A_Start 然后循环 B**（这就是「探出」）
+    #   鼠标离开  → 播 `SideHide_<侧>_Rise` 的 C_End，回到 Main 的 B 循环（这就是「缩回」）
+    # 于是每侧三段：Main A(进) / Main B_1+B_2(保持) / Main C(出)；Rise A(弹出) / Rise B(探出后微动循环) / Rise C(缩回)。
+    #
+    # 两个实测坑（数值核对 + 镜像比对，2026-09-19）：
+    #   * `SideHide_Right_Main/Nomal/A` 里**多粘了 5 帧**：前 9 帧才是「缩进」（与左 A 逐帧镜像一致），
+    #     第 9/10 帧其实是「退出」的起跳两帧（与左 C 的第 0/1 帧镜像一致），11-13 帧是收尾。
+    #     → 右「缩进」切 0..8，那两帧起跳帧拼进右「退出」，两侧这才真正一一对应。
+    #   * `SideHide_*_Rise/Nomal/B`（10 帧）是**探出后的微动循环**，早先漏导 → 表现为「探出没动画」。
     "edge_hide": [
-        ("SideHide_Left_Main/Nomal/A", "left-in"),
-        ("SideHide_Left_Main/Nomal/B_1", "left-keep"),
-        ("SideHide_Left_Main/Nomal/B_2", "left-hold"),
-        ("SideHide_Left_Main/Nomal/C", "left-out"),
-        ("SideHide_Left_Rise/Nomal/A", "left-peek"),
-        ("SideHide_Left_Rise/Nomal/C", "left-unpeek"),
-        ("SideHide_Right_Main/Nomal/A", "right-in"),
-        ("SideHide_Right_Main/Nomal/B_1", "right-keep"),
-        ("SideHide_Right_Main/Nomal/B_2", "right-hold"),
-        ("SideHide_Right_Main/Nomal/C", "right-out"),
-        ("SideHide_Right_Rise/Nomal/A", "right-peek"),
-        ("SideHide_Right_Rise/Nomal/C", "right-unpeek"),
+        ("left-in",     [("SideHide_Left_Main/Nomal/A", None, None)]),
+        ("left-keep",   [("SideHide_Left_Main/Nomal/B_1", None, None)]),
+        ("left-hold",   [("SideHide_Left_Main/Nomal/B_2", None, None)]),
+        ("left-out",    [("SideHide_Left_Main/Nomal/C", None, None)]),
+        ("left-peek",   [("SideHide_Left_Rise/Nomal/A", None, None)]),
+        ("left-rise",   [("SideHide_Left_Rise/Nomal/B", None, None)]),
+        ("left-unpeek", [("SideHide_Left_Rise/Nomal/C", None, None)]),
+        ("right-in",    [("SideHide_Right_Main/Nomal/A", 0, 8)]),
+        ("right-keep",  [("SideHide_Right_Main/Nomal/B_1", None, None)]),
+        ("right-hold",  [("SideHide_Right_Main/Nomal/B_2", None, None)]),
+        ("right-out",   [("SideHide_Right_Main/Nomal/A", 9, 10), ("SideHide_Right_Main/Nomal/C", None, None)]),
+        ("right-peek",  [("SideHide_Right_Rise/Nomal/A", None, None)]),
+        ("right-rise",  [("SideHide_Right_Rise/Nomal/B", None, None)]),
+        ("right-unpeek",[("SideHide_Right_Rise/Nomal/C", None, None)]),
     ],
 }
 
@@ -119,31 +131,48 @@ def 基线():
     return {"bottom": bb[3], "cx": (bb[0] + bb[2]) / 2, "h": bb[3] - bb[1]}
 
 
-def 导入一个动画(池, 源叶子, 变体, 基线值, 报告):
-    frames = sorted(f for f in os.listdir(源叶子) if f.lower().endswith(".png"))
-    # 规则 4：单目录多序列 -> 跳过。
-    # 判据必须是**帧序号重复**，不能是「文件名前缀不同」——VPet 里有帧名拼写不一致的真实案例：
-    #   SideHide_Right_Main/Nomal/A 里 A_000..A_013 少一个 A_011，而第 11 帧被命名成 A01_011。
-    # 按前缀判会把它误判成两条序列（实测踩过）；按序号判既能正确合并，也能挡住真正混装的多序列。
-    序号集 = [帧序(f) for f in frames]
-    if len(set(序号集)) != len(序号集):
-        重复 = [s for s, c in Counter(序号集).items() if c > 1]
-        报告.append(f"  [跳过] {池}/{变体}: 帧序号重复 {sorted(重复)[:3]} —— 确实混了两条序列，需人工拆目录")
-        return 0
-    frames = [f for _, f in sorted(zip(序号集, frames))]  # 按帧序号排序（而非文件名序）
-    # 规则 5：丢灰度/1bit 遮罩
-    有效 = []
-    for f in frames:
-        im = Image.open(os.path.join(源叶子, f))
-        if im.mode in ("1", "L", "LA"):
-            报告.append(f"  [丢弃] {池}/{变体}/{f}: 灰度遮罩层（mode={im.mode}）")
+def 收集片段(片段列表, 报告):
+    """按片段收集 (绝对路径, 文件名) 列表：逐源排序 → 序号去重检查 → 灰度遮罩丢弃 → 帧区间切片。"""
+    结果 = []
+    for 源, 起, 止 in 片段列表:
+        源叶子 = os.path.join(VPET, 源.replace("\\", "/"))
+        if not os.path.isdir(源叶子):
+            报告.append(f"  [跳过] {源}: 源目录不存在")
             continue
-        有效.append(f)
-    if not 有效:
+        frames = sorted(f for f in os.listdir(源叶子) if f.lower().endswith(".png"))
+        # 规则 4：判据必须是**帧序号重复**，不能是「文件名前缀不同」——VPet 里有帧名拼写不一致的真实案例：
+        #   SideHide_Right_Main/Nomal/A 里 A_000..A_013 少一个 A_011，而第 11 帧被命名成 A01_011。
+        序号集 = [帧序(f) for f in frames]
+        if len(set(序号集)) != len(序号集):
+            重复 = [s for s, c in Counter(序号集).items() if c > 1]
+            报告.append(f"  [跳过] {源}: 帧序号重复 {sorted(重复)[:3]} —— 确实混了两条序列，需人工拆目录")
+            continue
+        frames = [f for _, f in sorted(zip(序号集, frames))]  # 按帧序号排序（而非文件名序）
+        # 规则 7：帧切片（含端点）
+        if 起 is not None or 止 is not None:
+            lo = 起 if 起 is not None else 帧序(frames[0])
+            hi = 止 if 止 is not None else 帧序(frames[-1])
+            frames = [f for f in frames if lo <= 帧序(f) <= hi]
+            if not frames:
+                报告.append(f"  [跳过] {源}: 帧区间 {起}..{止} 切出来是空的")
+                continue
+        # 规则 5：丢灰度/1bit 遮罩
+        for f in frames:
+            im = Image.open(os.path.join(源叶子, f))
+            if im.mode in ("1", "L", "LA"):
+                报告.append(f"  [丢弃] {源}/{f}: 灰度遮罩层（mode={im.mode}）")
+                continue
+            结果.append((os.path.join(源叶子, f), f))
+    return 结果
+
+
+def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
+    frames = 收集片段(片段列表, 报告)
+    if not frames:
         报告.append(f"  [跳过] {池}/{变体}: 无有效帧")
         return 0
 
-    paths = [os.path.join(源叶子, f) for f in 有效]
+    paths = [p for p, _ in frames]
     ub = union_bbox(paths)
     if ub[2] < 0:
         报告.append(f"  [跳过] {池}/{变体}: 全透明，无有效包围盒")
@@ -165,16 +194,16 @@ def 导入一个动画(池, 源叶子, 变体, 基线值, 报告):
         canvas.save(os.path.join(out, f"{i:03d}.png"))
 
     # 规则 6：rate 取文件名时长档的众数
-    档 = Counter(时长秒(f) for f in 有效)
+    档 = Counter(时长秒(f) for _, f in frames)
     ms = 档.most_common(1)[0][0] or 125
     rate = max(1, round(1000 / ms))
     with open(os.path.join(out, "info.json"), "w", encoding="utf-8") as fp:
         fp.write('{\n    "rate": %d\n}\n' % rate)
 
     bb = Image.open(os.path.join(out, "000.png")).convert("RGBA").getchannel("A").getbbox()
-    报告.append(f"  [完成] {池}/{变体}: {len(有效)}帧 源包围盒={ub[2]-ub[0]}x{ub[3]-ub[1]} scale={scale:.4f} rate={rate} "
+    报告.append(f"  [完成] {池}/{变体}: {len(frames)}帧 源包围盒={ub[2]-ub[0]}x{ub[3]-ub[1]} scale={scale:.4f} rate={rate} "
               f"-> 角色高={bb[3]-bb[1]} 底边={bb[3]}")
-    return len(有效)
+    return len(frames)
 
 
 def main():
@@ -191,12 +220,8 @@ def main():
         if os.path.isdir(池目录):
             shutil.rmtree(池目录)
         报告.append(f"### {池}")
-        for 源, 变体 in 项列表:
-            源叶子 = os.path.join(VPET, 源.replace("\\", "/"))
-            if not os.path.isdir(源叶子):
-                报告.append(f"  [跳过] {池}/{变体}: 源目录不存在 {源叶子}")
-                continue
-            总帧 += 导入一个动画(池, 源叶子, 变体, 基线值, 报告)
+        for 变体, 片段列表 in 项列表:
+            总帧 += 导入一个动画(池, 变体, 片段列表, 基线值, 报告)
     print("\n".join(报告))
     print(f"\n共导入 {总帧} 帧")
 
