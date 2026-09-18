@@ -1,3 +1,4 @@
+using System.Linq;
 using Godot;
 
 namespace desktop.tests;
@@ -65,6 +66,26 @@ public partial class PanelProbe : Node
             if (!desktop.script.UX.SettingsWindow.可见) GD.PrintErr("[Probe] 配置窗未弹出");
             if (语言.Count < 5) GD.PrintErr("[Probe] 语言下拉项过少");
             if (路径.Count != 4) GD.PrintErr("[Probe] 目录行数应为 4（配置/模组/存储/数据）");
+
+            // —— 选项卡 + 自适应高度（回归：曾经窗口高写死 224 → 加了「数据」行后底部被裁） ——
+            var 页签 = desktop.script.UX.SettingsWindow.页签名;
+            GD.Print($"[Probe] 选项卡数 = {页签.Count}：{string.Join(" / ", 页签)}");
+            var 窗高 = desktop.script.UX.SettingsWindow.窗口高;
+            var 内容高 = desktop.script.UX.SettingsWindow.内容高;
+            GD.Print($"[Probe] 窗口高 = {窗高}，内容高 = {内容高}");
+            if (页签.Count < 4) GD.PrintErr("[Probe] 选项卡应 >= 4（常规/行为/语音/高级）");
+            if (!desktop.script.UX.SettingsWindow.有滚动) GD.PrintErr("[Probe] FAIL 缺少滚动容器（内容比窗口高时要能滚）");
+            else GD.Print("[Probe] 滚动容器存在 ✓（固定尺寸 + 超出滚动，不做自适应高度）");
+
+            // —— 功能开关都进配置（键清单在构建时登记） ——
+            var 行为键 = desktop.script.UX.SettingsWindow.行为键;
+            var 语音键 = desktop.script.UX.SettingsWindow.语音键;
+            GD.Print($"[Probe] 行为页开关数 = {行为键.Count}：{string.Join(" / ", 行为键)}");
+            GD.Print($"[Probe] 语音页开关数 = {语音键.Count}：{string.Join(" / ", 语音键)}");
+            if (行为键.Count < 10) GD.PrintErr("[Probe] 行为页开关过少（应含 总开关/预算/问候/磁盘/久坐/贴边/感知）");
+            if (!行为键.Contains("启用") || !行为键.Contains("问候启用") || !行为键.Contains("磁盘提醒启用"))
+                GD.PrintErr("[Probe] 行为页缺关键开关");
+            if (语音键.Count < 6) GD.PrintErr("[Probe] 语音页开关过少");
 
             // 切回聊天面板并确认命令栏仍在（配置不再占用面板内的选项栏）
             desktop.script.UX.ChatBox.显示();

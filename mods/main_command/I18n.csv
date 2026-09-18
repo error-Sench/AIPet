@@ -5,6 +5,7 @@ visit-ask,请选择要游览的网站~,請選擇要瀏覽的網站~,Select a sit
 tool,工具,工具,Tools,道具,도구,Werkzeuge,Outils,Herramientas,Strumenti,Ferramentas,Инструменты,Công cụ,เครื่องมือ
 tool-ask,想干啥?,想幹嘛?,What do you want?,何か用?,뭐 하고 싶어?,Was willst du?,Tu veux quoi?,¿Qué quieres?,Che cosa vuoi?,O que você quer?,Что ты хочешь?,Bạn muốn gì?,คุณต้องการทำอะไร?
 save,存储目录,儲存目錄,Save Directory,セーブデータ,저장 디렉토리,Speicherverzeichnis,Répertoire de sauvegarde,Directorio de guardado,Directory di salvataggio,Diretório de salvamento,Папка сохранений,Thư mục lưu trữ,ไดเรกทอรีที่จัดเก็บ
+data,数据目录,資料目錄,Data Directory,データフォルダ,데이터 폴더,Datenordner,Dossier de données,Carpeta de datos,Cartella dati,Pasta de dados,Папка данных,Thư mục dữ liệu,โฟลเดอร์ข้อมูล
 config,配置,配置,Configuration,設定,설정,Konfiguration,Configuration,Configuración,Configurazione,Configuração,Конфигурация,Cấu hình,การกำหนดค่า
 mods,模组,模組,Mods,モッド,모드,Mods,Mods,Mods,Mod,Mods,Моды,Bản mở rộng (Mods),ม็อด
 config-ask,选择要查看的配置,選擇要查看的配置,Select a configuration to view,表示する設定を選択してください,보기 위해 구성을 선택하십시오,Wählen Sie eine Konfiguration zum Anzeigen,Sélectionnez une configuration à afficher,Seleccione una configuración para ver,Seleziona una configurazione da visualizzare,Selecione uma configuração para visualizar,Выберите конфигурацию для просмотра,Chọn một cấu hình để xem,เลือกการตั้งค่าที่ต้องการดู

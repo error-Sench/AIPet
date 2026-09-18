@@ -136,6 +136,58 @@ public static class MicaTheme
         };
     }
 
+    /// <summary>把云母风格套到页签容器（TabContainer）上：浅色选中态 + 透明页签条。</summary>
+    public static void 应用(TabContainer t, int 字号 = 12)
+    {
+        if (t == null) return;
+        var 页体 = new StyleBoxFlat
+        {
+            BgColor = new Color(1f, 1f, 1f, 0.35f),
+            CornerRadiusTopLeft = 10, CornerRadiusTopRight = 10,
+            CornerRadiusBottomLeft = 10, CornerRadiusBottomRight = 10,
+            ContentMarginLeft = 12, ContentMarginRight = 12,
+            ContentMarginTop = 10, ContentMarginBottom = 10,
+        };
+        t.AddThemeStyleboxOverride("panel", 页体);
+        t.AddThemeStyleboxOverride("tab_selected", 圆角按钮(控件悬停));
+        t.AddThemeStyleboxOverride("tab_unselected", 圆角按钮(new Color(0, 0, 0, 0)));
+        t.AddThemeStyleboxOverride("tab_hovered", 圆角按钮(柔和强调));
+        t.AddThemeStyleboxOverride("tab_disabled", 圆角按钮(new Color(0, 0, 0, 0)));
+        t.AddThemeColorOverride("font_selected_color", 主文字);
+        t.AddThemeColorOverride("font_unselected_color", 次文字);
+        t.AddThemeColorOverride("font_hovered_color", 强调);
+        t.AddThemeColorOverride("font_disabled_color", 次文字);
+        t.AddThemeFontSizeOverride("font_size", 字号);
+        t.AddThemeConstantOverride("side_margin", 4);
+        t.AddThemeConstantOverride("tab_separation", 2);
+    }
+
+    /// <summary>开关按钮（ToggleMode）：开＝强调底色（白字），关＝普通控件底。配置窗用。</summary>
+    public static void 应用开关(Button b, bool 开)
+    {
+        if (b == null) return;
+        b.Text = 开 ? "开" : "关";
+        if (开)
+        {
+            b.AddThemeStyleboxOverride("normal", 圆角按钮(强调));
+            b.AddThemeStyleboxOverride("hover", 圆角按钮(new Color(0.31f, 0.52f, 0.96f)));
+            b.AddThemeStyleboxOverride("pressed", 圆角按钮(强调));
+            b.AddThemeColorOverride("font_color", Colors.White);
+            b.AddThemeColorOverride("font_hover_color", Colors.White);
+            b.AddThemeColorOverride("font_pressed_color", Colors.White);
+        }
+        else
+        {
+            b.AddThemeStyleboxOverride("normal", 圆角按钮(控件底));
+            b.AddThemeStyleboxOverride("hover", 圆角按钮(控件悬停));
+            b.AddThemeStyleboxOverride("pressed", 圆角按钮(控件按下));
+            b.AddThemeColorOverride("font_color", 主文字);
+            b.AddThemeColorOverride("font_hover_color", 强调);
+            b.AddThemeColorOverride("font_pressed_color", 主文字);
+        }
+        b.AddThemeFontSizeOverride("font_size", 12);
+    }
+
     /// <summary>把云母风格套到输入框上。</summary>
     public static void 应用(LineEdit e, int 字号 = 13)
     {

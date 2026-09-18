@@ -3,24 +3,29 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using desktop.script.Audio;
 using desktop.script.logic;
+using desktop.script.State;
 using desktop.script.Util;
 using Godot;
 
 namespace desktop.script.UX;
 
 /// <summary>
-/// 配置窗（**独立窗口**，与工具栏同型）：
-///   ① 语言：下拉框（选项取自 change-language 模组，改语言即调 IO.ChangeLang）；
-///   ② 目录：配置 / 模组 / 存储，显示实际路径，点击用系统默认程序打开文件夹。
-/// 视觉：云母（Mica）浅色磨砂，规范见 MicaTheme。
-/// 无边框窗口的关闭沿用工具栏范式（`CloseRequested` + 系统标题栏），内容区不再重复放 ×。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 配置窗（**独立窗口**，云母风格）——四个选项卡：
+///   ① **常规**：语言（下拉，选项取 change-language 模组）+ 目录（配置/模组/存储/数据，点击打开）；
+///   ② **行为**：状态机与主动行为的全部开关（启停/预算/问候/磁盘/久坐/贴边/环境感知）；
+///   ③ **语音**：TTS 开关与音色（默认关；换引擎方向见 PLAN）；
+///   ④ **高级**：Agent 后端 / 激进模式 / 桌宠缩放。
+/// <para>
+/// **写入方式**：`ConfigEdit` 只改目标键、保留 `_comment` 与未知键。行为/语音改完**立即生效**
+/// （改完当场调 `设置.加载()` / `Tts.载入配置()`）；缩放与 Agent 后端需要**重启生效**（界面会提示）。
+/// </para>
+/// <para>**尺寸自适应**：窗口高度按内容算（曾经写死 224px，加了「数据」目录行后底部被裁 —— 实测 bug）。</para>
 /// </summary>
 public partial class SettingsWindow : Window
 {
-    private const int 面板宽 = 470;
-    private const int 面板高 = 224;
+    private const int 最小宽 = 470;
 
     /// <summary>内置兜底语言清单（与 change-language 模组的 option.dialogue 保持一致）。</summary>
     private static readonly (string 标签, string 代码)[] 默认语言 =
@@ -35,9 +40,16 @@ public partial class SettingsWindow : Window
 
     private static SettingsWindow _单例;
 
+    private PanelContainer _根面板;
+    private VBoxContainer _列;
+    private PanelContainer _标题底;
+    private TabContainer _页签;
     private OptionButton _语言框;
     private readonly List<string> _语言代码 = new();
     private readonly List<Button> _路径按钮 = new();
+    private readonly List<Func<string>> 目录取路径 = new();
+    private readonly List<string> _行为键 = new();
+    private readonly List<string> _语音键 = new();
 
     public static bool 存在 => _单例 != null;
     public static bool 可见 => _单例 is { Visible: true };
@@ -64,28 +76,29 @@ public partial class SettingsWindow : Window
         Borderless = true;
         Transparent = true;
         Unresizable = true;
-        MinSize = new Vector2I(360, 180);
-        Size = new Vector2I(面板宽, 面板高);
         CloseRequested += 隐藏;
         BuildUi();
-        GD.Print($"[SettingsWindow] 就绪: 尺寸={Size}");
+        应用固定尺寸();
+        GD.Print($"[SettingsWindow] 就绪: 尺寸={Size} 页签={页签数}");
     }
 
     // ================= UI 构建 =================
 
     private void BuildUi()
     {
-        var 根面板 = new PanelContainer { Name = "Root" };
-        根面板.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        根面板.AddThemeStyleboxOverride("panel", MicaTheme.面板(14));
-        AddChild(根面板);
+        _根面板 = new PanelContainer { Name = "Root" };
+        _根面板.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _根面板.AddThemeStyleboxOverride("panel", MicaTheme.面板(14));
+        AddChild(_根面板);
 
         var 列 = new VBoxContainer { Name = "VBox" };
         列.AddThemeConstantOverride("separation", 7);
-        根面板.AddChild(列);
+        _列 = 列;
+        _根面板.AddChild(列);
 
-        // —— 标题行（关闭靠系统标题栏，内容区不再重复放 ×） ——
+        // —— 标题行（无边框窗口没有系统标题栏 → 关闭必须自绘） ——
         var 标题底 = new PanelContainer { Name = "Header" };
+        _标题底 = 标题底;
         标题底.AddThemeStyleboxOverride("panel", MicaTheme.信息底());
         标题底.GuiInput += 处理标题输入;
         列.AddChild(标题底);
@@ -95,10 +108,9 @@ public partial class SettingsWindow : Window
         var 标题 = new Label { Text = Tr("config"), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         MicaTheme.应用(标题, 15);
         标题行.AddChild(标题);
-        var 副标题 = new Label { Text = "语言与目录" };
+        var 副标题 = new Label { Text = "设置" };
         MicaTheme.应用(副标题, 11, 次要: true);
         标题行.AddChild(副标题);
-        // 无边框窗口没有系统标题栏（实测），关闭按钮必须自绘，否则窗口关不掉。
         var 关闭 = new Button { Text = "×", TooltipText = Tr("close"), CustomMinimumSize = new Vector2(26, 24) };
         MicaTheme.应用(关闭, 16, 扁平: true);
         关闭.Pressed += 隐藏;
@@ -108,7 +120,41 @@ public partial class SettingsWindow : Window
         分隔.AddThemeStyleboxOverride("separator", MicaTheme.分隔线());
         列.AddChild(分隔);
 
-        // —— 语言：下拉框 ——
+        // —— 选项卡（外套滚动容器：内容比窗口高时滚动，绝不裁切） ——
+        var 滚动 = new ScrollContainer
+        {
+            Name = "Scroll",
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+            VerticalScrollMode = ScrollContainer.ScrollMode.Auto,
+            FollowFocus = true,
+        };
+        列.AddChild(滚动);
+
+        _页签 = new TabContainer { Name = "Tabs", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        MicaTheme.应用(_页签);
+        滚动.AddChild(_页签);
+        AddTab(构建常规页(), "常规");
+        AddTab(构建行为页(), "行为");
+        AddTab(构建语音页(), "语音");
+        AddTab(构建高级页(), "高级");
+
+        刷新();
+    }
+
+    private void AddTab(Control 页, string 标题)
+    {
+        _页签.AddChild(页);
+        _页签.SetTabTitle(_页签.GetTabCount() - 1, 标题);
+    }
+
+    // ================= ① 常规页 =================
+
+    private Control 构建常规页()
+    {
+        var 页 = 新页("TabGeneral");
+
         _语言框 = new OptionButton
         {
             Name = "LanguageSelector",
@@ -118,12 +164,11 @@ public partial class SettingsWindow : Window
         };
         MicaTheme.应用(_语言框);
         MicaTheme.应用弹窗(_语言框.GetPopup());
-        语言框内容对齐(_语言框);
+        内部左对齐(_语言框);
         _语言框.AddThemeIconOverride("arrow", 深色箭头());
         _语言框.ItemSelected += 序号 => 切换语言((int)序号);
-        列.AddChild(路径行(Tr("language"), _语言框));
+        页.AddChild(行(Tr("language"), _语言框));
 
-        // —— 目录：显示路径，点击打开文件夹 ——
         foreach (var (标签, 取路径) in 目录项())
         {
             var 按钮 = new Button
@@ -131,33 +176,25 @@ public partial class SettingsWindow : Window
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 CustomMinimumSize = new Vector2(0, 28),
                 ClipText = true,
-                // 长路径不要硬裁切，用省略号收尾（完整路径在 tooltip 里）
                 TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
             };
             MicaTheme.应用(按钮, 11, 扁平: true, 对齐: true);
             按钮.AddThemeStyleboxOverride("normal", MicaTheme.控件());
             按钮.AddThemeStyleboxOverride("hover", MicaTheme.控件(聚焦: true));
             按钮.AddThemeStyleboxOverride("pressed", MicaTheme.控件(聚焦: true));
-            按钮.Pressed += () => 打开目录(按钮.Text);
+            按钮.Pressed += () => 打开目录(按钮.TooltipText.Split('\n')[0]);
             _路径按钮.Add(按钮);
-            列.AddChild(路径行(标签, 按钮));
-            // 捕获取路径函数（延迟到刷新时求值，保证 IO/ 配置已初始化）
             目录取路径.Add(取路径);
+            页.AddChild(行(标签, 按钮));
         }
-
-        刷新();
+        return 页;
     }
 
-    private readonly List<Func<string>> 目录取路径 = new();
-
-    /// <summary>目录项定义（标签取自既有 i18n 键，路径由 IO 全局表提供，缺省回退到工具函数）。
-    /// 非静态：Tr 是 GodotObject 的实例方法。</summary>
     private List<(string 标签, Func<string> 取路径)> 目录项() => new()
     {
         (Tr("config"), () => 全局路径("config", () => ProjectSettings.GlobalizePath("res://config"))),
         (Tr("mods"), () => 全局路径("mod", () => LoadUtil.ModPath)),
-        (Tr("save"), () => 全局路径("save", LoadUtil.GetOutputDir)),
-        // 数据目录（A7）：人格/数值/记忆/事件/上下文接口都在这里 —— 用户最容易找不到的一项
+        (Tr("save"), () => 全局路径("save", () => LoadUtil.GetOutputDir())),
         (Tr("data"), () => ProjectSettings.GlobalizePath("user://")),
     };
 
@@ -171,31 +208,205 @@ public partial class SettingsWindow : Window
         return 兜底();
     }
 
-    /// <summary>「标签 + 控件」的一行：标签固定宽度，保证右侧控件纵向对齐。</summary>
-    private static HBoxContainer 路径行(string 标签, Control 控件)
+    // ================= ② 行为页（状态机 / 主动行为全开关） =================
+
+    private Control 构建行为页()
+    {
+        var 页 = 新页("TabBehavior");
+
+        页.AddChild(开关行("总开关", StateMachine.设置.启用, 键 => 行为("启用", 键), _行为键, "启用", "关掉 = 只保留被动反应，所有主动行为停止"));
+        页.AddChild(数字行("每小时主动上限", StateMachine.设置.每小时主动上限, 0, 200, true, 键 => 行为("每小时主动上限", (int)键), _行为键, "每小时主动上限",
+            "走动/问候/提醒共享的滑动 1 小时预算（0 = 只关主动行为）"));
+
+        页.AddChild(分区("问候与提醒"));
+        页.AddChild(开关行("问候启用", StateMachine.设置.问候启用, 键 => 行为("问候启用", 键), _行为键, "问候启用", "当天第一次见到你 → 按时间段问好"));
+        页.AddChild(开关行("磁盘提醒启用", StateMachine.设置.磁盘提醒启用, 键 => 行为("磁盘提醒启用", 键), _行为键, "磁盘提醒启用", "只提醒「自己不易察觉的事」——磁盘悄悄变满"));
+        页.AddChild(数字行("磁盘剩余下限", StateMachine.设置.磁盘剩余下限GB, 1, 1000, true, 键 => 行为("磁盘剩余下限GB", (int)键), _行为键, "磁盘剩余下限GB",
+            "单位 GB；余量低于它才提醒（每天一次）"));
+        页.AddChild(数字行("久坐提醒", StateMachine.设置.久坐提醒分钟, 0, 600, true, 键 => 行为("久坐提醒分钟", (int)键), _行为键, "久坐提醒分钟",
+            "分钟；连续活跃到点提醒休息（0 = 关）"));
+        页.AddChild(数字行("久坐冷却", StateMachine.设置.久坐提醒冷却分钟, 0, 600, true, 键 => 行为("久坐提醒冷却分钟", (int)键), _行为键, "久坐提醒冷却分钟",
+            "分钟；两次提醒的最小间隔"));
+
+        页.AddChild(分区("状态与感知"));
+        页.AddChild(开关行("贴边隐藏启用", StateMachine.设置.贴边隐藏启用, 键 => 行为("贴边隐藏启用", 键), _行为键, "贴边隐藏启用", "拖到屏边就缩进去（细调旋钮在 config/behavior.json）"));
+        页.AddChild(开关行("环境感知启用", StateMachine.设置.环境感知启用, 键 => 行为("环境感知启用", 键), _行为键, "环境感知启用", "默认关：开了才读「空闲时长 + 是否全屏」，只在本机用"));
+        页.AddChild(开关行("全屏静默", StateMachine.设置.全屏静默, 键 => 行为("全屏静默", 键), _行为键, "全屏静默", "全屏（游戏/视频/演示）时完全不主动打扰"));
+        return 页;
+    }
+
+    // ================= ③ 语音页 =================
+
+    private Control 构建语音页()
+    {
+        var 页 = 新页("TabVoice");
+        页.AddChild(开关行("语音启用", Tts.启用, 键 => 语音("启用", 键), _语音键, "启用", "默认关 —— 桌宠冒泡时才念（聊天面板长回复永不念）"));
+        页.AddChild(下拉行("引擎", new[] { "edge", "sapi" }, Tts.引擎, 值 => 语音("引擎", 值), _语音键, "引擎",
+            "edge = 在线（自然，但偏机械；需要 tools/install_edge_tts.ps1 装一次）｜sapi = Windows 自带（离线、机械）"));
+        页.AddChild(下拉行("edge 音色", new[] { "zh-CN-XiaoxiaoNeural", "zh-CN-XiaoyiNeural", "zh-CN-YunxiNeural", "zh-CN-YunyangNeural" },
+            Tts.Edge语音, 值 => 语音("edge语音", 值), _语音键, "edge语音", "晓晓 / 晓伊 / 云希(男) / 云扬(男)"));
+        页.AddChild(数字行("语速", Tts.语速, -10, 10, true, 键 => 语音("语速", (int)键), _语音键, "语速", "−10 ~ 10"));
+        页.AddChild(数字行("音量", Tts.音量, 0, 100, true, 键 => 语音("音量", (int)键), _语音键, "音量", "0 ~ 100"));
+        页.AddChild(数字行("最大字数", Tts.最大字数, 0, 500, true, 键 => 语音("最大字数", (int)键), _语音键, "最大字数", "超过就不念（0 = 不限）"));
+        return 页;
+    }
+
+    // ================= ④ 高级页 =================
+
+    private Control 构建高级页()
+    {
+        var 页 = 新页("TabAdvanced");
+        var 后端 = ConfigEdit.读文本("config/agent.json", "backend", "hermes-acp");
+        var 激进 = string.Equals(ConfigEdit.读文本("config/agent.json", "aggressiveMode", "false"), "true", StringComparison.OrdinalIgnoreCase);
+        var 缩放 = double.TryParse(ConfigEdit.读文本("config/pet.json", "缩放", "0.5"), out var z) ? z : 0.5;
+
+        页.AddChild(下拉行("Agent 后端", new[] { "hermes-acp", "none" }, 后端,
+            值 => 高级("config/agent.json", "backend", 值, "需重启生效"), null, null,
+            "hermes-acp = 走 ACP 接 Agent｜none = 无 Agent（本地模式，桌宠照常）"));
+        页.AddChild(开关行("激进指令模式", 激进, 键 => 高级("config/agent.json", "aggressiveMode", 键, "需重启生效"), null, null,
+            "实验性：放宽指令白名单（当前只加 open_url）。默认关"));
+        页.AddChild(数字行("桌宠缩放", 缩放, 0.2, 1.5, false,
+            键 => 高级("config/pet.json", "缩放", Math.Round(键, 2), "需重启生效"), null, null,
+            "0.5 = 对齐 VPet 官方内部 ZoomRatio；动画按这个标准制作，改它会让贴边/偏移失配"));
+        return 页;
+    }
+
+    // ================= 行构件 =================
+
+    private VBoxContainer 新页(string 名)
+    {
+        var 页 = new VBoxContainer { Name = 名, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        页.AddThemeConstantOverride("separation", 7);
+        return 页;
+    }
+
+    private static Label 分区(string 文本)
+    {
+        var l = new Label { Text = 文本 };
+        MicaTheme.应用(l, 11, 次要: true);
+        return l;
+    }
+
+    /// <summary>「标签 + 控件」一行：标签固定宽度，右侧控件纵向对齐。</summary>
+    private static HBoxContainer 行(string 标签, Control 控件, string 提示 = "")
     {
         var 行 = new HBoxContainer();
         行.AddThemeConstantOverride("separation", 8);
         var 标签节点 = new Label
         {
             Text = 标签,
-            CustomMinimumSize = new Vector2(72, 0),
+            CustomMinimumSize = new Vector2(104, 0),
             VerticalAlignment = VerticalAlignment.Center,
         };
         MicaTheme.应用(标签节点, 12, 次要: true);
         行.AddChild(标签节点);
         行.AddChild(控件);
+        if (!string.IsNullOrEmpty(提示))
+        {
+            var 提示节点 = new Label
+            {
+                Text = 提示,
+                SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+                VerticalAlignment = VerticalAlignment.Center,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            };
+            MicaTheme.应用(提示节点, 10, 次要: true);
+            行.AddChild(提示节点);
+        }
         return 行;
     }
 
-    /// <summary>Godot 默认下拉箭头是白色图标，浅色磨砂面板上不可见，故运行时生成一枚浅色细箭头（够轻，不抢标题）。</summary>
+    /// <summary>开关行：标签 + 「开/关」按钮（ToggleMode）。键会登记进 清单（探针回归：保证开关不丢）。</summary>
+    private static HBoxContainer 开关行(string 标签, bool 初值, Action<bool> 改动, List<string> 登记, string 键, string 提示 = "")
+    {
+        var 钮 = new Button { ToggleMode = true, CustomMinimumSize = new Vector2(58, 26), ButtonPressed = 初值 };
+        MicaTheme.应用开关(钮, 初值);
+        钮.Toggled += 状态 => { MicaTheme.应用开关(钮, 状态); 改动(状态); };
+        if (登记 != null && 键 != null) 登记.Add(键);
+        return 行(标签, 钮, 提示);
+    }
+
+    /// <summary>数字行：标签 + 输入框（回车 / 失焦提交，越界夹取，未变不写盘）。</summary>
+    private static HBoxContainer 数字行(string 标签, double 初值, double 最小, double 最大, bool 取整,
+        Action<double> 提交, List<string> 登记, string 键, string 提示 = "")
+    {
+        var 框 = new LineEdit
+        {
+            Text = 取整 ? ((int)初值).ToString() : 初值.ToString("0.##"),
+            CustomMinimumSize = new Vector2(70, 26),
+            Alignment = HorizontalAlignment.Right,
+            TooltipText = $"范围 {最小:0.##} ~ {最大:0.##}（回车确认）",
+        };
+        MicaTheme.应用(框, 12);
+        var 上次 = 初值;
+        void 提交文本()
+        {
+            if (!double.TryParse(框.Text.Trim(), out var 值)) { 框.Text = 取整 ? ((int)上次).ToString() : 上次.ToString("0.##"); return; }
+            var 夹 = Math.Clamp(值, 最小, 最大);
+            框.Text = 取整 ? ((int)夹).ToString() : 夹.ToString("0.##");
+            if (Math.Abs(夹 - 上次) < 0.0001) return;   // 没变就不写盘
+            上次 = 夹;
+            提交(夹);
+        }
+        框.TextSubmitted += _ => 提交文本();
+        框.FocusExited += 提交文本;
+        if (登记 != null && 键 != null) 登记.Add(键);
+        return 行(标签, 框, 提示);
+    }
+
+    /// <summary>下拉行：标签 + OptionButton（云母样式 + 深色箭头 + 左对齐）。</summary>
+    private HBoxContainer 下拉行(string 标签, string[] 选项, string 当前, Action<string> 改动, List<string> 登记, string 键, string 提示 = "")
+    {
+        var 框 = new OptionButton
+        {
+            SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(0, 26),
+            ClipText = true,
+        };
+        MicaTheme.应用(框);
+        MicaTheme.应用弹窗(框.GetPopup());
+        内部左对齐(框);
+        框.AddThemeIconOverride("arrow", 深色箭头());
+        foreach (var 项 in 选项) 框.AddItem(项);
+        var 序号 = Array.IndexOf(选项, 当前);
+        框.Selected = 序号 >= 0 ? 序号 : 0;
+        框.ItemSelected += i => 改动(选项[(int)i]);
+        if (登记 != null && 键 != null) 登记.Add(键);
+        return 行(标签, 框, 提示);
+    }
+
+    // ================= 写配置 =================
+
+    private void 行为(string 键, object 值)
+    {
+        if (!ConfigEdit.写("config/behavior.json", 键, 值)) return;
+        StateMachine.设置.加载();   // 立即生效（含注入 DailyRoutine / EdgeHide / EnvironmentSense）
+        GD.Print($"[SettingsWindow] 行为 · {键} = {值}（已生效）");
+    }
+
+    private void 语音(string 键, object 值)
+    {
+        if (!ConfigEdit.写("config/tts.json", 键, 值)) return;
+        Tts.载入配置();             // 立即生效
+        GD.Print($"[SettingsWindow] 语音 · {键} = {值}（已生效）");
+    }
+
+    private void 高级(string 配置路径, string 键, object 值, string 提示)
+    {
+        if (!ConfigEdit.写(配置路径, 键, 值)) return;
+        GD.Print($"[SettingsWindow] 高级 · {配置路径} · {键} = {值}（{提示}）");
+        Dialogue.显示临时标题(提示, 2500);
+    }
+
+    // ================= 工具 =================
+
+    /// <summary>Godot 默认下拉箭头是白色图标，浅色磨砂面板上不可见 → 运行时生成细「v」形深色箭头。</summary>
     private static Texture2D 深色箭头()
     {
         const int 宽 = 9;
         const int 高 = 5;
         var 图 = Image.CreateEmpty(宽, 高, false, Image.Format.Rgba8);
         图.Fill(new Color(0, 0, 0, 0));
-        // 细「v」形（2px 描边），比实心三角更轻，贴合柔和浅色风格
         for (var y = 0; y < 高; y++)
         {
             var 左 = y;
@@ -208,8 +419,8 @@ public partial class SettingsWindow : Window
         return ImageTexture.CreateFromImage(图);
     }
 
-    /// <summary>OptionButton 内部是 HBox（文字 + 箭头），默认居中；这里改为左对齐，贴近系统下拉框观感。</summary>
-    private static void 语言框内容对齐(OptionButton 框)
+    /// <summary>OptionButton 内部是 HBox（文字 + 箭头），默认居中 → 改为左对齐（贴近系统下拉框观感）。</summary>
+    private static void 内部左对齐(OptionButton 框)
     {
         foreach (var 子 in 框.GetChildren())
         {
@@ -226,9 +437,40 @@ public partial class SettingsWindow : Window
             StartDrag();
     }
 
+    // ================= 尺寸（固定尺寸 + 滚动；主人 2026-09-19：「做滚动窗口，不要自适应高度」） =================
+
+    /// <summary>
+    /// **固定尺寸 + 内容滚动**（不做自适应高度）。历史教训记在这里：
+    /// ① 曾把高度写死 224px 又没滚动 → 加了「数据」目录行后底部被裁（「只有一截」）；
+    /// ② 改成按内容自适应后，TabContainer 的最小尺寸**只统计当前可见页** → 切到行为页窗口没跟着变、照样被裁；
+    /// ③ 直接量页签容器又会碰到「切页瞬间量到垃圾值」（实测 3671px）。
+    /// 结论：**别猜高度** —— 固定一个比例舒服的尺寸，超出就让 `Scroll` 容器滚。
+    /// 比例由主人定：**高:宽 = 3:4**（500 宽 → 375 高）。
+    /// </summary>
+    private const int 固定宽 = 500;
+    private const int 固定高 = 固定宽 * 3 / 4;   // 高:宽 = 3:4
+
+    public void 应用固定尺寸()
+    {
+        var 旧 = Size;
+        Size = new Vector2I(固定宽, 固定高);
+        if (旧 != Size) GD.Print($"[SettingsWindow] 固定尺寸: {Size}（内容超出由 Scroll 容器滚动）");
+    }
+
+    /// <summary>探针：是否存在滚动容器（回归：「内容比窗口高时必须能滚」）。</summary>
+    public static bool 有滚动 => _单例?._根面板?.GetNodeOrNull("VBox/Scroll") != null;
+
+    /// <summary>探针：切到指定页签（比让探针自己爬节点路径稳）。尺寸固定，切页不用重算。</summary>
+    public static void 探针_切页(int 序号)
+    {
+        if (_单例?._页签 == null) return;
+        if (序号 < 0 || 序号 >= _单例._页签.GetTabCount()) return;
+        _单例._页签.CurrentTab = 序号;
+        GD.Print($"[SettingsWindow] 切到页签 {序号}：{_单例._页签.GetTabTitle(序号)}");
+    }
+
     // ================= 数据刷新 =================
 
-    /// <summary>Windows 下把正/反斜杠统一成反斜杠，路径显示更符合系统习惯（打开目录仍可用）。</summary>
     private static string 规范显示(string 路径)
     {
         if (string.IsNullOrEmpty(路径)) return "";
@@ -277,9 +519,9 @@ public partial class SettingsWindow : Window
             using var 文件 = Godot.FileAccess.Open(语言模组对话, Godot.FileAccess.ModeFlags.Read);
             if (文件 != null)
             {
-                foreach (var 行 in 文件.GetAsText().Split('\n'))
+                foreach (var 行文本 in 文件.GetAsText().Split('\n'))
                 {
-                    var 匹配 = Regex.Match(行, @"^\s*-\s*(.+?)\s*\[#lang=([A-Za-z_]+)\]\s*$");
+                    var 匹配 = Regex.Match(行文本, @"^\s*-\s*(.+?)\s*\[#lang=([A-Za-z_]+)\]\s*$");
                     if (匹配.Success) 结果.Add((匹配.Groups[1].Value.Trim(), 匹配.Groups[2].Value));
                 }
             }
@@ -300,7 +542,6 @@ public partial class SettingsWindow : Window
         GD.Print($"[SettingsWindow] 切换语言: {代码}");
     }
 
-    /// <summary>用系统默认程序打开目录（跨平台走 OS.ShellOpen）。</summary>
     private void 打开目录(string 路径)
     {
         if (string.IsNullOrWhiteSpace(路径)) return;
@@ -320,6 +561,7 @@ public partial class SettingsWindow : Window
     {
         if (_单例 == null) return;
         _单例.刷新();
+        _单例.应用固定尺寸();
         _单例.PopupCentered();
         GD.Print($"[SettingsWindow] 已弹出: visible={_单例.Visible}, pos={_单例.Position}, size={_单例.Size}");
     }
@@ -340,17 +582,34 @@ public partial class SettingsWindow : Window
 
     public static IReadOnlyList<string> 语言项 => _单例?._语言框 == null
         ? Array.Empty<string>()
-        : _单例._语言框.GetItemText_所有();
+        : 枚举下拉(_单例._语言框);
 
     public static IReadOnlyList<string> 路径文本 => _单例 == null
         ? Array.Empty<string>()
         : _单例._路径按钮.Select(b => b.Text).ToArray();
-}
 
-/// <summary>OptionButton 的只读小工具（避免探针直接依赖内部节点结构）。</summary>
-internal static class OptionButtonExtensions
-{
-    public static IReadOnlyList<string> GetItemText_所有(this OptionButton 框)
+    /// <summary>探针：选项卡数量与标题（「别忘了新增选项卡」的回归锁）。</summary>
+    public static int 页签数 => _单例?._页签?.GetTabCount() ?? 0;
+    public static IReadOnlyList<string> 页签名
+    {
+        get
+        {
+            var 结果 = new List<string>();
+            if (_单例?._页签 == null) return 结果;
+            for (var i = 0; i < _单例._页签.GetTabCount(); i++) 结果.Add(_单例._页签.GetTabTitle(i));
+            return 结果;
+        }
+    }
+
+    /// <summary>探针：窗口高 / 内容高（回归：窗口必须装得下内容，否则「只有一截」）。</summary>
+    public static int 窗口高 => _单例?.Size.Y ?? 0;
+    public static int 内容高 => _单例?._根面板 == null ? 0 : (int)MathF.Ceiling(_单例._根面板.GetCombinedMinimumSize().Y);
+
+    /// <summary>探针：行为页 / 语音页登记过的配置键（保证「功能开关都塞进配置」）。</summary>
+    public static IReadOnlyList<string> 行为键 => _单例?._行为键 ?? (IReadOnlyList<string>)Array.Empty<string>();
+    public static IReadOnlyList<string> 语音键 => _单例?._语音键 ?? (IReadOnlyList<string>)Array.Empty<string>();
+
+    private static List<string> 枚举下拉(OptionButton 框)
     {
         var 结果 = new List<string>();
         for (var i = 0; i < 框.ItemCount; i++) 结果.Add(框.GetItemText(i));
