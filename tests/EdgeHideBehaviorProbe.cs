@@ -170,6 +170,46 @@ public partial class EdgeHideBehaviorProbe : Node
                 GD.Print($"[EB] 关掉开关后: X={宠X} 相={EdgeHide.探针_相}");
                 断言(EdgeHide.探针_相 == EdgeHide.相.无, "启用=false 时贴边检查不生效（开关关得住）");
 
+                // ===== 右缘：与左缘对称走一遍（主人报的「右边贴边动画有问题」就是这段）=====
+                GD.Print("--- 右缘：与左缘对称走一遍 ---");
+                EdgeHide.启用 = true;
+                EdgeHide.探针_重置();
+                DisplayServer.WindowSetPosition(new Vector2I(屏.End.X - 宠尺.X + 30, 400));
+                GD.Print($"[EB] 把宠挪到右边缘: X={宠X}（屏右 {屏.End.X}）");
+                EdgeHide.检查贴边();
+                GD.Print($"[EB] 右缘检查 → 侧={EdgeHide.当前侧} 相={EdgeHide.探针_相} 目标X={EdgeHide.探针_目标位置.X}");
+                断言(EdgeHide.探针_相 != EdgeHide.相.无, "右缘被识别（进入缩进流程）");
+                断言(EdgeHide.当前侧 == EdgeHide.侧.右, "识别为右侧");
+                break;
+            case 690:
+                GD.Print($"[EB] 右缘缩进后: X={宠X} 右缘={宠X + 宠尺.X} 目标={EdgeHide.探针_目标位置.X}");
+                断言(宠X + 宠尺.X >= 屏.End.X + 30, $"窗口真的滑到右缘外（右缘 {宠X + 宠尺.X} ≥ {屏.End.X + 30}）");
+                StateMachine.重播当前状态();   // 模拟「缩进动画播完」
+                break;
+            case 700:
+                GD.Print($"[EB] 右缘隐藏: 相={EdgeHide.探针_相} 动画={CharAnim.当前动画名_只读}");
+                断言(EdgeHide.探针_相 == EdgeHide.相.隐藏, "右缘缩进播完 → 隐藏");
+                断言(CharAnim.当前动画名_只读.EndsWith("-keep"), $"右缘隐藏用 -keep 循环：{CharAnim.当前动画名_只读}");
+                存窗口图("edgehide_right_hidden.png");
+                var 位右 = DisplayServer.WindowGetPosition();
+                DisplayServer.WarpMouse(new Vector2I(屏.End.X - 8, 位右.Y + 宠尺.Y / 2) - 位右);
+                break;
+            case 760:
+                GD.Print($"[EB] 右缘悬停后: 相={EdgeHide.探针_相} 动画={CharAnim.当前动画名_只读}");
+                断言(EdgeHide.探针_相 is EdgeHide.相.探出中 or EdgeHide.相.已探出, "右缘鼠标靠上可见条 → 探出");
+                StateMachine.重播当前状态();
+                break;
+            case 780:
+                GD.Print($"[EB] 右缘探出: 相={EdgeHide.探针_相} 动画={CharAnim.当前动画名_只读}");
+                断言(EdgeHide.探针_相 == EdgeHide.相.已探出, "右缘探出 → 已探出");
+                断言(CharAnim.当前动画名_只读.EndsWith("-rise"), $"右缘探出后循环用 -rise：{CharAnim.当前动画名_只读}");
+                存窗口图("edgehide_right_peek.png");
+                EdgeHide.复位("探针·右缘");
+                break;
+            case 860:
+                GD.Print($"[EB] 右缘复位后: X={宠X} 相={EdgeHide.探针_相}");
+                断言(EdgeHide.探针_相 == EdgeHide.相.无, "右缘复位完成（滑回原位）");
+
                 // 收尾：恢复
                 EdgeHide.探针_重置();
                 EdgeHide.启用 = _原启用;
