@@ -42,7 +42,8 @@ PROJECT_DEFAULT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 #     会真弹窗口、动光标，不能盲目乱跑。
 #   WalkProbe：tests/README.md 标注「必须非 headless」——headless 下屏幕/窗口尺寸为 0，
 #     `尝试走动` 直接放弃，headless 跑出来是假绿，所以也放白名单。
-NON_HEADLESS=(DragProbe SettingsProbe StatsWindowProbe EdgeHideBehaviorProbe EnterProbe WalkProbe)
+#   BubbleShot：气泡的**视觉 + 位置**实证（独立窗渲成 PNG + 头顶居中/翻下方断言），headless 里没有渲染。
+NON_HEADLESS=(DragProbe SettingsProbe StatsWindowProbe EdgeHideBehaviorProbe EnterProbe WalkProbe BubbleShot)
 
 # 需要真实 Agent（LLM）的探针：**默认不跑** —— 真调模型受网络/环境延迟影响、不稳定，不适合当回归；
 # 要手动验证用 --agent（单跑也可 --only <名字>，--only 不受此默认影响）。

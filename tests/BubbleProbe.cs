@@ -50,7 +50,12 @@ public partial class BubbleProbe : Node
             case 45: C6_摸摸_断言(); break;
             case 48: D_时长_请求(); break;
             case 52: D_时长_断言(); break;
-            case 58: 收尾(); break;
+            case 56: E_气泡窗_短文本(); break;
+            case 60: E_气泡窗_长文本(); break;
+            case 64: E_气泡窗_转义(); break;
+            case 68: E_气泡窗_常驻与自动收(); break;
+            case 74: E_气泡窗_收尾断言(); break;
+            case 80: 收尾(); break;
         }
         if (_帧 > 300) { GD.PrintErr("[BP] 超时"); GetTree().Quit(2); }
     }
@@ -61,7 +66,7 @@ public partial class BubbleProbe : Node
         DailyRoutine.探针_重置();          // 清掉入场顺带的启动问候（它会占住 Greet）
         FacePinch.探针_重置();
         StateMachine.SetState(StateMachine.Idle);
-        GD.Print($"[BP] 气泡显示秒={Dialogue.气泡显示秒}（config/behavior.json 的 气泡显示秒）");
+        GD.Print($"[BP] 气泡显示秒={Dialogue.气泡显示秒}（config/bubble.json 的 气泡显示秒）");
     }
 
     // ---- A：气泡 → 说话动作（隔一帧看状态）----
@@ -158,6 +163,65 @@ public partial class BubbleProbe : Node
 
     /// <summary>推进状态机时间（直接喂 _Process 太慢：探针手动喂 delta）。</summary>
     private void 推进(float 秒) => StateMachine.探针_推进时间(秒);
+
+    // ---- E：气泡窗（独立窗 / 自适应大小 / 字号 / 鼠标穿透 / 转义 / 自动收）----
+    private Vector2I _短文本尺寸;
+    private bool _量得到;
+    private const string 长文本 = "主人今天过得怎么样啦？这句话我特意写长一点，看看气泡会不会自己折行、自己长高——要还是像以前那样被固定在窗口里裁掉，这一句的后半截就看不见了。";
+
+    private void E_气泡窗_短文本()
+    {
+        GD.Print("--- E 组：气泡窗（独立窗 / 自适应 / 字号 / 穿透 / 转义 / 自动收）---");
+        BubbleWindow.显示("嗯，在的。", 0f);
+    }
+
+    private void E_气泡窗_长文本()
+    {
+        断言(BubbleWindow.可见中, "气泡窗显示出来了（独立窗，不在桌宠窗口里）");
+        断言(BubbleWindow.探针_鼠标穿透, "鼠标穿透已开 —— 点气泡 = 点到底下的东西");
+        断言(BubbleWindow.探针_字号 == BubbleWindow.探针_配置字号, $"字号 = 配置值（{BubbleWindow.探针_字号}）");
+        断言(BubbleWindow.探针_解析文本 == "嗯，在的。", $"短文本原样渲染（{BubbleWindow.探针_解析文本}）");
+        _短文本尺寸 = BubbleWindow.探针_当前尺寸;
+        _量得到 = _短文本尺寸.X > 20;
+        断言(_量得到, $"按内容自适应：量到尺寸 {_短文本尺寸}（不是写死的大框）");
+        BubbleWindow.显示(长文本, 0f);
+    }
+
+    private void E_气泡窗_转义()
+    {
+        断言(BubbleWindow.探针_解析文本 == 长文本, "长文本完整渲染（一个字都没被裁掉）");
+        if (_量得到)
+        {
+            var 尺寸 = BubbleWindow.探针_当前尺寸;
+            断言(尺寸.X <= BubbleWindow.探针_最大窗宽, $"折行：宽 {尺寸.X} ≤ 窗口上限 {BubbleWindow.探针_最大窗宽}（本体 {BubbleWindow.探针_配置最大宽度} + 投影留白）");
+            断言(尺寸.Y > _短文本尺寸.Y, $"长高：{尺寸.Y} > 短文本 {_短文本尺寸.Y}（短 {_短文本尺寸} → 长 {尺寸}）");
+        }
+        else GD.Print("[BP] 跳过尺寸断言：本环境量不到字体（headless 无字形）");
+        BubbleWindow.显示("方括号 [b] 不该被当成标签[/b]，也不该整段消失", 0f);
+    }
+
+    private void E_气泡窗_常驻与自动收()
+    {
+        断言(BubbleWindow.探针_解析文本 == "方括号 [b] 不该被当成标签[/b]，也不该整段消失",
+            $"气泡文本一律当纯文本（BBCode 转义）：{BubbleWindow.探针_解析文本}");
+        BubbleWindow.显示("常驻测试", 0f);
+        断言(BubbleWindow.可见中, "常驻气泡（时长 0）显示中");
+        断言(BubbleWindow.探针_剩余秒 <= 0, "常驻气泡没有倒计时");
+        BubbleWindow.显示("自动收测试", 2.0f);      // 给足余量：探针跑在真实帧上，case 之间也会走时间
+    }
+
+    private void E_气泡窗_收尾断言()
+    {
+        断言(BubbleWindow.可见中, "定时气泡显示中");
+        BubbleWindow.探针_推进时间(0.5);
+        断言(BubbleWindow.可见中, $"推进 0.5s（剩余 {BubbleWindow.探针_剩余秒:0.0}s）还在");
+        BubbleWindow.探针_推进时间(2.0);
+        断言(!BubbleWindow.可见中, "到点自动收藏 —— 收的是气泡，不是说话动作");
+        BubbleWindow.显示("最后一条", 0f);
+        断言(BubbleWindow.可见中 && BubbleWindow.探针_当前文本 == "最后一条", "后一条气泡顶掉前一条（不会叠字）");
+        BubbleWindow.隐藏();
+        断言(!BubbleWindow.可见中, "隐藏() 生效");
+    }
 
     private void 收尾()
     {

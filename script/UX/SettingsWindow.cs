@@ -223,6 +223,9 @@ public partial class SettingsWindow : Window
             "走动/问候/提醒共享的滑动 1 小时预算（0 = 只关主动行为）"));
 
         页.AddChild(分区("问候与提醒"));
+        页.AddChild(数字行("气泡显示时长", BubbleWindow.气泡显示秒, 1, 60, false,
+            键 => 气泡("气泡显示秒", Math.Round(键, 1)), _行为键, "气泡显示秒",
+            "秒；气泡固定显示这么久（说话动作可被打断，气泡不会）。外观（字号/底色/宽度）见 config/bubble.json"));
         页.AddChild(开关行("磁盘提醒启用", StateMachine.设置.磁盘提醒启用, 键 => 行为("磁盘提醒启用", 键), _行为键, "磁盘提醒启用", "只提醒「自己不易察觉的事」——磁盘悄悄变满"));
         页.AddChild(数字行("磁盘剩余下限", StateMachine.设置.磁盘剩余下限GB, 1, 1000, true, 键 => 行为("磁盘剩余下限GB", (int)键), _行为键, "磁盘剩余下限GB",
             "单位 GB；余量低于它才提醒（每天一次）"));
@@ -391,6 +394,14 @@ public partial class SettingsWindow : Window
         if (!ConfigEdit.写("config/tts.json", 键, 值)) return;
         Tts.载入配置();             // 立即生效
         GD.Print($"[SettingsWindow] 语音 · {键} = {值}（已生效）");
+    }
+
+    /// <summary>气泡配置写回（`config/bubble.json`）：**时长立即生效**（外观类键在窗口创建时读，需重启）。</summary>
+    private void 气泡(string 键, object 值)
+    {
+        if (!ConfigEdit.写("config/bubble.json", 键, 值)) return;
+        BubbleWindow.载入配置();     // 时长立即生效；字号/底色等外观改动重启后才套到已建好的气泡窗
+        GD.Print($"[SettingsWindow] 气泡 · {键} = {值}（时长立即生效；外观类重启生效）");
     }
 
     private void 高级(string 配置路径, string 键, object 值, string 提示)

@@ -58,6 +58,15 @@
 | `MoodProbe` | headless | 数值驱动表达：情绪变体择档（think-happy/poor）+ 行为耦合（走动倍率、睡眠阈值）+ 无变体池的降级安全 |
 | `EnvProbe` | headless | 环境感知：默认关得住、真实 Win32 读数（活的时钟）、全屏闸门、离开/回来边沿与节流 |
 | `StatsWindowProbe` | **非 headless** | 状态窗：命令栏入口存在 → 点击弹出 → **一个数字都不出现** → 文字状态随 mood 变化（并截图供视觉复核） |
+| `RoutineProbe` | headless | 时间驱动主动行为：启动问候（每次启动一次）/ 磁盘余量低（每天一次、闸门关着先记下补报）/ 预算与不打扰 |
+| `PhraseProbe` | headless | 本地话语表 `config/phrases.json`：分类齐全 / 随机不连重 / `{盘}{余量}` 占位符 / 坏数据内置兜底 |
+| `ConfigEditProbe` | headless | 配置写回三约定：只改目标键 / 保留 `_comment` 与未知键 / 中文不转义（写临时目录，不碰真配置）|
+| `EdgeHideProbe` | headless | 贴边素材：12 段是否真的载入可播、帧数与左右对应关系 |
+| `EdgeHideBehaviorProbe` | **非 headless** | 贴边行为：吸附触发 / 隐藏与探出比例 / **循环节拍（每 2 秒 2 次）** / 探出用 `-rise`（要真窗口几何与光标）|
+| `PinchProbe` | headless | 捏脸：命中区纯函数 / 长按阈值 / 三段流转（A→B 循环→松手 C）/ 被拖拽抢走作废 / 贴边时不捏 / 不产生数值变化 |
+| `BubbleProbe` | headless | 气泡：说话动作（可打断 + 忙态/流式不偷）/ 时长到点自动收 / **按内容自适应尺寸** / 字号 / 鼠标穿透 / BBCode 转义 |
+| `BubbleShot` | **非 headless** | 气泡实机：把气泡窗渲成 PNG（供视觉复核）+ 位置数值断言（头顶居中 / 上方放不下自动翻下方）|
+| `AudioProbe` | headless | 音频输入设备诊断（列出 Godot 能看到的麦克风）|
 
 **踩坑：验节律必须在场景实例化「之前」写配置。** `StateMachine._Ready` 会读 `user://behavior.json` 并用它算好 `_走动倒计时`；之后再改内存里的 `设置` 字段已经晚了（探针曾因此在 20s 内一次走动都触发不了）。`WalkProbe` 的做法：`_Ready` 里先写临时 `user://behavior.json` → 再实例化场景 → 结束时删除。
 
@@ -83,7 +92,7 @@
 **headless 与非 headless 的区别**（清单由脚本扫 `tests/*.tscn` 得到，新增探针不用改脚本；`--list` 里的清单是权威版，10.1 表里还没登记的探针也会列出来）：
 
 - **默认只跑 headless 的**：不弹窗、可以后台/连着跑，适合每次改完代码的快检。
-- **非 headless 白名单默认跳过**：`DragProbe` / `SettingsProbe` / `StatsWindowProbe` / `EdgeHideBehaviorProbe` / `EnterProbe`，外加 `WalkProbe`——它们要**真实窗口 / 真实光标**，会真弹窗、真动光标，只有 `--all` 或 `--only <名字>` 才跑。`WalkProbe` 是被踩坑赶进来的：headless 下屏幕与窗口尺寸为 0，`尝试走动` 会直接放弃（跑了也是**假绿**）。
+- **非 headless 白名单默认跳过**：`DragProbe` / `SettingsProbe` / `StatsWindowProbe` / `EdgeHideBehaviorProbe` / `EnterProbe` / `BubbleShot`，外加 `WalkProbe`——它们要**真实窗口 / 真实光标**，会真弹窗、真动光标，只有 `--all` 或 `--only <名字>` 才跑。`WalkProbe` 是被踩坑赶进来的：headless 下屏幕与窗口尺寸为 0，`尝试走动` 会直接放弃（跑了也是**假绿**）。
 - 名单在脚本顶部可改：`.sh` 的 `NON_HEADLESS`、`.ps1` 的 `$NonHeadless`（加进去的名字 = 默认不跑）。
 - **必须串行**：探针共用 `user://` 存档（行为节律、数值…），脚本不并行跑。
 

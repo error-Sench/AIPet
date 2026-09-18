@@ -16,7 +16,6 @@ namespace desktop.script.UX;
 public partial class Dialogue : Node
 {
     [Export] public PopupMenu 选项菜单;
-    [Export] public RichTextLabel 标题;
     [Export] public IconResource IconResource;
     private const float 打字速度 = 20.0f;
     private static Dialogue _单例;
@@ -33,7 +32,6 @@ public partial class Dialogue : Node
         选项菜单.AddThemeFontSizeOverride("font_size", 24);
         选项菜单.IdPressed += OnMenuItemPressed;
         选项菜单.PopupHide += 关闭标题;
-        标题.Visible = false;
         _单例 = this;
     }
     // ReSharper disable once MemberCanBePrivate.Global 外部调用
@@ -44,105 +42,61 @@ public partial class Dialogue : Node
         if (_单例 == null) return;                 // 没有 Dialogue 节点（探针/无 UI 场景）→ 只记不发
         _单例.CallDeferred("单例显示标题", 文本);
     }
-    /// <summary>显示标题。可跨线程调用（内部 marshal 到主线程）。</summary>
+
+    /// <summary>显示标题（常驻，直到 `关闭标题()` 或下一条气泡顶掉）。可跨线程调用（内部 marshal 到主线程）。</summary>
     public static void 显示标题(string 文本)
     {
         if (_单例 == null) return;
         _单例.CallDeferred(nameof(单例显示标题), 文本);
     }
-    private static int _当前标题序列号;
-    /// <summary>显示临时标题（延时自动收起）。可跨线程调用（内部 marshal 到主线程）。</summary>
+
     /// <summary>探针：最近一次请求显示的文本（即使当前场景里没有 Dialogue 节点也能断言「它想说什么」）。</summary>
     public static string 探针_最近请求文本 { get; private set; } = "";
 
-    /// <summary>气泡显示时长（秒）——`config/behavior.json` 的 `气泡显示秒`（默认 4）。**所有气泡共用这一个值**。</summary>
-    public static float 气泡显示秒 { get; private set; } = 4f;
+    /// <summary>气泡显示时长（秒）——转发 `BubbleWindow`（`config/bubble.json` 的 `气泡显示秒`，默认 4）。</summary>
+    public static float 气泡显示秒 => BubbleWindow.气泡显示秒;
 
-    /// <summary>下次气泡的显示时长（毫秒）。</summary>
-    private static int 气泡毫秒 => Math.Max(500, (int)(气泡显示秒 * 1000f));
+    /// <summary>探针：直接设时长（验证「时长可调」与到点自动收）。</summary>
+    public static void 探针_设气泡秒(float 秒) => BubbleWindow.探针_设气泡秒(秒);
 
-    /// <summary>探针：直接设时长（验证「时长可调」与到点回 idle）。</summary>
-    public static void 探针_设气泡秒(float 秒) => 气泡显示秒 = Math.Clamp(秒, 0.5f, 60f);
+    /// <summary>读气泡配置（`config/bubble.json`：时长 + 外观）。`Main` 启动时调；缺省 4 秒。</summary>
+    public static void 载入配置() => BubbleWindow.载入配置();
 
-    /// <summary>从 behavior.json 读气泡时长（Main 启动时调；缺失/坏值 → 4 秒）。</summary>
-    public static void 载入配置()
-    {
-        foreach (var 路径 in Util.ConfigFile.候选("behavior.json").Concat(Util.ConfigFile.候选("config/behavior.json")))
-        {
-            try
-            {
-                if (!File.Exists(路径)) continue;
-                using var 文档 = System.Text.Json.JsonDocument.Parse(File.ReadAllText(路径));
-                if (文档.RootElement.TryGetProperty("气泡显示秒", out var 值) && 值.TryGetSingle(out var 秒) && 秒 > 0f)
-                    气泡显示秒 = Math.Clamp(秒, 0.5f, 60f);
-                break;
-            }
-            catch (Exception e) { GD.PrintErr($"[Dialogue] 读 {路径} 失败: {e.Message}"); }
-        }
-        GD.Print($"[Dialogue] 气泡显示时长: {气泡显示秒:0.#}s（config/behavior.json 的 气泡显示秒）");
-    }
-
+    /// <summary>显示临时气泡（到点自动收起）。可跨线程调用（内部 marshal 到主线程）。</summary>
     public static void 显示临时标题(string 文本)
     {
         探针_最近请求文本 = 文本 ?? "";
         // 桌宠"冒泡"的话就用系统语音念出来（TTS；没有可用语音时静默降级，见 script/Audio/Tts.cs）
         Audio.Tts.说(文本);
         if (string.IsNullOrEmpty(文本) || _单例 == null) return;
-        _单例.CallDeferred(nameof(单例临时标题入口), 文本, 气泡毫秒);
+        _单例.CallDeferred(nameof(单例临时显示), 文本, 气泡显示秒);
     }
 
-    private void 单例临时标题入口(string 文本, int 显示时间) => _ = 单例临时标题协程(文本, 显示时间);
+    /// <summary>临时气泡的主线程落点：定时由 `BubbleWindow` 管（连发时后一条自然顶掉前一条）。</summary>
+    private void 单例临时显示(string 文本, float 显示秒) => 显示气泡(文本, 显示秒);
 
-    private async Task 单例临时标题协程(string 文本, int 显示时间)
-    {
-        // 每次调用，递增序列号
-        var 当前序列 = ++_当前标题序列号;
-        try
-        {
-            单例显示标题(文本);
+    /// <summary>常驻气泡的主线程落点：不自动收（等 `关闭标题()`）。</summary>
+    private void 单例显示标题(string 原始文本) => 显示气泡(原始文本, 0f);
 
-            await Task.Delay(显示时间);
-            if (_当前标题序列号 == 当前序列)
-            {
-                关闭标题();
-            }
-        }
-        catch (Exception e)
-        {
-            GD.PrintErr($"临时标题异常: {e.Message}");
-        }
-    }
-    private void 单例显示标题(string 原始文本)
+    /// <summary>
+    /// **气泡的唯一出口**（主线程），三件事：<br/>
+    /// ① `StateMachine.冒泡说话()` —— 气泡一出现就演「说话」动作（可被打断；忙态白名单不抢）；<br/>
+    /// ② 交给 `BubbleWindow`：**按内容自适应尺寸** + 跟随桌宠 + `显示秒` 到点自动收（0 = 常驻）；<br/>
+    /// ③ 文本一律**当纯文本**（`[` 会被转义成 `[lb]`，见 `BubbleWindow.装饰后文本`）——不再需要调用方自己防 BBCode。
+    /// </summary>
+    private void 显示气泡(string 原始文本, float 显示秒)
     {
-        if(string.IsNullOrEmpty(原始文本))return;
-        StateMachine.冒泡说话();   // 说话动作：气泡一出现就演（这里是**主线程唯一出口**；可被打断）
-        var 文本 = Tr(原始文本);
+        if (string.IsNullOrEmpty(原始文本)) return;
+        StateMachine.冒泡说话();
         _当前文本 = 原始文本;
-        var t标题 = 标题;
-        t标题.Visible = true;
-
-        // 1. 设置带 BBCode 的文本
-        t标题.Text = $"[wave][bgcolor=#00000066]{文本}[/bgcolor][/wave]";
-        // 2. 初始可见字符设为 0
-        t标题.VisibleCharacters = 0;
-
-        // 3. 计算文本总长度并创建动画
-        // GetTotalCharacterCount 会自动忽略 BBCode 标签，只计算实际显示的字符
-        var 总字符数 = t标题.GetTotalCharacterCount();
-        var 持续时间 = 总字符数 / 打字速度;
-        // 创建 Tween 动画
-        var 动画 = _单例.CreateTween();
-        动画.TweenProperty(
-            t标题, 
-            "visible_characters", 
-            总字符数, 
-            持续时间
-        ).SetTrans(Tween.TransitionType.Linear);
+        BubbleWindow.显示(Tr(原始文本), 显示秒);
     }
+
+    /// <summary>收起气泡（对话结束 / 选项菜单关闭 / 探针）。没有气泡窗口时也安全。</summary>
     public static void 关闭标题()
     {
-        _单例.标题.Visible = false;
         _当前文本 = null;
+        BubbleWindow.隐藏();
     }
 
     /// <summary>当前气泡文本（探针/测试可读）——用于验证 Agent 指令 speak 是否真的落到气泡。</summary>
@@ -174,10 +128,8 @@ public partial class Dialogue : Node
         if (string.IsNullOrEmpty(块)) return;
         if (!_流式中) 开始流式();
         _流式缓冲.Append(块);
-        var t = _单例.标题;
-        t.Visible = true;
-        t.Text = $"[bgcolor=#00000088]{_流式缓冲}[/bgcolor]";
-        t.VisibleCharacters = -1; // 流式已逐块到达，无需打字机
+        _当前文本 = _流式缓冲.ToString();
+        BubbleWindow.追加(块);      // 不清空、不重放打字机：整段直接可见（BBCode 转义在 BubbleWindow 里统一做）
     }
 
     /// <summary>流式结束：完成气泡。可跨线程调用。</summary>

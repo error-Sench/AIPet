@@ -55,23 +55,9 @@ max_size = Vector2i(32768, 256)
 allow_search = false
 script = ExtResource("9_mfdv2")
 
-[node name="Dialogue" type="Node" parent="." node_paths=PackedStringArray("选项菜单", "标题")]
+[node name="Dialogue" type="Node" parent="." node_paths=PackedStringArray("选项菜单")]
 script = ExtResource("9_vef74")
 "选项菜单" = NodePath("PopupMenu")
-"标题" = NodePath("RichTextLabel")
-
-[node name="RichTextLabel" type="RichTextLabel" parent="Dialogue"]
-offset_right = 512.0
-offset_bottom = 128.0
-theme_override_constants/line_separation = 6
-theme_override_font_sizes/normal_font_size = 32
-theme_override_font_sizes/bold_font_size = 32
-theme_override_font_sizes/bold_italics_font_size = 32
-theme_override_font_sizes/italics_font_size = 32
-theme_override_font_sizes/mono_font_size = 32
-bbcode_enabled = true
-horizontal_alignment = 1
-vertical_alignment = 2
 
 [node name="PopupMenu" type="PopupMenu" parent="Dialogue"]
 oversampling_override = 1.0
