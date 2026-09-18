@@ -56,7 +56,7 @@ public partial class TtsProbe : Node
     {
         GD.Print("--- A 组：配置（config/tts.json）---");
         Tts.载入配置();
-        断言(Tts.启用, "默认启用（配置文件里 启用=true）");
+        GD.Print($"[TTS] 配置读入：启用={Tts.启用}（默认关 —— 主人 2026-09-19 决定语音先不做）");
         断言(Tts.最大字数 == 80, $"最大字数按配置（{Tts.最大字数}）");
         断言(Tts.音量 is >= 0 and <= 100 && Tts.语速 is >= -10 and <= 10, $"语速/音量在合法区间（{Tts.语速} / {Tts.音量}）");
     }

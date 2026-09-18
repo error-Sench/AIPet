@@ -368,6 +368,7 @@ public partial class StateMachine : Node
     {
         _空闲秒 = 0f;
         _已报可走动 = false;
+        DailyRoutine.交互();   // 时间驱动行为：当天首次见面 → 问个好（Plan #11）
         if (CurrentState == Sleep) 唤醒(来源);
     }
 
@@ -404,6 +405,8 @@ public partial class StateMachine : Node
     private static void 心跳()
     {
         if (_入场未完成) return; // 入场动画没播完前不调度任何自主行为
+
+        DailyRoutine.推进(设置.心跳秒);   // 时间驱动行为（问候 / 喝水 / 磁盘）：计时始终推进，冒泡另受闸门约束
 
         // 主人在用面板/鼠标停在桌宠身上 → 视为「正在互动」，不累计空闲
         if (面板可见() || 鼠标悬停桌宠())
@@ -486,6 +489,15 @@ public partial class StateMachine : Node
         if (EnvironmentSense.应当静默) return false; // P6：主人在全屏应用里（游戏/视频/演示）→ 彻底安静
         return 主动预算剩余() > 0;
     }
+
+    /// <summary>主动行为闸门（供状态机外部共用）：任一约束命中即禁止。见 <see cref="允许主动"/>。</summary>
+    public static bool 主动闸门开放 => 允许主动();
+
+    /// <summary>占一次主动预算（其他模块冒泡也要记账，否则「每小时上限」会被绕过）。</summary>
+    public static void 占一次主动预算() => 记一次主动();
+
+    /// <summary>主动预算剩余次数（供行为层其他模块判断「这次还说不说」）。</summary>
+    public static int 主动预算剩余值 => 主动预算剩余();
 
     private static int 主动预算剩余()
     {
@@ -859,6 +871,12 @@ public partial class StateMachine : Node
         public static float 久坐提醒分钟 = 90f;      // 连续活跃多久提醒休息（程序侧事件）；0 = 关
         public static float 久坐提醒冷却分钟 = 90f;  // 两次提醒的最小间隔
 
+        // —— Plan #11 时间驱动主动行为（问候 / 磁盘；实现见 DailyRoutine.cs） ——
+        // 取舍原则：**只提醒主人自己不容易察觉的事**（磁盘悄悄变满、久坐忘时间）；喝水/该睡了这类「主人自己知道的事」一律不做。
+        public static bool 问候启用 = true;           // 当天首次见面按时间段问好
+        public static bool 磁盘提醒启用 = true;       // 磁盘余量低 → 每天最多提醒一次
+        public static int 磁盘剩余下限GB = 10;        // 低于这个余量算「快满了」
+
         public static void 加载()
         {
             foreach (var 路径 in Util.ConfigFile.候选("behavior.json").Concat(Util.ConfigFile.候选("config/behavior.json")))
@@ -901,6 +919,9 @@ public partial class StateMachine : Node
                     贴边右偏移像素 = 取整数(根, "贴边右偏移像素", 贴边右偏移像素);
                     久坐提醒分钟 = 取浮点(根, "久坐提醒分钟", 久坐提醒分钟);
                     久坐提醒冷却分钟 = 取浮点(根, "久坐提醒冷却分钟", 久坐提醒冷却分钟);
+                    问候启用 = 取布尔(根, "问候启用", 问候启用);
+                    磁盘提醒启用 = 取布尔(根, "磁盘提醒启用", 磁盘提醒启用);
+                    磁盘剩余下限GB = Math.Max(1, 取整数(根, "磁盘剩余下限GB", 磁盘剩余下限GB));
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
@@ -926,6 +947,11 @@ public partial class StateMachine : Node
             EdgeHide.循环间隔秒 = Math.Clamp(贴边循环间隔秒, 0.2f, 30f);
             EdgeHide.左偏移像素 = Math.Clamp(贴边左偏移像素, -400, 400);
             EdgeHide.右偏移像素 = Math.Clamp(贴边右偏移像素, -400, 400);
+
+            // 把 Plan #11 的时间驱动行为参数交给 DailyRoutine（含夹取，避免配置写坏）
+            DailyRoutine.问候启用 = 问候启用;
+            DailyRoutine.磁盘提醒启用 = 磁盘提醒启用;
+            DailyRoutine.磁盘剩余下限GB = 磁盘剩余下限GB;
         }
 
         private static bool 取布尔(JsonElement 根, string 键, bool 兜底) =>

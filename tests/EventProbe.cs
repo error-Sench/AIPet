@@ -29,6 +29,9 @@ public partial class EventProbe : Node
     {
         EventPool.探针_路径覆写 = _临时池;
         EventPool.探针_清空();
+        // 隔离 Plan #11 的时间驱动行为：本探针只测事件池与久坐，磁盘提醒会往池子里插自己的事件
+        StateMachine.设置.磁盘提醒启用 = false;
+        DailyRoutine.磁盘提醒启用 = false;
         GD.Print("=== EventProbe: 场景已实例化 ===");
     }
 

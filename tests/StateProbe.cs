@@ -22,7 +22,20 @@ public partial class StateProbe : Node
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
+        设置_隔离时间驱动();
         GD.Print("=== StateProbe: 场景已实例化 ===");
+    }
+
+    /// <summary>
+    /// 隔离 Plan #11 的时间驱动行为：本探针只测**状态语义与摸摸反应**——问候会抢状态
+    /// （首次交互排上问候 → 兑现时 SetState(Greet)），磁盘提醒会往事件池/气泡里插东西。
+    /// </summary>
+    private static void 设置_隔离时间驱动()
+    {
+        StateMachine.设置.问候启用 = false;
+        DailyRoutine.问候启用 = false;
+        StateMachine.设置.磁盘提醒启用 = false;
+        DailyRoutine.磁盘提醒启用 = false;
     }
 
     private void 断言(bool 条件, string 描述)

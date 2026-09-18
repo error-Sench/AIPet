@@ -1,5 +1,5 @@
 {
-  "启用": true,
+  "启用": false,
   "引擎": "edge",
   "edge语音": "zh-CN-XiaoxiaoNeural",
   "edge命令": "",
@@ -7,5 +7,5 @@
   "语速": 0,
   "音量": 100,
   "最大字数": 80,
-  "_comment": "语音输出（TTS）。**不内置模型/语音库**。引擎: edge（Edge 在线语音，自然好听；会把要念的文本发到微软服务器，需要网络）| sapi（Windows 自带，完全本机但机械）。edge语音: zh-CN-XiaoxiaoNeural=晓晓（默认）/ zh-CN-XiaoyiNeural=晓伊 / zh-CN-YunxiNeural=云希(男) / zh-CN-YunyangNeural=云扬(男)，英文可换 en-US-AriaNeural 等。edge命令: 留空=自动查找（%LOCALAPPDATA%/AIPet/tts-venv → Hermes venv → PATH）；填了写错也不会废掉语音（会继续往后找）。声音（sapi 用）留空=自动挑中文女声。语速 -10~10（edge 会换算成百分比）；音量 0~100；最大字数 = 多长的泡泡才念（0=不限；聊天面板里的长篇回复永远不念，只念桌宠自己的气泡）。edge 不可用（没装/断网/合成失败）时**不出声**（不自动回退系统语音——主人嫌它难听）；想用本机声音就把 引擎 改成 sapi。改完重启生效。"
+  "_comment": "语音输出（TTS）—— **默认关闭**（主人 2026-09-19 决定：语音这块先不做，edge 的声音也不见得有多好用；Windows 自带的更难听）。想开就把「启用」改成 true。开启前提：引擎=edge 需要先跑一次 `powershell -ExecutionPolicy Bypass -File tools\\install_edge_tts.ps1` 装个小依赖（不需要时删掉即可）；引擎=sapi 用 Windows 自带声音，无需安装但机械。引擎: edge（Edge 在线语音，会把要念的文本发到微软服务器，需要网络）| sapi（Windows 自带，完全本机）。edge语音: zh-CN-XiaoxiaoNeural=晓晓 / zh-CN-XiaoyiNeural=晓伊 / zh-CN-YunxiNeural=云希(男) / zh-CN-YunyangNeural=云扬(男)。edge命令: 留空=自动查找；声音（sapi 用）留空=自动挑中文女声。语速 -10~10；音量 0~100；最大字数 = 多长的泡泡才念（0=不限；聊天面板里的长篇回复永远不念，只念桌宠自己的气泡）。合成失败（断网/没装）时不出声，不自动回退系统语音。改完重启生效。"
 }
