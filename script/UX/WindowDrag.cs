@@ -74,6 +74,7 @@ public partial class WindowDrag : Node
         if (面板接管指针())
         {
             取消桌宠拖拽();
+            FacePinch.取消();       // 面板接管 → 长按候选作废
             探针_准备中 = false;
             探针_拖拽中 = false;
             return;
@@ -94,6 +95,8 @@ public partial class WindowDrag : Node
                 {
                     _isPreparing = true;
                     _pressOrigin = currentMousePos;
+                    // 长按候选：命中「脸」区才成立（照 VPet 官方：长按脸 = 捏脸；一按就跑 = 拖窗口）
+                    FacePinch.按下(currentMousePos - DisplayServer.WindowGetPosition(), DisplayServer.WindowGetSize());
                 }
             }
             else if (_isPreparing && !_dragging)
@@ -101,6 +104,7 @@ public partial class WindowDrag : Node
                 // 准备中：检查移动距离是否达标
                 if (currentMousePos.DistanceTo(_pressOrigin) > DragThreshold)
                 {
+                    FacePinch.取消();   // 动了 → 捏脸候选作废（本次按的是拖拽）
                     // 贴边隐藏中开始拖拽 → **直接让位**（不用「复位」，因为复位会同时让窗口滑向原位，
 // 与拖拽同一帧抢窗口位置，表现为「拖不动/往边缘吸」）。让位是瞬时回位且清阶段，交给拖拽独占窗口。
                     if (EdgeHide.占用中) EdgeHide.让位();
@@ -124,9 +128,14 @@ public partial class WindowDrag : Node
             //    判定必须早于 取消桌宠拖拽()（它会复位 _isPreparing/_dragging）。
             //    注意：本分支只在真正的松手路径执行；「面板接管指针」的早退路径不经过这里，
             //    因此不会在操作面板时产生假摸摸。
-            var 单击 = _isPreparing && !_dragging;
+            var 捏过 = FacePinch.占用中;                    // 长按脸已经变成捏脸 → 这次松手不算「摸摸」
+            var 单击 = _isPreparing && !_dragging && !捏过;
             var 拖过 = _dragging;   // 必须在 取消桌宠拖拽() 之前取：它会把标志复位
+            // 只有「本窗口自己管理的那次按压」才负责收捏脸：探针/其它模块直接调 FacePinch 时，
+            // 这里每帧的松手分支会把刚触发的捏脸立刻打断（实测：探针里刚进捏脸就被收掉）
+            var 本窗口按着 = _isPreparing || _dragging;
             取消桌宠拖拽();
+            if (本窗口按着) FacePinch.松手();       // 捏脸中 → 播退出段（相.按住中 → 直接清）
             if (单击) StateMachine.摸摸();
             // 拖拽结束（非单击）→ 检查是否贴到屏幕边缘：贴中就缩进隐藏（P2 行为层）
             else if (拖过) EdgeHide.检查贴边();

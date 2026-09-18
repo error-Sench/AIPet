@@ -249,7 +249,7 @@ public static class PetCommands
                     if (string.IsNullOrWhiteSpace(t)) { 结果 = "文本为空"; break; }
                     if (t.Length > 说话字数上限) { 结果 = $"文本过长（{t.Length}>{说话字数上限}）"; break; }
                     // 气泡走 BBCode：转义方括号，避免 Agent 文本注入样式/链接
-                    Dialogue.显示临时标题(t.Replace("[", "［").Replace("]", "］"), 4000);
+                    Dialogue.显示临时标题(t.Replace("[", "［").Replace("]", "］"));
                     break;
                 }
                 case "play_anim":

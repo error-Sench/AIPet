@@ -589,7 +589,7 @@ public static class AgentEvents
         {
             StateMachine.SetState(StateMachine.Idle);
             GD.PrintErr($"[Agent] {msg}");   // 原始错误只进日志（英文异常/堆栈不该出现在气泡里，更不该被念出来）
-            Dialogue.显示临时标题("唔…我这边出了点小状况，先自己待着～", 4000);
+            Dialogue.显示临时标题("唔…我这边出了点小状况，先自己待着～");
         };
     }
 }

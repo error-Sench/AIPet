@@ -75,5 +75,6 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `greet` | amuse / meow | 11/20 | 打招呼（VPet 无专用动作，用开心姿势） |
 | `interact` | a / b / c | 9/11/2 | 摸头反应**三段序列**（进入→保持→退出） |
 | `edge_hide` | {left,right}-{in,keep,hold,out,peek,rise,unpeek} | 共 76 | 贴边隐藏：`Main`=隐藏姿态序列（in/keep/hold/out），`Rise`=探出（A 弹出 → **B 探出后微动循环** → C 缩回）。左右**逐段一一对应**（每侧 in9/keep4/hold1/out7/peek4/rise10/unpeek3） |
+| `pinch` | a / b / c | 1 / 6 / 21 | 捏脸（照 VPet 官方「**长按脸**」抄）：A 进入 → B **循环**（按住时连续播）→ C 松手退出。**只导 Nomal**——官方按它自己的 Mode 选 Happy/PoorCondition，我们的心情定义与官方不同 → 不做映射；官方的体力-2/心情+1 也不抄（捏脸只做动作） |
 
 **验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）。

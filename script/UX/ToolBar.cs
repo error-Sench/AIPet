@@ -188,7 +188,7 @@ public partial class ToolBar : Window
                 if (脚本 == null)
                 {
                     GD.PrintErr($"[ToolBar] 找不到指令: {名}（mods 里没有 name={名} 的指令）");
-                    Dialogue.显示临时标题($"工具「{名称}」的指令不存在", 2500);
+                    Dialogue.显示临时标题($"工具「{名称}」的指令不存在");
                     return;
                 }
                 GD.Print($"[ToolBar] 派发旧指令: {名}");
@@ -198,7 +198,7 @@ public partial class ToolBar : Window
             }
             // mod 只声明了目录、没有可执行动作：占位提示
             GD.Print($"[ToolBar] 点击工具: {目录}（无动作）");
-            Dialogue.显示临时标题($"工具「{名称}」尚未实现", 2500);
+            Dialogue.显示临时标题($"工具「{名称}」尚未实现");
         };
     }
 

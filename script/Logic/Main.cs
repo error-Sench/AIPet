@@ -38,6 +38,7 @@ public partial class Main:Node
 		LoadUtil.初始化();
 		SoulTable.Load();
 		Soul.PhraseTable.加载();       // 本地话语表（config/phrases.json；缺失走内置兜底）
+		UX.Dialogue.载入配置();        // 气泡显示时长（config/behavior.json 的 气泡显示秒；默认 4s）
 		Audio.Tts.载入配置();          // 语音输出（系统 TTS；不内置模型）
 		UX.NetSpeedBubble.载入外观配置();  // 网速气泡外观（字号/边距/透明度；随组件目录 mods/toolbar/netspeed/config.json）
 		UX.NetSpeedBubble.启动恢复();      // 按上次开关状态恢复（入口＝工具栏「网速监控」；删/禁用 mod 即不再恢复）
@@ -47,7 +48,7 @@ public partial class Main:Node
 		if (!SoulTable.IsLoaded)
 		{
 			GD.Print($"[AIPet] 首次运行：数据目录 = {ProjectSettings.GlobalizePath("user://")}");
-			Dialogue.显示临时标题($"初次见面，我是{SoulTable.名字}～右键我 → 配置，能看到我的数据都存在哪", 9000);
+			Dialogue.显示临时标题($"初次见面，我是{SoulTable.名字}～右键我 → 配置，能看到我的数据都存在哪");
 		}
 
 		ModLoader.加载模组();
@@ -56,7 +57,7 @@ public partial class Main:Node
 		Kws.TurnOn();
 		Context.显示指令列表();
 		CharAnim.载入人物动画();
-		Dialogue.显示临时标题(DialogueLoader.默认对话.入场招呼,5000);
+		Dialogue.显示临时标题(DialogueLoader.默认对话.入场招呼);
 	}
 	public static bool IgnorePath(string path) => Path.GetFileName(path).StartsWith($"_");
 	public static void 选择脚本(脚本信息 脚本信息)

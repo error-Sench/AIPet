@@ -22,7 +22,9 @@ public partial class CharAnim : AnimatedSprite2D
          // 语义池（P2 导入资产后即自动生效；池目录不存在时加载管线自动跳过，无副作用）
          "think", "say", "work", "listen", "sleep", "walk", "greet", "interact", "move",
          // 贴边隐藏（素材已导入；行为接线见 script/State/README.md）
-         "edge_hide"];
+         "edge_hide",
+         // 捏脸（照 VPet 官方：长按脸触发；素材 Pinch/*；表现由 FacePinch 三段自管）
+         "pinch"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。</summary>
     private static readonly List<string> 循环动画组 = ["walk", "sleep"];

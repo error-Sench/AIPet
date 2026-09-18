@@ -37,6 +37,12 @@ public partial class StateMachine : Node
     /// <summary>贴边隐藏（P2 行为层）：表现由 EdgeHide 自管，状态机只当「锁定持续态」占位。见 script/State/README.md。</summary>
     public const string EdgeHideState = "edge_hide";
 
+    /// <summary>捏脸（照 VPet 官方：长按脸触发）：表现由 FacePinch 自管，状态机只当「锁定持续态」占位。</summary>
+    public const string PinchState = "pinch";
+
+    /// <summary>气泡说话（伴随气泡的短动作）：**不锁定**（任何交互都能立刻打断）+ 定时回 idle；时长 = 气泡显示秒。</summary>
+    public const string BubbleTalk = "bubble_talk";
+
     // —— 行为链状态（不映射固定动画，语义化） ——
     public const string WalkStart = "walk_start";
     public const string WalkLoop = "walk_loop";
@@ -85,6 +91,10 @@ public partial class StateMachine : Node
         // 贴边隐藏：持续 + 锁定；表现不走「池内随机」，由 EdgeHide.应用表现() 按阶段精确播（见应用表现）
         // 免兜底：贴边是**无限期**待着，不能吃 2 分钟的持续态兜底（否则会自己变 idle 挪回屏内 —— 实测 bug）
         [EdgeHideState] = new 状态效果 { 目标池 = "edge_hide", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
+        // 捏脸：同上 —— 表现由 FacePinch 三段自管（A 进入 → B 循环 → 松手 C），锁定 + 免兜底（按住多久都行）
+        [PinchState] = new 状态效果 { 目标池 = "pinch", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
+        // 气泡说话（P8）：**不锁定**（动作可被打断）+ 定时回 idle；真正的时长由 冒泡说话() 用「气泡显示秒」覆盖传入
+        [BubbleTalk] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = false, 锁定 = false, 秒 = 4f },
     };
 
     /// <summary>
@@ -175,6 +185,9 @@ public partial class StateMachine : Node
         // —— 贴边隐藏（P2 行为层）：滑行到位 + 悬停探出/缩回 ——
         EdgeHide.每帧((float)delta);
 
+        // —— 捏脸：长按计时（按住脸到阈值 → 触发） ——
+        FacePinch.每帧((float)delta);
+
         // —— 心跳（默认 1s，可配置） ——
         _心跳累加 += delta;
         if (_心跳累加 >= 设置.心跳秒)
@@ -208,6 +221,8 @@ public partial class StateMachine : Node
 
         // 别人抢状态 → 贴边隐藏让位（窗口先回原位；复位/缩进时自己会切到 edge_hide，不受影响）
         if (state != EdgeHideState && EdgeHide.占用中) EdgeHide.让位();
+        // 捏脸同理：别人抢状态就放弃（表现交给新状态）
+        if (state != PinchState && FacePinch.占用中) FacePinch.取消();
 
         var 变化 = CurrentState != state;
         CurrentState = state;
@@ -260,6 +275,8 @@ public partial class StateMachine : Node
         if (_当前序列 != null) { 推进序列(); return; }
         // 贴边隐藏：阶段推进由 EdgeHide 自管（缩进→静止→探出→缩回→退出）
         if (CurrentState == EdgeHideState) { EdgeHide.动画播完(); return; }
+        // 捏脸：段推进由 FacePinch 自管（A → B 循环 → 松手 C）
+        if (CurrentState == PinchState) { FacePinch.动画播完(); return; }
         if (!_效果表.TryGetValue(CurrentState, out var 效果)) return;
         CharAnim.PlayState(选择池(效果));
     }
@@ -447,7 +464,7 @@ public partial class StateMachine : Node
         if (BehaviorEventTick()) return;
 
         // 忙状态与拖拽中不调度自主行为；**贴边隐藏中也不调度**（它就是「在边上待着」，不该被入睡/走动打回屏内 —— 实测 bug）
-        if (CurrentState is Drag or Think or Speak or Working or Listen or Greet or Interact or EdgeHideState) return;
+        if (CurrentState is Drag or Think or Speak or Working or Listen or Greet or Interact or EdgeHideState or PinchState) return;
 
         if (CurrentState == Sleep) return; // 已在睡，等交互唤醒
 
@@ -544,7 +561,7 @@ public partial class StateMachine : Node
         _久坐冷却剩余 = 设置.久坐提醒冷却分钟 * 60f;
         _久坐提醒次数++;
         EventPool.记("久坐提醒", EventPool.归属.程序, $"主人连续活跃 {分钟} 分钟 → 已提醒休息");
-        Dialogue.显示临时标题(久坐语句(), 6000);
+        Dialogue.显示临时标题(久坐语句());
         SetState(Greet);   // 用「打招呼」的姿态把注意力勾过来，2.5s 后回 idle
 
         // 提醒满 2 次 = 这次坐得太久了 → 写一条**归属 Agent** 的事件（Agent 自己决定要不要更走心地说点什么）
@@ -572,13 +589,30 @@ public partial class StateMachine : Node
 
     // ================= 本地话语（没接 Agent 时的兜底说话） =================
 
+    /// <summary>
+    /// **冒泡说话**：气泡出现时演「说话」动作（`say` 池）。由 `Dialogue.单例显示标题`（主线程唯一出口）调用。
+    /// <para>
+    /// 三条约定（主人 2026-09-19）：① 动作**可被打断** —— `锁定=false`，任何交互都立刻接管；
+    /// ② **气泡时长与动画无关**：固定 `config/behavior.json` 的 `气泡显示秒`（默认 4s），到点回 idle；
+    /// ③ **只在闲下来时演**（白名单：`idle` / `bubble_talk`，比黑名单安全 —— 新加的忙态默认不抢）。
+    /// 特别注意**问候 / 摸摸是「先冒泡、后置状态」**，而气泡要等下一帧才演 —— 黑名单写法会把它们的
+    /// 姿态偷换成说话（实测踩过）。
+    /// </para>
+    /// </summary>
+    public static void 冒泡说话()
+    {
+        if (Instance == null || !设置.启用) return;
+        if (CurrentState != Idle && CurrentState != BubbleTalk) return;
+        SetState(BubbleTalk, Math.Max(0.5f, UX.Dialogue.气泡显示秒));
+    }
+
     private static readonly Dictionary<string, float> _本地话语冷却 = new();
 
     /// <summary>
     /// 本地模式说话：从话语表取一句冒泡（**同一分类有冷却**，避免连点刷屏）。
     /// 只在**没接 Agent** 时用——接了 Agent，日常反应归 Agent 自己（分工见 `config/phrases.json` 注释）。
     /// </summary>
-    private static void 本地说话(string 分类, float 冷却秒)
+    public static void 本地说话(string 分类, float 冷却秒)
     {
         if (AgentBridge.IsRunning) return;
         if (_本地话语冷却.TryGetValue(分类, out var 余) && 余 > 0f) return;
@@ -586,7 +620,7 @@ public partial class StateMachine : Node
         if (string.IsNullOrEmpty(句)) return;
         _本地话语冷却[分类] = 冷却秒;
         GD.Print($"[StateMachine] 本地话语（{分类}）：{句}");
-        Dialogue.显示临时标题(句, 3500);
+        Dialogue.显示临时标题(句);
     }
 
     private static void 推进本地话语冷却(float delta)
@@ -858,6 +892,8 @@ public partial class StateMachine : Node
         if (!_效果表.TryGetValue(state, out var 效果)) 效果 = _效果表[Idle];
         // 贴边隐藏：表现由 EdgeHide 按阶段精确播（不走池内随机）
         if (state == EdgeHideState) { EdgeHide.应用表现(); return; }
+        // 捏脸：同理（三段由 FacePinch 自管）
+        if (state == PinchState) { FacePinch.应用表现(); return; }
         var 池 = 选择池(效果);
         // 情绪表达：心情好/糟时优先用该池的对应变体（如 think-happy / think-poor、摸头用 interact-happy）。
         // 该池没有这个变体就退回池内随机 —— 不硬造。
@@ -907,6 +943,9 @@ public partial class StateMachine : Node
         public static float 贴边循环内间隔秒 = 0.5f;  // 循环内部间隔（同周期两次之间隔多久）
         public static int 贴边左偏移像素 = 0;      // 微调：正=往屏内多推，负=往屏外多推（左右不对称就调这俩）
         public static int 贴边右偏移像素 = 0;
+        // —— P7 捏脸（照 VPet 官方：**长按脸**触发；实现见 FacePinch.cs） ——
+        public static float 捏脸长按秒 = 0.3f;         // 官方 presslength 默认 300ms
+        public static float[] 捏脸命中区;               // null = 用 FacePinch 默认（窗口比例 x0,y0,x1,y1）
         public static float 久坐提醒分钟 = 90f;      // 连续活跃多久提醒休息（程序侧事件）；0 = 关
         public static float 久坐提醒冷却分钟 = 90f;  // 两次提醒的最小间隔
 
@@ -958,6 +997,18 @@ public partial class StateMachine : Node
                     贴边循环内间隔秒 = 取浮点(根, "贴边循环内间隔秒", 贴边循环内间隔秒);
                     贴边左偏移像素 = 取整数(根, "贴边左偏移像素", 贴边左偏移像素);
                     贴边右偏移像素 = 取整数(根, "贴边右偏移像素", 贴边右偏移像素);
+                    捏脸长按秒 = 取浮点(根, "捏脸长按秒", 捏脸长按秒);
+                    if (根.TryGetProperty("捏脸命中区", out var 捏区) && 捏区.ValueKind == JsonValueKind.Array && 捏区.GetArrayLength() == 4)
+                    {
+                        var 命中值 = new float[4];
+                        var 下标 = 0;
+                        foreach (var e in 捏区.EnumerateArray())
+                        {
+                            if (!e.TryGetSingle(out var f)) break;
+                            命中值[下标++] = f;
+                        }
+                        if (下标 == 4) 捏脸命中区 = 命中值;
+                    }
                     久坐提醒分钟 = 取浮点(根, "久坐提醒分钟", 久坐提醒分钟);
                     久坐提醒冷却分钟 = 取浮点(根, "久坐提醒冷却分钟", 久坐提醒冷却分钟);
                     问候启用 = 取布尔(根, "问候启用", 问候启用);
@@ -990,6 +1041,9 @@ public partial class StateMachine : Node
             EdgeHide.循环内间隔秒 = Math.Clamp(贴边循环内间隔秒, 0.1f, 10f);
             EdgeHide.左偏移像素 = Math.Clamp(贴边左偏移像素, -400, 400);
             EdgeHide.右偏移像素 = Math.Clamp(贴边右偏移像素, -400, 400);
+            // 捏脸（P7）：长按阈值 + 命中区（照 VPet 官方；命中区是窗口宽高的比例）
+            FacePinch.长按秒 = Math.Clamp(捏脸长按秒, 0.1f, 3f);
+            if (捏脸命中区 is { Length: 4 }) FacePinch.命中区 = 捏脸命中区;
 
             // 把 Plan #11 的时间驱动行为参数交给 DailyRoutine（含夹取，避免配置写坏）
             DailyRoutine.问候启用 = 问候启用;

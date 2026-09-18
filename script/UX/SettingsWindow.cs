@@ -397,7 +397,7 @@ public partial class SettingsWindow : Window
     {
         if (!ConfigEdit.写(配置路径, 键, 值)) return;
         GD.Print($"[SettingsWindow] 高级 · {配置路径} · {键} = {值}（{提示}）");
-        Dialogue.显示临时标题(提示, 2500);
+        Dialogue.显示临时标题(提示);
     }
 
     // ================= 工具 =================
@@ -585,7 +585,7 @@ public partial class SettingsWindow : Window
         if (!Directory.Exists(路径))
         {
             GD.PrintErr($"[SettingsWindow] 目录不存在: {路径}");
-            Dialogue.显示临时标题($"目录不存在：{路径}", 3000);
+            Dialogue.显示临时标题($"目录不存在：{路径}");
             return;
         }
         var 结果 = OS.ShellOpen(路径);

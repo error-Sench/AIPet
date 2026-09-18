@@ -67,6 +67,16 @@ SPEC = {
         ("b", [("Touch_Head/B_Nomal", None, None)]),
         ("c", [("Touch_Head/C_Nomal", None, None)]),
     ],
+    # 捏脸（VPet `Pinch`）—— 官方语义：**长按脸**触发（教程「11/24 Update Pinch Face：Long press on the face to pinch the face」
+    # + `MainWindow.DisplayPinch`）：A(1帧 进入) → B(6帧 **循环**，按住时连续播) → C(21帧 松手退出)。
+    # 命中区在 .lps：`pinch: px#149 py#128 sw#56 sh#59`（500 空间）。
+    # 只导 **Nomal** 三段：官方还有 Happy/PoorCondition 变体（按它自己的 Mode 选），
+    # 但我们的心情定义与官方不同 → **不做这个映射**（主人 2026-09-19）；数值效果同理不抄。
+    "pinch": [
+        ("a", [("Pinch/Nomal/A", None, None)]),
+        ("b", [("Pinch/Nomal/B", None, None)]),
+        ("c", [("Pinch/Nomal/C", None, None)]),
+    ],
     # 贴边隐藏（VPet SideHide_*）。**官方用法**（VPet 源码 `Main.xaml.cs` / `MainLogic.cs`）：
     #   躲到边缘  → 播 `SideHide_<侧>_Main` 的 A_Start 然后循环 B
     #   鼠标进入  → 播 `SideHide_<侧>_Rise` 的 **A_Start 然后循环 B**（这就是「探出」）

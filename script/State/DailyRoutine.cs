@@ -177,7 +177,7 @@ public static class DailyRoutine
         if (占预算) StateMachine.占一次主动预算();
         GD.Print($"[DailyRoutine] {标签}：{语句}");
         EventPool.记(事件类型, EventPool.归属.程序, 语句);
-        Dialogue.显示临时标题(语句, 5000);
+        Dialogue.显示临时标题(语句);
         StateMachine.SetState(StateMachine.Greet);
     }
 

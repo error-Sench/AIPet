@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using desktop.script.Asset;
 using desktop.script.Loader;
 using desktop.script.logic;
+using desktop.script.State;
 using desktop.script.Util;
 using DialogueManagerRuntime;
 using Godot;
@@ -53,13 +55,40 @@ public partial class Dialogue : Node
     /// <summary>探针：最近一次请求显示的文本（即使当前场景里没有 Dialogue 节点也能断言「它想说什么」）。</summary>
     public static string 探针_最近请求文本 { get; private set; } = "";
 
-    public static void 显示临时标题(string 文本, int 显示时间 = 3000)
+    /// <summary>气泡显示时长（秒）——`config/behavior.json` 的 `气泡显示秒`（默认 4）。**所有气泡共用这一个值**。</summary>
+    public static float 气泡显示秒 { get; private set; } = 4f;
+
+    /// <summary>下次气泡的显示时长（毫秒）。</summary>
+    private static int 气泡毫秒 => Math.Max(500, (int)(气泡显示秒 * 1000f));
+
+    /// <summary>探针：直接设时长（验证「时长可调」与到点回 idle）。</summary>
+    public static void 探针_设气泡秒(float 秒) => 气泡显示秒 = Math.Clamp(秒, 0.5f, 60f);
+
+    /// <summary>从 behavior.json 读气泡时长（Main 启动时调；缺失/坏值 → 4 秒）。</summary>
+    public static void 载入配置()
+    {
+        foreach (var 路径 in Util.ConfigFile.候选("behavior.json").Concat(Util.ConfigFile.候选("config/behavior.json")))
+        {
+            try
+            {
+                if (!File.Exists(路径)) continue;
+                using var 文档 = System.Text.Json.JsonDocument.Parse(File.ReadAllText(路径));
+                if (文档.RootElement.TryGetProperty("气泡显示秒", out var 值) && 值.TryGetSingle(out var 秒) && 秒 > 0f)
+                    气泡显示秒 = Math.Clamp(秒, 0.5f, 60f);
+                break;
+            }
+            catch (Exception e) { GD.PrintErr($"[Dialogue] 读 {路径} 失败: {e.Message}"); }
+        }
+        GD.Print($"[Dialogue] 气泡显示时长: {气泡显示秒:0.#}s（config/behavior.json 的 气泡显示秒）");
+    }
+
+    public static void 显示临时标题(string 文本)
     {
         探针_最近请求文本 = 文本 ?? "";
         // 桌宠"冒泡"的话就用系统语音念出来（TTS；没有可用语音时静默降级，见 script/Audio/Tts.cs）
         Audio.Tts.说(文本);
         if (string.IsNullOrEmpty(文本) || _单例 == null) return;
-        _单例.CallDeferred(nameof(单例临时标题入口), 文本, 显示时间);
+        _单例.CallDeferred(nameof(单例临时标题入口), 文本, 气泡毫秒);
     }
 
     private void 单例临时标题入口(string 文本, int 显示时间) => _ = 单例临时标题协程(文本, 显示时间);
@@ -86,6 +115,7 @@ public partial class Dialogue : Node
     private void 单例显示标题(string 原始文本)
     {
         if(string.IsNullOrEmpty(原始文本))return;
+        StateMachine.冒泡说话();   // 说话动作：气泡一出现就演（这里是**主线程唯一出口**；可被打断）
         var 文本 = Tr(原始文本);
         _当前文本 = 原始文本;
         var t标题 = 标题;
@@ -163,7 +193,7 @@ public partial class Dialogue : Node
         if (_流式缓冲.Length == 0) return;
         _当前文本 = _流式缓冲.ToString();
         // 停留后自动收起（沿用临时标题的序列号机制，避免竞态）
-        显示临时标题(_当前文本, 8000);
+        显示临时标题(_当前文本);
         _流式缓冲.Clear();
     }
 
