@@ -45,6 +45,9 @@ public partial class SettingsProbe : Node
             var w = GetChild(0).GetNodeOrNull("SettingsWindow") as Window;
             if (w == null) { GD.PrintErr("[SP] 配置窗节点缺失"); GetTree().Quit(1); return; }
             GD.Print($"[SP] 配置窗 几何: pos={w.Position} size={w.Size} min={w.MinSize} 无边框={w.Borderless}");
+            var 期望 = desktop.script.UX.SettingsWindow.期望尺寸();
+            if (w.Size != 期望) GD.PrintErr($"[SP] FAIL 窗口尺寸 {w.Size} ≠ 期望 {期望}（检查 config/panel.json 的 配置窗宽/配置窗高）");
+            else GD.Print($"[SP] 尺寸断言 PASS: {w.Size}（期望 {期望}，内容最小 {w.GetContentsMinimumSize()}）");
             GD.Print($"[SP] 语言项={desktop.script.UX.SettingsWindow.语言项.Count} 目录行={desktop.script.UX.SettingsWindow.路径文本.Count}");
             foreach (var p in desktop.script.UX.SettingsWindow.路径文本) GD.Print($"[SP]   目录: {p}");
         }

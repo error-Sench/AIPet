@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 using desktop.script.Audio;
 using desktop.script.logic;
 using desktop.script.State;
@@ -21,7 +22,8 @@ namespace desktop.script.UX;
 /// **写入方式**：`ConfigEdit` 只改目标键、保留 `_comment` 与未知键。行为/语音改完**立即生效**
 /// （改完当场调 `设置.加载()` / `Tts.载入配置()`）；缩放与 Agent 后端需要**重启生效**（界面会提示）。
 /// </para>
-/// <para>**尺寸自适应**：窗口高度按内容算（曾经写死 224px，加了「数据」目录行后底部被裁 —— 实测 bug）。</para>
+/// <para>**尺寸**：固定尺寸 + 内容滚动（**不做自适应高度**）；尺寸可在 `config/panel.json` 用
+/// `配置窗宽` / `配置窗高` 覆盖（缺省 500×375，高:宽 = 3:4），改完重启即可，不必重新编译。</para>
 /// </summary>
 public partial class SettingsWindow : Window
 {
@@ -434,7 +436,7 @@ public partial class SettingsWindow : Window
             StartDrag();
     }
 
-    // ================= 尺寸（固定尺寸 + 滚动；主人 2026-09-19：「做滚动窗口，不要自适应高度」） =================
+    // ================= 尺寸（固定尺寸 + 滚动 + 面板配置覆盖；主人 2026-09-19） =================
 
     /// <summary>
     /// **固定尺寸 + 内容滚动**（不做自适应高度）。历史教训记在这里：
@@ -442,16 +444,51 @@ public partial class SettingsWindow : Window
     /// ② 改成按内容自适应后，TabContainer 的最小尺寸**只统计当前可见页** → 切到行为页窗口没跟着变、照样被裁；
     /// ③ 直接量页签容器又会碰到「切页瞬间量到垃圾值」（实测 3671px）。
     /// 结论：**别猜高度** —— 固定一个比例舒服的尺寸，超出就让 `Scroll` 容器滚。
-    /// 比例由主人定：**高:宽 = 3:4**（500 宽 → 375 高）。
+    /// 比例：**高:宽 = 3:4**（500 宽 → 375 高）。
+    /// <para>
+    /// **改尺寸不用改代码**：`config/panel.json` 写 `"配置窗宽": 500, "配置窗高": 665`（缺省 500×375）。
+    /// 改这里的常量必须重新编译才生效 —— 若「改了数字窗口没变化」，先看启动日志那行
+    /// `[SettingsWindow] 固定尺寸: (宽, 高)`：数值没跟着变 = 没编译进去（编辑器内 ▶ 会自动编；
+    /// 构建失败时 Godot 会继续跑旧 DLL，输出窗口有 error CS）。
+    /// </para>
     /// </summary>
-    private const int 固定宽 = 500;
-    private const int 固定高 = 固定宽 * 9 / 16;   // 高:宽 = 3:4
+    private const int 默认宽 = 500;
+    private const int 默认高 = 默认宽 * 3 / 4;   // 高:宽 = 3:4
+
+    /// <summary>读 panel.json 里的一个正整数键（优先；缺失/坏值 → 缺省）。</summary>
+    private static int 读面板尺寸(string 键, int 缺省)
+    {
+        foreach (var 路径 in Util.ConfigFile.候选("panel.json").Concat(Util.ConfigFile.候选("config/panel.json")))
+        {
+            try
+            {
+                if (!File.Exists(路径)) continue;
+                var 文本 = File.ReadAllText(路径);
+                if (string.IsNullOrWhiteSpace(文本)) continue;
+                using var 文档 = JsonDocument.Parse(文本);
+                if (文档.RootElement.TryGetProperty(键, out var 值) && 值.TryGetInt32(out var 数) && 数 > 0) return 数;
+            }
+            catch (Exception e) { GD.PrintErr($"[SettingsWindow] 读 {路径} 失败: {e.Message}"); }
+        }
+        return 缺省;
+    }
+
+    /// <summary>期望尺寸：`config/panel.json` 的 配置窗宽/配置窗高 优先，缺省 500×375。</summary>
+    public static Vector2I 期望尺寸()
+    {
+        var 宽 = Mathf.Clamp(读面板尺寸("配置窗宽", 默认宽), 320, 1600);
+        var 高 = Mathf.Clamp(读面板尺寸("配置窗高", 默认高), 240, 2400);
+        return new Vector2I(宽, 高);
+    }
 
     public void 应用固定尺寸()
     {
-        var 旧 = Size;
-        Size = new Vector2I(固定宽, 固定高);
-        if (旧 != Size) GD.Print($"[SettingsWindow] 固定尺寸: {Size}（内容超出由 Scroll 容器滚动）");
+        var 目标 = 期望尺寸();
+        if (Size != 目标)
+        {
+            Size = 目标;
+            GD.Print($"[SettingsWindow] 固定尺寸: {Size}（可在 config/panel.json 写 配置窗宽/配置窗高 调整）");
+        }
     }
 
     /// <summary>探针：是否存在滚动容器（回归：「内容比窗口高时必须能滚」）。</summary>
@@ -558,9 +595,11 @@ public partial class SettingsWindow : Window
     {
         if (_单例 == null) return;
         _单例.刷新();
+        var 尺寸 = 期望尺寸();
         _单例.应用固定尺寸();
-        _单例.PopupCentered();
-        GD.Print($"[SettingsWindow] 已弹出: visible={_单例.Visible}, pos={_单例.Position}, size={_单例.Size}");
+        // 显式传尺寸：无参 PopupCentered() 的语义是「按窗口内容的最小尺寸弹出」，会盖掉我们设的固定尺寸
+        _单例.PopupCentered(尺寸);
+        GD.Print($"[SettingsWindow] 已弹出: visible={_单例.Visible}, pos={_单例.Position}, size={_单例.Size}, 内容最小={_单例.GetContentsMinimumSize()}");
     }
 
     public static void 隐藏()
