@@ -38,7 +38,7 @@
 
 | 层 | 职责 | 状态 |
 |---|---|---|
-| **灵魂层** | 维护三张持久化的**灵魂表**（SOUL / 记忆 / 状态），一切「我」的数据源 |  核心 → `script/Soul/README.md` |
+| **灵魂层** | 维护三张持久化的**灵魂表**（人格 / 记忆 / 状态），一切「我」的数据源 |  核心 → `script/Soul/README.md` |
 | **身体层** | **状态机 + 行为链**：驱动动画、反馈、表现 |  核心 → `script/State/README.md` |
 | **模式层** | 办公 / 游戏**一体**：桌宠本体即游戏的一部分，无缝切换、进度保留；游戏玩法留接口待扩展 | 🆕 接口 → `script/Mode/README.md` |
 | **关系层** | 亲密度 / 养成 / 专属感 |  空置，占位不实现（`soul.md` 中 `# 关系` 节保留为空） |
@@ -81,8 +81,7 @@ D:/Games/Github/AIPet/
 │   ├── behavior.json      #   行为节律（走动/睡眠/贴边/环境感知/久坐提醒…）
 │   ├── pet.json           #   外观（缩放）
 │   ├── panel.json         #   面板（隐藏指令名单）
-│   ├── tts.json           #   语音输出（引擎/声音/语速/音量）
-│   └── soul_template.md   #   人格模板（首次运行据此落 soul.md 到 user://）
+│   └── tts.json           #   语音输出（引擎/声音/语速/音量）
 ├── mods/                  # ★ 行为层内容（mod 协议：每个子目录 = 一个 mod；只加不改）
 │   ├── main_command/ main_txt/ main_file/ main_anim/ workshop/   # 原项目
 │   └── toolbar/           #   工具栏小组件（删目录即移除、`_` 前缀即禁用；**组件自带 config/state**，自包含）
@@ -175,7 +174,7 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 
 4. **麦克风不要在启动时打开**。`AudioStreamPlayer2D` 挂 `AudioStreamMicrophone` + `autoplay=true` 会让程序一启动就占用录音设备，无设备时报 `WASAPI: init_input_device error`（且属隐私问题）。→ 规则：**按需启动**（`Kws` 只在语音模型真加载成功后才开）。
 
-7. **`config/`、`mods/`、`document/` 都有 `.gdignore`，Godot 完全忽略它们**（原项目有意为之：不让运行数据混进导入系统）。放在其中的文件用 `Godot.FileAccess` 读 `res://...` 会读不到（`soul_template.md`、`agent.json` 都曾中招）。→ 规则：**读这些目录里的文件一律走 `ConfigFile.候选()`（native 路径）**；`ConfigFile.找` 的第三个候选就是 `res://` 的 native 化路径（开发期靠它）。
+7. **`config/`、`mods/`、`document/` 都有 `.gdignore`，Godot 完全忽略它们**（原项目有意为之：不让运行数据混进导入系统）。放在其中的文件用 `Godot.FileAccess` 读 `res://...` 会读不到（`agent.json` 曾中招）。→ 规则：**读这些目录里的文件一律走 `ConfigFile.候选()`（native 路径）**；`ConfigFile.找` 的第三个候选就是 `res://` 的 native 化路径（开发期靠它）。
 
 8. **`FileAccess` 二义性**：`Godot.FileAccess` 与 `System.IO.FileAccess` 同名。→ 规则：同时 `using Godot;` 和 `using System.IO;` 时，显式写 `Godot.FileAccess`。
 

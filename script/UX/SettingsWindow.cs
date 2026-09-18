@@ -214,12 +214,10 @@ public partial class SettingsWindow : Window
     {
         var 页 = 新页("TabBehavior");
 
-        页.AddChild(开关行("总开关", StateMachine.设置.启用, 键 => 行为("启用", 键), _行为键, "启用", "关掉 = 只保留被动反应，所有主动行为停止"));
         页.AddChild(数字行("每小时主动上限", StateMachine.设置.每小时主动上限, 0, 200, true, 键 => 行为("每小时主动上限", (int)键), _行为键, "每小时主动上限",
             "走动/问候/提醒共享的滑动 1 小时预算（0 = 只关主动行为）"));
 
         页.AddChild(分区("问候与提醒"));
-        页.AddChild(开关行("问候启用", StateMachine.设置.问候启用, 键 => 行为("问候启用", 键), _行为键, "问候启用", "当天第一次见到你 → 按时间段问好"));
         页.AddChild(开关行("磁盘提醒启用", StateMachine.设置.磁盘提醒启用, 键 => 行为("磁盘提醒启用", 键), _行为键, "磁盘提醒启用", "只提醒「自己不易察觉的事」——磁盘悄悄变满"));
         页.AddChild(数字行("磁盘剩余下限", StateMachine.设置.磁盘剩余下限GB, 1, 1000, true, 键 => 行为("磁盘剩余下限GB", (int)键), _行为键, "磁盘剩余下限GB",
             "单位 GB；余量低于它才提醒（每天一次）"));
@@ -229,7 +227,6 @@ public partial class SettingsWindow : Window
             "分钟；两次提醒的最小间隔"));
 
         页.AddChild(分区("状态与感知"));
-        页.AddChild(开关行("贴边隐藏启用", StateMachine.设置.贴边隐藏启用, 键 => 行为("贴边隐藏启用", 键), _行为键, "贴边隐藏启用", "拖到屏边就缩进去（细调旋钮在 config/behavior.json）"));
         页.AddChild(开关行("环境感知启用", StateMachine.设置.环境感知启用, 键 => 行为("环境感知启用", 键), _行为键, "环境感知启用", "默认关：开了才读「空闲时长 + 是否全屏」，只在本机用"));
         页.AddChild(开关行("全屏静默", StateMachine.设置.全屏静默, 键 => 行为("全屏静默", 键), _行为键, "全屏静默", "全屏（游戏/视频/演示）时完全不主动打扰"));
         return 页;
@@ -448,7 +445,7 @@ public partial class SettingsWindow : Window
     /// 比例由主人定：**高:宽 = 3:4**（500 宽 → 375 高）。
     /// </summary>
     private const int 固定宽 = 500;
-    private const int 固定高 = 固定宽 * 3 / 4;   // 高:宽 = 3:4
+    private const int 固定高 = 固定宽 * 9 / 16;   // 高:宽 = 3:4
 
     public void 应用固定尺寸()
     {

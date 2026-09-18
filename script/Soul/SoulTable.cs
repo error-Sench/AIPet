@@ -54,14 +54,16 @@ public static class SoulTable
         }
         else
         {
-            RawText = ReadTemplate();
+            // 程序**不内置人格模板**（主人 2026-09-19：「程序内部不需要人格，避免产生引用」）：
+            // 首启只落一行占位桩，真正的人格由主人或其 Agent 写进 soul.md。
+            RawText = Fallback;
             IsLoaded = false;
             try { File.WriteAllText(path, RawText, Encoding.UTF8); }
-            catch (System.Exception e) { GD.PrintErr($"[SoulTable] 写入模板失败: {e.Message}"); }
+            catch (System.Exception e) { GD.PrintErr($"[SoulTable] 写入占位人格失败: {e.Message}"); }
         }
 
         PromptSection = StripFrontmatter(RawText);
-        GD.Print($"[SoulTable] 人格已加载 ({(IsLoaded ? "用户文件" : "模板")}), {PromptSection.Length} 字符");
+        GD.Print($"[SoulTable] 人格已加载 ({(IsLoaded ? "用户文件" : "占位桩")}), {PromptSection.Length} 字符");
     }
 
     /// <summary>保存（仅当程序确需修改人格时；常规由主人手改文件）。</summary>
@@ -73,19 +75,6 @@ public static class SoulTable
 
     /// <summary>热重载：主人手改 soul.md 后调用。</summary>
     public static void Reload() => Load();
-
-    private static string ReadTemplate()
-    {
-        // 走 ConfigFile（native 路径：user:// → exe 同目录 → res://）。
-        // 注意：config/ 被 .gdignore 忽略，**不要**用 Godot.FileAccess 直接读 res://config/...
-        try
-        {
-            var 路径 = Util.ConfigFile.找("config/soul_template.md");
-            if (!string.IsNullOrEmpty(路径)) return File.ReadAllText(路径, Encoding.UTF8);
-        }
-        catch { /* 忽略，用内置兜底 */ }
-        return Fallback;
-    }
 
     /// <summary>去掉开头的 YAML frontmatter（--- ... ---），只留人格正文。</summary>
     private static string StripFrontmatter(string text)
