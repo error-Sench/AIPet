@@ -193,7 +193,8 @@ public partial class AgentBridge : Node
         _降级已提醒 = true;
         GD.PrintErr($"[AgentBridge] 降级为本地桌宠模式：{原因}");
         EventPool.记("Agent不可用", EventPool.归属.程序, $"降级为本地模式：{原因}");
-        UX.Dialogue.延迟显示标题("唔…我连不上「大脑」了，先自己待着；你随时可以再叫我～");
+        var 句 = Soul.PhraseTable.取("降级");   // 话由 config/phrases.json 定（本地话语表）
+        UX.Dialogue.延迟显示标题(string.IsNullOrEmpty(句) ? "唔…我连不上「大脑」了，先自己待着；你随时可以再叫我～" : 句);
     }
 
     /// <summary>用户发言入口（右键框 / 粘贴 / 语音 最终都走这里）。首次调用会惰性启动后端。</summary>

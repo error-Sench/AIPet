@@ -82,11 +82,11 @@ public partial class PanelProbe : Node
             var 语音键 = desktop.script.UX.SettingsWindow.语音键;
             GD.Print($"[Probe] 行为页开关数 = {行为键.Count}：{string.Join(" / ", 行为键)}");
             GD.Print($"[Probe] 语音页开关数 = {语音键.Count}：{string.Join(" / ", 语音键)}");
-            if (行为键.Count < 10) GD.PrintErr("[Probe] FAIL 行为页开关过少（应含 总开关/预算/问候/磁盘/久坐/贴边/感知）");
-            if (!行为键.Contains("启用") || !行为键.Contains("问候启用") || !行为键.Contains("磁盘提醒启用"))
+            if (行为键.Count < 6) GD.PrintErr("[Probe] FAIL 行为页开关过少（应含 预算/磁盘/久坐/感知）");
+            if (!行为键.Contains("磁盘提醒启用") || !行为键.Contains("环境感知启用") || !行为键.Contains("全屏静默"))
                 GD.PrintErr("[Probe] FAIL 行为页缺关键开关");
-            if (!行为键.Contains("贴边循环次数") || !行为键.Contains("贴边循环内间隔秒"))
-                GD.PrintErr("[Probe] FAIL 行为页缺贴边节拍开关（每两秒循环两次贴边动画）");
+            if (行为键.Contains("贴边循环次数") || 行为键.Contains("启用"))
+                GD.PrintErr("[Probe] FAIL 行为页又塞回了没必要的开关（主人 2026-09-19：有些开关没必要加进去）");
             if (语音键.Count < 6) GD.PrintErr("[Probe] FAIL 语音页开关过少");
 
             // 切回聊天面板并确认命令栏仍在（配置不再占用面板内的选项栏）

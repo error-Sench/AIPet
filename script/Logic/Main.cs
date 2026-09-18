@@ -37,6 +37,7 @@ public partial class Main:Node
 
 		LoadUtil.初始化();
 		SoulTable.Load();
+		Soul.PhraseTable.加载();       // 本地话语表（config/phrases.json；缺失走内置兜底）
 		Audio.Tts.载入配置();          // 语音输出（系统 TTS；不内置模型）
 		UX.NetSpeedBubble.载入外观配置();  // 网速气泡外观（字号/边距/透明度；随组件目录 mods/toolbar/netspeed/config.json）
 		UX.NetSpeedBubble.启动恢复();      // 按上次开关状态恢复（入口＝工具栏「网速监控」；删/禁用 mod 即不再恢复）

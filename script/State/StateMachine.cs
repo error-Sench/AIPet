@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using desktop.script.logic;
+using desktop.script.Agent;
 using desktop.script.UX;
 using Godot;
 
@@ -140,13 +141,14 @@ public partial class StateMachine : Node
         GD.Print($"[StateMachine] 就绪: 启用={设置.启用} 睡眠={设置.睡眠空闲秒}s 走动={设置.走动空闲秒}s 上限={设置.每小时主动上限}/h");
     }
 
-    /// <summary>CharAnim 入场动画播完时调用：解除入场门并打一次招呼（启动招呼）。</summary>
+    /// <summary>CharAnim 入场动画播完时调用：解除入场门、打一次招呼姿态，并排上**启动问候**（每次启动一次）。</summary>
     public static void 入场完成()
     {
         if (!_入场未完成) return;
         _入场未完成 = false;
         GD.Print("[StateMachine] 入场完成 → 启动招呼");
         启动招呼();
+        DailyRoutine.启动问候();   // 主人定的口径：每次启动打一次招呼（话由 config/phrases.json 定）
     }
 
     public override void _Process(double delta)
@@ -165,6 +167,7 @@ public partial class StateMachine : Node
         _运行秒 += delta;
         if (_重播冷却 > 0f) _重播冷却 -= (float)delta;
         推进保持与兜底((float)delta);
+        推进本地话语冷却((float)delta);   // 本地话语（被摸等）的冷却
 
         // —— 数值层（P5）：心情/精力随时间漂移（睡眠中回充），每 30s 自动存盘 ——
         Soul.StatsTable.心跳((float)delta, CurrentState == Sleep);
@@ -381,6 +384,8 @@ public partial class StateMachine : Node
         if (CurrentState == Sleep) return; // 唤醒流程已接管（会走 greet），让招呼播完
         // 不硬切：等当前这次动画播完再进入 interact
         排队状态(Interact);
+        // 本地模式（没接 Agent）时，被摸也要有话说 —— 走话语表；接了 Agent 则由 Agent 自己回
+        本地说话("被摸", 15f);
     }
 
     /// <summary>从休眠唤醒：先打招呼，再回待机。</summary>
@@ -554,6 +559,8 @@ public partial class StateMachine : Node
 
     private static string 久坐语句()
     {
+        var 句 = Soul.PhraseTable.取("久坐");     // 话语表优先（config/phrases.json）
+        if (!string.IsNullOrEmpty(句)) return 句;
         var 候选 = new[]
         {
             "坐太久啦，起来伸个懒腰嘛～",
@@ -561,6 +568,36 @@ public partial class StateMachine : Node
             "腰要哭啦，站起来走两步吧～",
         };
         return 候选[Random.Shared.Next(候选.Length)];
+    }
+
+    // ================= 本地话语（没接 Agent 时的兜底说话） =================
+
+    private static readonly Dictionary<string, float> _本地话语冷却 = new();
+
+    /// <summary>
+    /// 本地模式说话：从话语表取一句冒泡（**同一分类有冷却**，避免连点刷屏）。
+    /// 只在**没接 Agent** 时用——接了 Agent，日常反应归 Agent 自己（分工见 `config/phrases.json` 注释）。
+    /// </summary>
+    private static void 本地说话(string 分类, float 冷却秒)
+    {
+        if (AgentBridge.IsRunning) return;
+        if (_本地话语冷却.TryGetValue(分类, out var 余) && 余 > 0f) return;
+        var 句 = Soul.PhraseTable.取(分类);
+        if (string.IsNullOrEmpty(句)) return;
+        _本地话语冷却[分类] = 冷却秒;
+        GD.Print($"[StateMachine] 本地话语（{分类}）：{句}");
+        Dialogue.显示临时标题(句, 3500);
+    }
+
+    private static void 推进本地话语冷却(float delta)
+    {
+        if (_本地话语冷却.Count == 0) return;
+        foreach (var 键 in _本地话语冷却.Keys.ToArray())
+        {
+            var 余 = _本地话语冷却[键] - delta;
+            if (余 > 0f) _本地话语冷却[键] = 余;
+            else _本地话语冷却.Remove(键);
+        }
     }
 
     // 探针专用

@@ -80,7 +80,8 @@ D:/Games/Github/AIPet/
 │   ├── agent.json         #   Agent 接入（backend / executable / aggressiveMode）
 │   ├── behavior.json      #   行为节律（走动/睡眠/贴边/环境感知/久坐提醒…）
 │   ├── pet.json           #   外观（缩放）
-│   ├── panel.json         #   面板（隐藏指令名单）
+│   ├── panel.json         #   面板（隐藏指令名单 / 配置窗尺寸）
+│   ├── phrases.json       #   ★ 本地话语表（桌宠自己说的话：问候/被摸/久坐/磁盘/降级）
 │   └── tts.json           #   语音输出（引擎/声音/语速/音量）
 ├── mods/                  # ★ 行为层内容（mod 协议：每个子目录 = 一个 mod；只加不改）
 │   ├── main_command/ main_txt/ main_file/ main_anim/ workshop/   # 原项目

@@ -3,12 +3,14 @@ using System.IO;
 using System.Linq;
 using Godot;
 using desktop.script.State;
+using desktop.script.Soul;
 using desktop.script.UX;
 
 namespace desktop.tests;
 
 /// <summary>
-/// RoutineProbe（headless）：验证 **时间驱动的主动行为**（Plan #11）—— 问候 / 喝水提醒 / 磁盘空间低。
+/// RoutineProbe（headless）：验证 **时间驱动的主动行为**（Plan #11）—— 启动问候 / 磁盘空间低。
+/// <para>问号口径（主人 2026-09-19）：**每次启动打一次招呼**（替换原「当天首次见面」），话来自话语表 `config/phrases.json`。</para>
 /// <para>
 /// 关键手法：**注入时钟与磁盘余量**（`DailyRoutine.时钟` / `探针_磁盘剩余字节`），
 /// 这样「一天一次」「到点提醒」都能在几帧内测完，不用等真实时间；事件池走临时路径，不碰真日志。
@@ -45,9 +47,9 @@ public partial class RoutineProbe : Node
         {
             case 10: 准备(); break;
             case 15: A组_配置与纯函数(); break;
-            case 25: B组_当天问候(); break;
-            case 35: C组_不打断会话(); break;
-            case 45: D组_预算约束(); break;
+            case 25: B组_启动问候(); break;
+            case 35: C组_启动问候的闸门(); break;
+            case 45: D组_启动问候不占预算(); break;
             case 70: F组_磁盘空间(); break;
             case 85: 收尾(); break;
         }
@@ -56,7 +58,8 @@ public partial class RoutineProbe : Node
     /// <summary>解除三道早退门 + 把别的自主行为顶到天上（隔离被测行为）。</summary>
     private void 准备()
     {
-        StateMachine.入场完成();                                  // 入场门
+        StateMachine.入场完成();                                  // 入场门（注意：这也会排上「启动问候」，下面清掉）
+        DailyRoutine.探针_重置();                                  // 清掉入场带来的启动问候，各组自己排
         DisplayServer.WindowSetPosition(new Vector2I(600, 300));   // headless 光标在 (0,0)，挪开避免「悬停桌宠」早退
         EnvironmentSense.启用 = false;                             // 本组不测环境感知（隐私开关默认关）
         _原上限 = StateMachine.设置.每小时主动上限;
@@ -108,19 +111,20 @@ public partial class RoutineProbe : Node
         断言(!DailyRoutine.磁盘算低(10L * 1024 * 1024 * 1024), "正好 10 GB → 不算低（边界用 <）");
     }
 
-    private void B组_当天问候()
+    private void B组_启动问候()
     {
-        GD.Print("--- B 组：当天首次见面 → 问候（一天一次）---");
+        GD.Print("--- B 组：启动问候（每次启动一次；话来自话语表 config/phrases.json）---");
         EventPool.探针_清空();
         DailyRoutine.探针_重置();
+        PhraseTable.探针_恢复();                 // 用真实 config/phrases.json
         StateMachine.设置.问候启用 = true;
         DailyRoutine.问候启用 = true;
         DailyRoutine.时钟 = () => new DateTime(2026, 9, 19, 8, 30, 0);
         StateMachine.SetState(StateMachine.Idle);
 
-        DailyRoutine.交互();
-        断言(DailyRoutine.探针_待问候, "首次交互 → 只是**排上**问候（不抢这次互动的反应）");
-        断言(DailyRoutine.探针_问候次数 == 0, "此刻还没冒泡（延迟到互动反应播完）");
+        DailyRoutine.启动问候();
+        断言(DailyRoutine.探针_待问候, "启动 → 只是**排上**问候（不抢入场/打招呼姿态）");
+        断言(DailyRoutine.探针_问候次数 == 0, "此刻还没冒泡（等回到 idle）");
 
         推一拍();
         断言(DailyRoutine.探针_问候次数 == 1, $"回到 idle 后兑现（{DailyRoutine.探针_问候次数}）");
@@ -129,69 +133,67 @@ public partial class RoutineProbe : Node
         断言(StateMachine.CurrentState == StateMachine.Greet, "用打招呼姿态勾注意力");
         断言(Dialogue.探针_最近请求文本.Length > 0, $"冒了气泡（「{Dialogue.探针_最近请求文本}」）");
 
+        // 同一次启动里不重复
         StateMachine.SetState(StateMachine.Idle);
-        过一会儿();                                   // 让「不再问候」的原因是「当天已问候」，而不是 60s 门槛
-        DailyRoutine.交互();
-        推一拍();
-        断言(DailyRoutine.探针_问候次数 == 1, "同一天再来 → 不再问候（一天一次）");
-
-        // 同一天、换个时段 → 依然不再问候
         过一会儿();
+        DailyRoutine.启动问候();
+        推一拍();
+        断言(DailyRoutine.探针_问候次数 == 1, "同一次启动里不会重复问候（每次启动一次）");
+
+        // 换时段也不重复（已经问候过）
         DailyRoutine.时钟 = () => new DateTime(2026, 9, 19, 21, 0, 0);
-        DailyRoutine.交互();
+        DailyRoutine.启动问候();
         推一拍();
-        断言(DailyRoutine.探针_问候次数 == 1, "同一天换时段也不重复（一天一次是按日期算）");
+        断言(DailyRoutine.探针_问候次数 == 1, "同一进程里换时段也不重复");
 
-        // 次日 → 又可以问候（先过一会儿，让「距上次交互」跳过 60s 门槛）
-        过一会儿();
+        // 「下次启动」= 进程态归位 → 又能问候（晚间用词）
+        DailyRoutine.探针_重置();
         DailyRoutine.时钟 = () => new DateTime(2026, 9, 20, 21, 0, 0);
-        DailyRoutine.交互();
+        StateMachine.SetState(StateMachine.Idle);
+        DailyRoutine.启动问候();
         推一拍();
-        断言(DailyRoutine.探针_问候次数 == 2, $"次日恢复问候（{DailyRoutine.探针_问候次数}）");
-        断言(DailyRoutine.探针_最近语句.Contains("晚"), $"晚上时段用语（「{DailyRoutine.探针_最近语句}」）");
+        断言(DailyRoutine.探针_问候次数 == 1 && DailyRoutine.探针_最近语句.Contains("晚"),
+            $"「下次启动」恢复问候（{DailyRoutine.探针_问候次数}，「{DailyRoutine.探针_最近语句}」）");
     }
 
-    private void C组_不打断会话()
+    private void C组_启动问候的闸门()
     {
-        GD.Print("--- C 组：不打断进行中的操作（距上次交互 < 60s 不问候）---");
+        GD.Print("--- C 组：启动问候的闸门（忙态等回 idle；关掉开关就不吭声）---");
         DailyRoutine.探针_重置();
         DailyRoutine.时钟 = () => new DateTime(2026, 9, 21, 9, 0, 0);
-        StateMachine.SetState(StateMachine.Idle);
-        DailyRoutine.交互();
-        推一拍();                                     // 第一次兑现
-        var 首次 = DailyRoutine.探针_问候次数;
-        断言(首次 == 1, $"久违后的首次交互会问候（{首次}）");
-
-        StateMachine.SetState(StateMachine.Idle);
-        DailyRoutine.交互();                          // 紧接着又交互（距上次 ≈ 0s）
+        StateMachine.SetState(StateMachine.Think);      // 模拟「启动时就还在忙」
+        DailyRoutine.启动问候();
+        断言(DailyRoutine.探针_待问候, "忙态也先排上（它是「我出现了」，不该被吞）");
         推一拍();
-        断言(DailyRoutine.探针_问候次数 == 1, $"紧接着的交互不问候（不会打断连续操作；{DailyRoutine.探针_问候次数}）");
+        断言(DailyRoutine.探针_问候次数 == 0, "忙态不硬闯：等回到 idle 才冒泡");
 
-        // 忙态不插话（连排队都不排）
-        DailyRoutine.探针_重置();
-        DailyRoutine.时钟 = () => new DateTime(2026, 9, 22, 9, 0, 0);
-        StateMachine.SetState(StateMachine.Think);
-        DailyRoutine.交互();
-        断言(!DailyRoutine.探针_待问候, "忙态（think）里不排问候");
         StateMachine.SetState(StateMachine.Idle);
+        推一拍();
+        断言(DailyRoutine.探针_问候次数 == 1, $"回到 idle 后兑现（{DailyRoutine.探针_问候次数}）");
+
+        // 关掉开关 → 启动不吭声
+        DailyRoutine.探针_重置();
+        StateMachine.设置.问候启用 = false;
+        DailyRoutine.问候启用 = false;
+        StateMachine.SetState(StateMachine.Idle);
+        DailyRoutine.启动问候();
+        推一拍();
+        断言(DailyRoutine.探针_问候次数 == 0, "问候启用=false → 启动不吭声");
+        StateMachine.设置.问候启用 = true;
+        DailyRoutine.问候启用 = true;
     }
 
-    private void D组_预算约束()
+    private void D组_启动问候不占预算()
     {
-        GD.Print("--- D 组：每小时主动预算约束 ---");
+        GD.Print("--- D 组：启动问候**不占**每小时主动预算（它是招呼，不是主动打扰）---");
         DailyRoutine.探针_重置();
         DailyRoutine.时钟 = () => new DateTime(2026, 9, 23, 9, 0, 0);
         StateMachine.SetState(StateMachine.Idle);
         StateMachine.设置.每小时主动上限 = 0;                 // 预算耗尽
-        DailyRoutine.交互();
-        断言(!DailyRoutine.探针_待问候, "预算 0 → 连问候都不排（主动行为统一受每小时上限约束）");
+        DailyRoutine.启动问候();
         推一拍();
-        断言(DailyRoutine.探针_问候次数 == 0, "预算 0 时也不会冒泡");
+        断言(DailyRoutine.探针_问候次数 == 1, $"预算 0 也照样打招呼（{DailyRoutine.探针_问候次数}）");
         StateMachine.设置.每小时主动上限 = 100;
-        过一会儿();                                   // 跳过 60s 门槛（否则上一行的交互会把它挡住）
-        DailyRoutine.交互();
-        推一拍();
-        断言(DailyRoutine.探针_问候次数 == 1, "预算恢复 → 正常问候");
     }
 
     private void F组_磁盘空间()

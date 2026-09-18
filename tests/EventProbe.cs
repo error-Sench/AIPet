@@ -103,6 +103,7 @@ public partial class EventProbe : Node
         GD.Print("--- D 组：久坐提醒（程序侧简单判断，受「不打扰」约束）---");
         EventPool.探针_清空();
         StateMachine.入场完成();                       // 解除入场门（否则心跳整段早退）
+        DailyRoutine.探针_重置();                      // 入场会排上「启动问候」，清掉它（否则问候的 greet 姿态占住状态，久坐被「不打扰」拦下）
         DisplayServer.WindowSetPosition(new Vector2I(600, 300)); // 把窗口挪开鼠标（headless 光标在 (0,0)，会判定「悬停桌宠」→ 心跳早退）
         EnvironmentSense.启用 = true;
         EnvironmentSense.探针_注入(10f, false);          // 主人在活跃（空闲 10s）
