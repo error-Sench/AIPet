@@ -60,7 +60,8 @@ public static class PetCommands
     private static readonly HashSet<string> _白名单 = new()
     {
         "set_state", "speak", "play_anim", "set_mode", "queue_chain",
-        "set_mood", "soul_get", "soul_set", // 已登记，P3 灵魂层落地前为「接受但未实现」
+        "set_mood",          // 写主人情绪读数（LLM 判断 → 程序存储；2026-09-20 P5 返工）
+        "soul_get", "soul_set", // 已登记，P3 灵魂层落地前为「接受但未实现」
     };
 
     /// <summary>激进模式额外放开（默认关，见 AGENTS.md §6 安全边界）。</summary>
@@ -69,12 +70,15 @@ public static class PetCommands
     /// <summary>P3 之前尚未接入实现的命令（接受但明确记「未实现」，不假装成功）。</summary>
     private static readonly HashSet<string> _未实现 = new() { "soul_get", "soul_set" };
 
-    /// <summary>`set_mood` 也接受关键词（不同 Agent 偏好不同写法）。</summary>
+    /// <summary>
+    /// `set_mood` 也接受关键词（不同 Agent 偏好不同写法）。
+    /// 值 = **主人情绪读数**（0–100，50 为中性；2026-09-20 P5 返工：mood 语义从「宠物心情」改为主人情绪）。
+    /// </summary>
     private static readonly Dictionary<string, float> _心情词表 = new(StringComparer.OrdinalIgnoreCase)
     {
         ["excited"] = 95f, ["兴奋"] = 95f,
         ["happy"] = 80f, ["开心"] = 80f, ["高兴"] = 80f,
-        ["normal"] = 60f, ["一般"] = 60f, ["平静"] = 60f,
+        ["normal"] = 50f, ["一般"] = 50f, ["平静"] = 50f,
         ["tired"] = 40f, ["累"] = 40f, ["疲惫"] = 40f,
         ["sad"] = 20f, ["难过"] = 20f, ["低落"] = 20f,
     };
@@ -288,6 +292,7 @@ public static class PetCommands
                 }
                 case "set_mood":
                 {
+                    // P5 返工（2026-09-20）：mood = 主人情绪读数（LLM 判断 → 写入）；只供回复策略参考、不参与互动
                     var raw = c.取值("mood");
                     if (string.IsNullOrWhiteSpace(raw)) { 结果 = "缺 mood"; break; }
                     if (float.TryParse(raw, out var 数)) { Soul.StatsTable.设心情(Math.Clamp(数, 0f, 100f)); break; }

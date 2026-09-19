@@ -63,14 +63,14 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 | `soul/soul.md` | 主人 / Agent | 人格（prompt 资产） |
 | `soul/profile.md` | **Agent** | 用户画像，≤ 5000 字符 |
 | `soul/memory.jsonl` | **Agent** | 记忆流水（短期 6 → 中期 6 → 永久 20 的提炼链） |
-| `stats.json` | **程序** | 数值：`mood` / `energy` / `affection` / `savedAtUnix` |
+| `state/stats.json` | **程序** | 主人情绪读数：`mood` / `savedAtUnix`（值由 Agent 经 set_mood 写入；程序只做衰减与存储） |
 | `events.jsonl` | 程序写；Agent 追加 ack | 事件池，上限 500 行 |
 
 ## 怎么改人格
 
 1. 打开 `...\AIPet\soul\soul.md`（不存在时会自动落一份模板）。
 2. 按 `SOUL.md` 的结构写：frontmatter（`version` / `name`）+ 正文（我是谁 / 性格 / 说话风格 / 口头禅与禁忌 / 原则 / 思维范式 / 情绪表达 / 与数值的关系）。
-3. **只放人格**：数值归 `stats.json`，记忆归 `soul/memory.jsonl`，画像归 `soul/profile.md`，游戏进度归 `game/save.json`。
+3. **只放人格**：数值归 `state/stats.json`，记忆归 `soul/memory.jsonl`，画像归 `soul/profile.md`，游戏进度归 `game/save.json`。
 4. 改结构时把 `version` +1。保存即可 —— 重启桌宠后生效（看实时状态：有 MCP 调 `pet_context`，否则读数据目录的 `context.md` / `soul.md`；目前没有接线热重载）。
 
 ## 已知事项（写给接手的人）
@@ -80,4 +80,4 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 - `open_url` 仅在 `config/agent.json` 的 `aggressiveMode=true` 时可用；默认关闭。项目**刻意不提供**任何「执行本地命令」能力。
 - 事件池 500 行为上限（自动裁最旧）；ack 是否算数取决于 `ref` 与事件的 `t` **完全一致**。
 - 隐私边界：事件池只记桌宠自己的观察（时间 / 时长 / 状态机事件），**不记**窗口标题、进程名、键鼠内容、屏幕内容。
-- 本包内容与代码同步于：`script/Agent/PetCommands.cs`（白名单 / 上限）、`script/Soul/ContextTable.cs`（路径 / 上下文结构 / 画像与记忆模板）、`script/State/EventPool.cs`（事件格式 / ack）、`script/State/StateMachine.cs`（合法状态）、`script/Soul/StatsTable.cs`（数值 / 心情词）。
+- 本包内容与代码同步于：`script/Agent/PetCommands.cs`（白名单 / 上限）、`script/Soul/ContextTable.cs`（路径 / 上下文结构 / 画像与记忆模板）、`script/State/EventPool.cs`（事件格式 / ack）、`script/State/StateMachine.cs`（合法状态）、`script/Soul/StatsTable.cs`（主人情绪读数 / 心情词）。

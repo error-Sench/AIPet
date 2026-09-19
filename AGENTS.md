@@ -19,7 +19,7 @@
 
 | 想知道什么 | 看哪 |
 |---|---|
-| 灵魂层：`soul.md` 结构、思维范式、数值层（心情/精力/亲密）、数值可视化 | `script/Soul/README.md` |
+| 灵魂层：`soul.md` 结构、思维范式、数值层（mood=主人情绪读数）、数值可视化 | `script/Soul/README.md` |
 | 身体层：状态效果表、交互时序、自主行为节律、环境感知（P6） | `script/State/README.md` |
 | 界面层：面板群（聊天/工具栏/配置/状态窗）、窗口铁律、动画池机制、云母样式 | `script/UX/README.md` |
 | 能力层：ACP 客户端、AgentBridge、指令通道协议、白名单与安全边界、人格与数据的获取方式（**Agent 自主读取，不做注入**） | `script/Agent/README.md` |
@@ -95,7 +95,7 @@ D:/Games/Github/AIPet/
 │   ├── Agent/             #   能力层：后端抽象 + ACP 客户端 + 桥
 │   ├── Mode/              #   模式层：办公/游戏接口
 │   └── Audio/ UX/ Steam/ Util/ Asset/    # 语音 / 界面与动画 / Steam / 工具 / 图标
-├── tests/                 # 回归探针（28 个场景；跑法与清单见 tests/README.md）
+├── tests/                 # 回归探针（36 个场景；跑法与清单见 tests/README.md）
 ├── tools/                 # ★ 开发工具（不参与运行、不随包发布）
 │   ├── anim/              #   动画资产导入（VPet → mods/main_anim）
 │   ├── package.sh         #   打包（构建→导出→组装→打 zip）
@@ -151,7 +151,8 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 - `desktop.csproj` 的 SDK 已由 Godot 4.7.2 编辑器自动从 `4.5.1` 升级为 `4.7.2`（用户无手动改动；编辑器打开即自动改写）。**保留**该改动——本地引擎是 4.7.2，还原后打开又会被升回。
 - 架构图参考：`D:/Games/Github/ACPPet-架构图.html`（旧名文件，内容对应本项目）。
 - 骨架文件（`script/Soul/`、`script/State/`、`script/Agent/`、`script/Mode/`）已建，均为桩/TODO，待按此文档实现。
-- 灵魂职责已重新定义为「人格 prompt 资产」：数值归 `stats.json`，用户画像归 `soul/profile.md`，记忆流水归 `soul/memory.jsonl`，三者独立于 soul.md。
+- 灵魂职责已重新定义为「人格 prompt 资产」：数值归 `state/stats.json`，用户画像归 `soul/profile.md`，记忆流水归 `soul/memory.jsonl`，三者独立于 soul.md。
+- **数值语义（2026-09-20 主人定）**：`mood` = 主人情绪读数（LLM 判断 → `set_mood` 写入；程序只做衰减与存储，每 30s 向中性 50 回 5 点），**只影响回复策略、不加入互动**；精力/亲密属 mod 扩展（亲密归空置的关系层）。
 - **人格与数据的获取方式 = Agent 自主读取（硬规则，主人三次强调 2026-09-16 定稿）**：桌宠**不做任何主动注入**——
   不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent），
   **skill 是一次性内化文档**：Agent 读一次 → 先问主人「我叫什么？」→ 把「桌宠的职责与互动」写进自己的人设（自主注入），之后不必再读 skill、按需读数据文件。skill 与模板**在项目完工时定稿**（P8）。

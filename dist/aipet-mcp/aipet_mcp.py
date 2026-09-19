@@ -130,15 +130,20 @@ def build_events(data_dir, pending_limit=5, recent_limit=8):
 
 
 def mood_word(mood):
+    """主人情绪读数的文字状态（与桌宠端 StatsTable.心情文字 同一套档位）。"""
     if not isinstance(mood, (int, float)):
         return "未知"
-    if mood >= 75:
+    if mood >= 85:
+        return "超开心"
+    if mood >= 70:
         return "心情不错"
-    if mood >= 45:
+    if mood >= 50:
         return "平平静静"
-    if mood >= 30:
+    if mood >= 35:
         return "有点蔫"
-    return "心情低落"
+    if mood >= 20:
+        return "不太开心"
+    return "很低落"
 
 
 def build_context():
@@ -150,12 +155,10 @@ def build_context():
     soul = read_text(os.path.join(data_dir, "soul", "soul.md"), "（soul.md 还没有内容）")
     profile = read_text(os.path.join(data_dir, "soul", "profile.md"), "（还没有建立画像）")
     memory = read_tail_lines(os.path.join(data_dir, "soul", "memory.jsonl"), 12)
-    stats = read_json(os.path.join(data_dir, "stats.json"))
+    stats = read_json(os.path.join(data_dir, "state", "stats.json"))
     pending_text, recent_text = build_events(data_dir)
 
     mood = stats.get("mood", "?")
-    energy = stats.get("energy", "?")
-    affection = stats.get("affection", "?")
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     out = []
@@ -163,14 +166,12 @@ def build_context():
     out.append("")
     out.append(f"> 本内容为 {now} 当场从磁盘读取 —— **永远是最新**（不是缓存快照、不受刷新节奏影响）。")
     out.append(f"> 数据目录：`{data_dir}`")
-    out.append("> 源文件：`soul/soul.md`（人格，主人/你写）· `stats.json`（数值，程序写）· `soul/profile.md`（画像，你写）·")
+    out.append("> 源文件：`soul/soul.md`（人格，主人/你写）· `state/stats.json`（主人情绪读数，程序写、你经 set_mood 更新）· `soul/profile.md`（画像，你写）·")
     out.append("> `soul/memory.jsonl`（记忆，你写）· `events.jsonl`（事件池，程序写 + 你追加 ack）")
     out.append("")
-    out.append("## 此刻的状态（数值层）")
-    out.append(f"- 心情 mood {mood}/100 —— {mood_word(mood)}")
-    out.append(f"- 精力 energy {energy}/100")
-    out.append(f"- 亲密 affection {affection}/999（只增不减，随相处累积）")
-    out.append("- 数值只影响桌宠的表现与频率（表情变体、走动节奏、打瞌睡早晚），不改变它的人格与说话方式。")
+    out.append("## 主人情绪读数（stats.json）")
+    out.append(f"- mood {mood}/100 —— {mood_word(mood)}（0–100，中性 50；由**你**判断后经 set_mood 写入，程序只做衰减）")
+    out.append("- 它**只影响你的回复策略**（怎么回应主人），不参与互动、不驱动动画；改它不会改变桌宠的人格。")
     out.append("")
     out.append("## 人格（soul.md 全文）")
     out.append("```")
@@ -200,7 +201,7 @@ def build_context():
     out.append("- `{\"cmd\":\"set_state\",\"state\":\"think|idle|sleep|working|speak…\"}` —— 切状态（10 个合法值，详见 skill）")
     out.append("- `{\"cmd\":\"speak\",\"text\":\"…\"}` —— 让它冒个气泡（≤200 字，别复述正文）")
     out.append("- `{\"cmd\":\"play_anim\",\"anim\":\"…\"}` —— 播指定动画（键名是 **anim**，不是 name）")
-    out.append("- `{\"cmd\":\"set_mood\",\"mood\":65}` —— 改心情（0–100，或 happy / tired / sad…）")
+    out.append("- `{\"cmd\":\"set_mood\",\"mood\":65}` —— 写入主人情绪读数（0–100，50=中性；或 happy / sad / tired… 关键词）")
     out.append("- 文本通道每轮最多 6 条；写错了会被忽略并记日志。")
     out.append("")
     out.append("（完整规则见随桌宠交付的 skill：`aipet-desktop-pet`。）")
@@ -272,7 +273,7 @@ TOOLS = [
     {
         "name": "pet_context",
         "description": (
-            "读取 AIPet 桌宠的最新上下文：人格、数值（心情/精力/亲密）、用户画像、最近记忆、"
+            "读取 AIPet 桌宠的最新上下文：人格、主人情绪读数（mood）、用户画像、最近记忆、"
             "待处理事件、最近事件与指令通道说明。每次调用都当场读盘，永远是最新状态。"
             "需要了解桌宠、准备下发指令、或处理它的事件池时调用。"
         ),

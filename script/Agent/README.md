@@ -42,7 +42,7 @@
 
 > 主人三次强调的硬规则：桌宠**不推送**人格/数值/记忆（不拼消息、不写插件钩子、不改 system prompt），
 > 只把文件**放在磁盘上**；交付物是一份 **skill**，用户把它提交给自己的 Agent，Agent 按指引**自己来读**
-> `soul.md` / `stats.json` / `profile.md` / `memory.jsonl`（路径表见 `script/Soul/README.md`）。
+> `soul.md` / `state/stats.json` / `profile.md` / `memory.jsonl`（路径表见 `script/Soul/README.md`）。
 
 保留的技术事实（供选型参考，**不作为我们的方案**）：
 
@@ -99,7 +99,7 @@ ACP 的 `session/prompt` 响应只有 `stopReason`、没有自定义字段通道
 | `play_anim` | anim | 播放指定动画（CharAnim） | ✅ 已实现（校验动画存在） |
 | `set_mode` | mode | 切办公/游戏模式（ModeManager.SwitchMode） | ✅ 已实现（office/game） |
 | `queue_chain` | steps | 入队行为链（StateMachine.EnqueueChain） | ✅ 已实现（≤5 步，单步 ≤30s） |
-| `set_mood` | mood | 数值层心情（`stats.json`，P5） | ✅ 已实现（0–100 数值或 happy/tired/sad 等关键词） |
+| `set_mood` | mood | **主人情绪读数**（`state/stats.json`；LLM 判断 → 写入） | ✅ 已实现（0–100 数值或 happy/sad/tired 等关键词；只供回复策略、不参与互动） |
 | `soul_get` / `soul_set` | key, value | 读写灵魂表 | ⏸ 已登记未实现（P3 灵魂层） |
 | `open_url` | url | 打开网址 | 🔶 仅 `aggressiveMode=true` 时可用（限 http/https） |
 

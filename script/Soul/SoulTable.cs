@@ -12,7 +12,7 @@ namespace desktop.script.Soul;
 ///   SoulTable -> soul.md      (人格, 主人手改)
 ///   Profile   -> profile.md   (用户画像, Agent 写)
 ///   Memory    -> memory.jsonl (记忆流水, Agent 追加)
-///   StatsTable-> stats.json   (数值, 程序高频写)
+///   StatsTable-> stats.json   (主人情绪读数, 程序高频写)
 /// </summary>
 public static class SoulTable
 {

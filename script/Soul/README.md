@@ -21,7 +21,7 @@ Agent：按 skill 指引**自己来读**这些文件 ──► 当场按它演
 | 文件（skill 要写明的就是这些） | 路径 | 谁写 |
 |---|---|---|
 | 人格 | `user://soul/soul.md` | 主人 / Agent 完善 |
-| 数值 | `user://stats.json` | 程序高频写 |
+| 数值（主人情绪读数） | `user://state/stats.json` | 程序高频写（值由 Agent 经 set_mood 写入） |
 | 画像（P4） | `user://soul/profile.md` | Agent |
 | 记忆（P4） | `user://soul/memory.jsonl` | Agent |
 | **上下文接口** | `user://context.md` | **程序自动生成**（**只此两处**：启动 + 事件池变动时——数值漂移不触发）|
@@ -45,13 +45,13 @@ Agent：按 skill 指引**自己来读**这些文件 ──► 当场按它演
 | `user://soul/soul.md` | **人格**：身份、性格、思维范式、说话风格、原则 | 极少 | Agent完善 | md + frontmatter |
 | `user://soul/profile.md` | **用户画像**：喜好、习惯、长期目标、知识面、作息 | 缓慢 | Agent 提炼 | md |
 | `user://soul/memory.jsonl` | **记忆流水**：事件 / 对话要点 / 承诺 | 持续 | Agent 追加 | jsonl |
-| `user://state/stats.json` | **数值**：energy / mood / intimacy... | 高频 | 程序 | json |
+| `user://state/stats.json` | **主人情绪读数**：`mood`（0–100，中性 50；LLM 判断 → set_mood 写入；程序只做衰减与存储） | 高频 | 程序 | json |
 
-**规则**：灵魂**只放人格**；数值归 `stats.json`（易变、机器读写、可做可视化面板）；记忆/画像归独立文件（生命周期不同）。三者**互不混写**。
+**规则**：灵魂**只放人格**；数值归 `state/stats.json`（易变、机器读写、可做可视化面板）；记忆/画像归独立文件（生命周期不同）。三者**互不混写**。
 
 **可视化（P5，入口在命令栏）**：命令栏「状态」按钮 → `script/UX/StatsWindow.cs`（独立窗口）。
 **mood 用文字状态显示，界面上不出现任何数字**（超开心 / 心情不错 / 平平静静 / 有点蔫 / 不太开心 / 很低落）；
-另留占位行（关系 / 记忆，尚未接入）。**数值层与界面解耦**：想看数字去 `user://stats.json`。
+另留占位行（关系 / 记忆，尚未接入）。**数值层与界面解耦**：想看数字去 `user://state/stats.json`。
 
 ### 2.2 思维范式（「不漂移」的核心）
 按事件类型给**思维链示例**，模型照着演：
@@ -88,11 +88,11 @@ name: 小萝
 
 **原则**：灵魂文件结构变更 = 提示词迁移，`version+1` 并在本文档登记；主人可直接手改此文件。
 
-**边界**：游戏进度不入灵魂（归 `game/save.json`）；数值不入灵魂（归 `stats.json`）。
+**边界**：游戏进度不入灵魂（归 `game/save.json`）；数值不入灵魂（归 `state/stats.json`）。
 
 **P3 交付约束（硬规则，主人明确要求）**：
 1. **不做主动注入**：不拼进消息、不写插件钩子、不碰 Agent 的 system prompt，也**不注入本机 Agent**。
-2. 交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent）→ Agent **自主读取** `soul.md` / `stats.json` / `profile.md` / `memory.jsonl`。
+2. 交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent）→ Agent **自主读取** `soul.md` / `state/stats.json` / `profile.md` / `memory.jsonl`。
 3. 两者**在项目完工时才写**（前期写不准）。
 4. 本机只作开发/验证环境；验证「Agent 是否读得到」时用**独立 profile 的临时副本**，事后清理。
 

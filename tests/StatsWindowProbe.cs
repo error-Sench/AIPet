@@ -13,14 +13,14 @@ public partial class StatsWindowProbe : Node
 {
     private int _帧;
     private int _失败;
-    private float _原心情, _原精力, _原亲密;
+    private float _原心情;
 
     public override void _Ready()
     {
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
-        _原心情 = StatsTable.当前心情; _原精力 = StatsTable.当前精力; _原亲密 = StatsTable.当前亲密;
+        _原心情 = StatsTable.当前心情;
         GD.Print("=== StatsWindowProbe: 场景已实例化 ===");
     }
 
@@ -64,7 +64,7 @@ public partial class StatsWindowProbe : Node
         else if (_帧 == 20)
         {
             // 造一个好看的数值组合，便于视觉复核
-            StatsTable.探针_设值(72f, 88f, 156f);
+            StatsTable.探针_设值(72f);
             ChatBox.显示();
             GD.Print("[SW] 已打开聊天面板（命令栏）");
         }
@@ -102,13 +102,12 @@ public partial class StatsWindowProbe : Node
         else if (_帧 == 70)
         {
             // 数值变化后窗口应跟着变（每帧刷新）—— 只动 mood，让文字状态跟着换
-            // 注意边界：心情低落 = mood < 30（严格小于），用 30 会踩在界上
-            StatsTable.探针_设值(29f, 80f, 156f);
+            StatsTable.探针_设值(29f);
         }
         else if (_帧 == 85)
         {
             断言(StatsWindow.探针_数值文本.Contains("不太开心"),
-                $"mood 30 → 文字状态跟着变（{StatsWindow.探针_数值文本}）");
+                $"mood 29 → 文字状态跟着变（{StatsWindow.探针_数值文本}）");
             断言(StatsWindow.探针_概览文本.Contains("有点"),
                 $"概览随状态切换（{StatsWindow.探针_概览文本}）");
             StatsWindow.探针_截图("stats_window.png");
@@ -116,7 +115,7 @@ public partial class StatsWindowProbe : Node
         }
         else if (_帧 == 90 + 60 * 8)
         {
-            StatsTable.探针_设值(_原心情, _原精力, _原亲密);
+            StatsTable.探针_设值(_原心情);
             StatsWindow.隐藏();
             GD.Print($"[SW] 已恢复数值 → {StatsTable.概述}");
             GD.Print($"[SW] ===== 失败数 = {_失败} =====");

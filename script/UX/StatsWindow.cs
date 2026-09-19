@@ -5,10 +5,11 @@ using Godot;
 namespace desktop.script.UX;
 
 /// <summary>
-/// 状态窗（**独立窗口**，与配置窗同型）：显示桌宠此刻的「感受」——心情 / 精力 / 亲密（P5 数值层）。
+/// 状态窗（**独立窗口**，与配置窗同型）：显示 **mood（主人情绪读数）** 的文字状态 + 关系/记忆占位行。
 /// <para>
 /// 入口：聊天面板底部命令栏的「状态」按钮（主人指定：可视化按钮放菜单栏）。
-/// 数值与人格分离（AGENTS.md §2）：这里**只显示数值**，不改人格、不改说话方式。
+/// 2026-09-20 P5 返工：mood = 主人情绪读数（由 Agent 经 set_mood 写入；**只影响回复策略、不参与互动**）。
+/// 界面上**不出现任何数字**（主人决策）；数值与人格分离（AGENTS.md §2）。
 /// 无边框窗口的关闭沿用面板范式（自绘 × + CloseRequested + 系统标题栏）。
 /// </para>
 /// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
@@ -116,7 +117,7 @@ public partial class StatsWindow : Window
 
     /// <summary>
     /// 一行「标签 + 文字状态」。**不出现任何数字**（主人明确要求：mood 不做进度条、不显示 62/100）。
-    /// 需要看数值请去 `user://stats.json`（数值层与界面解耦）。
+    /// 需要看数值请去 `user://state/stats.json`（数值层与界面解耦）。
     /// </summary>
     private void 文字行(VBoxContainer 列, string 标签, System.Func<string> 取词, bool 占位)
     {
@@ -155,13 +156,12 @@ public partial class StatsWindow : Window
         if (_概览 != null) _概览.Text = 概览文本();
     }
 
-    /// <summary>一句话状态（只是描述数值，不替代人格说话）。</summary>
+    /// <summary>一句话状态（只是描述读数，不替代人格说话）。</summary>
     private static string 概览文本()
     {
-        if (StatsTable.精力不济) return "困了，可能随时打瞌睡…";
-        if (StatsTable.心情低落) return "有点蔫，想安静一会儿…";
-        if (StatsTable.当前心情 >= 75f) return "心情不错，精神头很足~";
-        return "数值随时间与互动变化：摸摸、聊天都会让它开心；睡觉回精力。";
+        if (StatsTable.当前心情 >= 75f) return "它留意到你今天心情不错~";
+        if (StatsTable.当前心情 < 35f) return "它留意到你今天有点低落，会安静陪着你";
+        return "它留意着你的情绪（读数只作参考，不参与互动）。";
     }
 
     public override void _Process(double delta)

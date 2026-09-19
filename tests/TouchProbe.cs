@@ -23,7 +23,6 @@ public partial class TouchProbe : Node
     private int _失败;
     private int _阶段帧;
     private int _阶段;
-    private float _原心情;
     private readonly Vector2I 窗 = new(256, 256);
 
     public override void _Ready()
@@ -31,9 +30,7 @@ public partial class TouchProbe : Node
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
-        _原心情 = desktop.script.Soul.StatsTable.当前心情;
-        desktop.script.Soul.StatsTable.探针_设值(60f, desktop.script.Soul.StatsTable.当前精力, desktop.script.Soul.StatsTable.当前亲密);
-        GD.Print("=== TouchProbe: 场景已实例化（心情钉中位 60，隔离心情择档） ===");
+        GD.Print("=== TouchProbe: 场景已实例化（数值已与择档解耦，无需钉值） ===");
     }
 
     private void 断言(bool 条件, string 描述)
@@ -145,7 +142,7 @@ public partial class TouchProbe : Node
                 break;
 
             case 10:  // D4：三档关 → 回老行为
-                断言(CharAnim.当前动画名_只读.StartsWith("think-"), $"关掉三档 → 回池内随机/心情择档（实际 {CharAnim.当前动画名_只读}）");
+                断言(CharAnim.当前动画名_只读.StartsWith("think-"), $"关掉三档 → 回池内随机（数值已不参与择档；实际 {CharAnim.当前动画名_只读}）");
                 下一阶段();
                 break;
 
@@ -213,7 +210,6 @@ public partial class TouchProbe : Node
     {
         StateMachine.设置.三档状态启用 = false;
         StateMachine.设置.状态档位 = "普通";
-        desktop.script.Soul.StatsTable.探针_设值(_原心情, desktop.script.Soul.StatsTable.当前精力, desktop.script.Soul.StatsTable.当前亲密);
         StateMachine.SetState(StateMachine.Idle);
         GD.Print($"[TP] ===== 失败数 = {_失败} =====");
         GD.Print(_失败 == 0 ? "[TP] PASS" : "[TP] FAIL");

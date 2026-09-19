@@ -98,7 +98,6 @@ public partial class PinchProbe : Node
         FacePinch.长按秒 = 0.2f;
         StateMachine.SetState(StateMachine.Idle);
         var 前心情 = StatsTable.当前心情;
-        var 前精力 = StatsTable.当前精力;
 
         FacePinch.按下(new Vector2(95, 82), 窗);
         FacePinch.每帧(0.1f);
@@ -108,8 +107,8 @@ public partial class PinchProbe : Node
         断言(FacePinch.探针_捏脸次数 == 1, $"捏脸次数=1（{FacePinch.探针_捏脸次数}）");
         断言(StateMachine.CurrentState == StateMachine.PinchState, "状态机进了 pinch 状态");
         断言(FacePinch.本次已捏, "本次按压标记为「已捏」（拖拽松手时不会再补一个摸摸）");
-        断言(StatsTable.当前心情 == 前心情 && StatsTable.当前精力 == 前精力,
-            $"**数值不动**（官方体力-2/心情+1 我们不抄；心情 {StatsTable.当前心情}、精力 {StatsTable.当前精力}）");
+        断言(StatsTable.当前心情 == 前心情,
+            $"**数值不动**（官方体力-2/心情+1 我们不抄；主人情绪读数 {StatsTable.当前心情:0} 未变）");
     }
 
     private void C组_B循环()

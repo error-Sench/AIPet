@@ -28,7 +28,7 @@ public static class ContextTable
 
     public static string 上下文路径 => string.IsNullOrEmpty(探针_上下文覆写)
         ? ProjectSettings.GlobalizePath($"user://{上下文文件名}") : 探针_上下文覆写;
-    public static string 数值路径 => ProjectSettings.GlobalizePath("user://stats.json");
+    public static string 数值路径 => ProjectSettings.GlobalizePath("user://state/stats.json");   // §2.2：数值放 state/ 子目录
     public static string 画像路径 => string.IsNullOrEmpty(探针_画像覆写) ? ProjectSettings.GlobalizePath("user://soul/profile.md") : 探针_画像覆写;
     public static string 记忆路径 => string.IsNullOrEmpty(探针_记忆覆写) ? ProjectSettings.GlobalizePath("user://soul/memory.jsonl") : 探针_记忆覆写;
 
@@ -78,18 +78,16 @@ public static class ContextTable
         sb.AppendLine($"> 桌宠程序自动生成 · {DateTime.Now:yyyy-MM-dd HH:mm:ss} · **本文件只读**：下次生成会覆盖，别在这里写东西。");
         sb.AppendLine("> 想深挖就顺着这些路径去读源文件（哪个文件归谁写也标了）：");
         sb.AppendLine($"  - 人格 soul.md → `{SoulTable.FilePath}`（主人 / 你）");
-        sb.AppendLine($"  - 数值 stats.json → `{数值路径}`（程序写，你别改）");
+        sb.AppendLine($"  - 情绪读数 stats.json → `{数值路径}`（程序写；值由你经 set_mood 更新）");
         sb.AppendLine($"  - 用户画像 profile.md → `{画像路径}`（**你写**）");
         sb.AppendLine($"  - 记忆流水 memory.jsonl → `{记忆路径}`（**你写**）");
         sb.AppendLine($"  - 行为事件 events.jsonl → `{State.EventPool.路径}`（程序写；**归属你的事件在下面等着你**）");
         sb.AppendLine();
 
-        // —— 数值层 ——
-        sb.AppendLine("## 此刻的状态（数值层）");
-        sb.AppendLine($"- 心情 mood {StatsTable.心情整}/100 —— {StatsTable.当前心情文字}");
-        sb.AppendLine($"- 精力 energy {StatsTable.精力整}/100");
-        sb.AppendLine($"- 亲密 affection {StatsTable.亲密整}/999（只增不减，随相处累积）");
-        sb.AppendLine("- 数值只影响桌宠的**表现与频率**（表情变体、走动节奏、打瞌睡早晚），不改变它的人格与说话方式。");
+        // —— 数值层：主人情绪读数（唯一数值；只供回复策略参考，不参与互动） ——
+        sb.AppendLine("## 主人情绪读数（stats.json）");
+        sb.AppendLine($"- mood {StatsTable.心情整}/100 —— {StatsTable.当前心情文字}（0–100，中性 50；由**你**判断后经 set_mood 写入，程序只做衰减）");
+        sb.AppendLine("- 它**只影响你的回复策略**（怎么回应主人），不参与互动、不驱动动画；改它不会改变桌宠的人格。");
         sb.AppendLine();
 
         // —— 人格 ——
@@ -125,7 +123,7 @@ public static class ContextTable
         sb.AppendLine("- `{\"cmd\":\"set_state\",\"state\":\"think|idle|sleep|working|speak…\"}` —— 切状态");
         sb.AppendLine("- `{\"cmd\":\"speak\",\"text\":\"…\"}` —— 让它冒个气泡（≤200 字，别复述你正文）");
         sb.AppendLine("- `{\"cmd\":\"play_anim\",\"anim\":\"…\"}` —— 播指定动画（如 `walk-left`、`edge_hide-left-keep`；键名是 **anim**，不是 name）");
-        sb.AppendLine("- `{\"cmd\":\"set_mood\",\"mood\":65}` —— 改心情（0–100，或 happy / tired / sad…）");
+        sb.AppendLine("- `{\"cmd\":\"set_mood\",\"mood\":65}` —— 写入主人情绪读数（0–100，50=中性；或 happy / sad / tired… 关键词）");
         sb.AppendLine("- 每轮最多 6 条；写错了会被忽略并记日志。");
         return sb.ToString();
     }

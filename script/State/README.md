@@ -77,7 +77,7 @@ StateMachine.EnqueueChain(
 
 | 池 | 变体（源） | 帧数 | 说明 |
 |---|---|---|---|
-| `walk` | left / right + left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | VPet `MOVE/walk.*` 的 `B_Nomal`；**循环**。P10：快/慢 = 心情档（`walk.*.faster`=Happy / `walk.*.slow`=PoorCondition），位移速度同步 |
+| `walk` | left / right + left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | VPet `MOVE/walk.*` 的 `B_Nomal`；**循环**。P10：快/慢 = 三档档位（`walk.*.faster`=Happy / `walk.*.slow`=PoorCondition；三档开关打开时生效），位移速度同步 |
 | `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
 | `say` | smile / self / serious / shy | 7/15/4/5 | VPet `Say/Shining·Self·Serious·Shy`（P10 补害羞档）|
 | `work` | 13 种（pc/read/write/calligraphy/paint/study2/sausage/clean/fixmenu/game/water/remove/rope）| 5~31 | VPet `WORK/*/Nomal/A`（P10 补齐余下 10 种，池内随机 → 干活不再千篇一律）|
@@ -353,8 +353,8 @@ StateMachine.EnqueueChain(
 | 项 | 做法 |
 |---|---|
 | **摸身体** | 单击部位分流：**脸区优先**（捏脸那套）→ 身体区（`HitRegion` 公共命中判定；比例由官方 `.lps` 的 `touchbody: px166 py206 sw163 sh136` 换算）→ 都不中当摸头。头 = `interact` 序列；身体 = `interact_body` 序列；**30% 概率**改成 `turn`（转身躲一下）|
-| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。开着时 `情绪变体()` **手动档位优先**（开心→happy / 不良→poor / 普通→不带变体），关着时维持原来的心情择档（心情≥75 happy、<35 poor）|
-| **走路快慢** | 快/慢 = 心情档（VPet 里 faster=Happy、slow=PoorCondition）：动画 `walk-{方向}[-fast|-slow]` + 位移速度 ×1.35 / ×0.72（同步，避免滑步）|
+| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。开着时 `情绪变体()` **手动档位生效**（开心→happy / 不良→poor / 普通→不带变体）；关着时池内随机。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）|
+| **走路快慢** | 快/慢 = 三档档位（VPet 里 faster=Happy、slow=PoorCondition）：动画 `walk-{方向}[-fast|-slow]` + 位移速度 ×1.35 / ×0.72（同步，避免滑步；三档默认关 = 常速）|
 | **干活进出场** | `开始干活()` → `work_in`（`switch-up`）→ **自动回落** working；`结束干活()` → `work_out`（`switch-down`）→ idle。`状态效果` 新增两个字段：`具体动画`（一个池服务多个状态时钉死播哪个）与 `回落`（非持续态到点回落到哪，默认 idle）|
 | **摸头高兴档** | 序列也支持换档：`播放序列段()` 会用 `情绪变体(池)` 把 `interact-a` 换成 `interact-happy-a`（素材在才换，不硬造）|
 

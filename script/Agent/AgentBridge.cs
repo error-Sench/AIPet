@@ -202,11 +202,8 @@ public partial class AgentBridge : Node
     {
         if (string.IsNullOrEmpty(text)) return false;
 
-        // 数值层（P5）：一次发言就是一次互动
-        Soul.StatsTable.事件_对话();
-
         // **不做主动注入**（主人硬规则）：原样发送主人原话。人格/数值/记忆由 Agent 按 skill 自主读取
-        // （`user://soul/soul.md`、`user://stats.json` …，见 script/Soul/README.md 硬规则与路径表）
+        // （`user://soul/soul.md`、`user://state/stats.json` …，见 script/Soul/README.md 硬规则与路径表）
         var 发送 = text;
 
         // 惰性启动
@@ -230,7 +227,7 @@ public partial class AgentBridge : Node
     /// <summary>
     /// 组装实际发给 Agent 的文本：**就是主人原话，不加任何东西**。
     /// 理由（主人硬规则）：**我们不做主动注入** —— 人格/数值/记忆由 Agent 按 skill 自主读取
-    /// （`user://soul/soul.md`、`user://stats.json` …，见 script/Soul/README.md 硬规则与路径表）。
+    /// （`user://soul/soul.md`、`user://state/stats.json` …，见 script/Soul/README.md 硬规则与路径表）。
     /// </summary>
     public static string 组装提示(string 用户文本) => 用户文本;
 

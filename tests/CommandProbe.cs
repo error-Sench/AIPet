@@ -135,7 +135,7 @@ public partial class CommandProbe : Node
         // B12 已登记但未实现（不假装成功）
         var (_, c12) = PetCommands.解析("```pet\n{\"cmd\":\"soul_set\",\"key\":\"mood\",\"value\":\"happy\"}\n```");
         var n12 = PetCommands.执行(c12, out var log12);
-        断言(n12 == 0 && log12[0].Contains("未实现"), $"B12 set_mood/soul_set 记为「未实现」而非成功（{log12[0]}）");
+        断言(n12 == 0 && log12[0].Contains("未实现"), $"B12 soul_set 记为「未实现」而非成功（set_mood 已实现，见 StatsProbe；{log12[0]}）");
 
         // B13 激进开关默认关：open_url 被拒
         AgentBridge.Options.AggressiveMode = false;

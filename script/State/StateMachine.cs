@@ -200,8 +200,8 @@ public partial class StateMachine : Node
         推进保持与兜底((float)delta);
         推进本地话语冷却((float)delta);   // 本地话语（被摸等）的冷却
 
-        // —— 数值层（P5）：心情/精力随时间漂移（睡眠中回充），每 30s 自动存盘 ——
-        Soul.StatsTable.心跳((float)delta, CurrentState == Sleep);
+        // —— 数值层：主人情绪读数衰减（每 30s 向中性 50 回 5 点），每 30s 自动存盘 ——
+        Soul.StatsTable.心跳((float)delta);
 
         // —— 贴边隐藏（P2 行为层）：滑行到位 + 悬停探出/缩回 ——
         EdgeHide.每帧((float)delta);
@@ -432,7 +432,7 @@ public partial class StateMachine : Node
     public static void 摸摸(TouchPart 部位 = TouchPart.Head)
     {
         NotifyInteraction(部位 == TouchPart.Body ? "摸摸·身体" : "摸摸");
-        Soul.StatsTable.事件_摸摸(); // 被碰到就是正面互动（即便当时忙、反应被推迟或跳过）
+        // 数值不因互动变化（2026-09-20 主人定：数值只影响回复策略、不加入互动）
         if (CurrentState is Drag or Think or Speak or Working or WorkIn or WorkOut) return; // 忙时不当成互动
         if (CurrentState is InteractBody or Turn) return;   // 已经在对上一次摸做反应了
         if (CurrentState == Sleep) return; // 唤醒流程已接管（会走 greet），让招呼播完
@@ -462,7 +462,6 @@ public partial class StateMachine : Node
     public static void 唤醒(string 来源 = "")
     {
         GD.Print($"[StateMachine] 唤醒（{来源}）");
-        Soul.StatsTable.事件_打招呼();
         SetState(Greet);
     }
 
@@ -523,7 +522,7 @@ public partial class StateMachine : Node
 
         _空闲秒 += 设置.心跳秒;
 
-        var 目标睡眠 = 是否深夜() ? 设置.深夜睡眠秒 : 有效睡眠空闲秒; // 精力不济时提前入睡（P5 表达耦合）
+        var 目标睡眠 = 是否深夜() ? 设置.深夜睡眠秒 : 设置.睡眠空闲秒;
         if (_空闲秒 >= 目标睡眠)
         {
             入睡();
@@ -701,28 +700,20 @@ public partial class StateMachine : Node
     private static int _走动次数; // 累计走动次数（观测用）
 
     private static float 随机间隔() =>
-        (float)GD.RandRange(设置.走动间隔最小秒, 设置.走动间隔最大秒) * 走动间隔倍率;
+        (float)GD.RandRange(设置.走动间隔最小秒, 设置.走动间隔最大秒);
 
     /// <summary>
-    /// 心情低落时少自己乱跑（走动间隔倍率）。数值只影响**频率与表现**，绝不改写人格与说话方式。
-    /// 用「纯函数」暴露出来，探针可以直接断言，不用等真实时间流逝。
+    /// 按**三档状态**（手动档位，mod 可改）挑动画变体（`think-happy` / `think-poor` …）。
+    /// 返回 "" = 用池内随机（该池没有这个变体）。
+    /// <para>**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」；
+    /// 原先按心情自动择档的耦合已移除）。</para>
     /// </summary>
-    public static float 走动间隔倍率 => Soul.StatsTable.心情低落 ? 1.6f : 1f;
-
-    /// <summary>精力不济时更容易打瞌睡（提前入睡阈值，同样做成可断言的纯函数）。</summary>
-    public static float 有效睡眠空闲秒 =>
-        Soul.StatsTable.精力不济 ? MathF.Min(设置.睡眠空闲秒, 120f) : 设置.睡眠空闲秒;
-
-    /// <summary>按数值挑情绪变体（`think-happy` / `think-poor` …）。返回 "" = 用池内随机（该池没有这个变体）。</summary>
     private static string 情绪变体(string 池)
     {
         if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work")) return "";
-        // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位优先** —— 主人定「默认普通」，
-        // 自动切换的判据与表现还没定，所以先只做开关 + 手动档位（配置窗「行为」页）。
+        // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
         if (设置.三档状态启用)
             return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "" };
-        if (Soul.StatsTable.当前心情 >= 75f) return "happy";
-        if (Soul.StatsTable.当前心情 < 35f) return "poor";
         return "";
     }
 
@@ -764,7 +755,6 @@ public partial class StateMachine : Node
             new ChainStep(WalkLoop, 时长, () => { if (CurrentState == WalkLoop) SetState(Idle); }),
             new ChainStep(WalkEnd, 0.25f));
         _走动中 = true;
-        Soul.StatsTable.事件_走动();
     }
 
     private static void 推进走动(float delta)

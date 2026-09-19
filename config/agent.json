@@ -5,5 +5,5 @@
   "workingDirectory": "",
   "port": 8765,
   "aggressiveMode": false,
-  "_comment": "backend 可选: hermes-acp | none | (mod 注册的自定义后端)。executable 留空 = 无 Agent 模式。workingDirectory 留空则用 user:// （必须干净，勿指向含 AGENTS.md 的项目目录，否则工程契约会注入 system prompt）。aggressiveMode: 实验性激进开关，默认 false；为 true 时放宽指令白名单（当前只加 open_url），见 AGENTS.md §6 安全边界。**不做主动注入**（主人硬规则）：发给 Agent 的只有主人原话；人格/数值/记忆由 Agent 按 skill 自主读取 user://soul/soul.md、user://stats.json 等（见 script/Soul/README.md 路径表）。"
+  "_comment": "backend 可选: hermes-acp | none | (mod 注册的自定义后端)。executable 留空 = 无 Agent 模式。workingDirectory 留空则用 user:// （必须干净，勿指向含 AGENTS.md 的项目目录，否则工程契约会注入 system prompt）。aggressiveMode: 实验性激进开关，默认 false；为 true 时放宽指令白名单（当前只加 open_url），见 AGENTS.md §6 安全边界。**不做主动注入**（主人硬规则）：发给 Agent 的只有主人原话；人格/数值/记忆由 Agent 按 skill 自主读取 user://soul/soul.md、user://state/stats.json 等（见 script/Soul/README.md 路径表）。"
 }
