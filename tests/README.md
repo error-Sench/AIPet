@@ -14,6 +14,8 @@
 
 15. **探针要隔离它不测的那一层**。情绪变体（P5）会按心情改播 `think-happy/poor`，于是 `PoolProbe` 里
     「池内随机」类断言会随主人存档心情**随机失败**。→ 探针先把自己不测的那层状态**钉死**（如心情钉中位 60），结束再恢复。
+    **清理也要隔离**：探针的存盘/删除必须走临时路径（`StatsTable.探针_覆盖存盘路径`）—— 曾因 `File.Delete(真实存档路径)`
+    把主人的 `stats.json` **每次回归删一次**（2026-09-20 修）。
 ---
 
 ### 踩坑 #17
@@ -43,13 +45,13 @@
 | `EnterProbe` | **非 headless** | 抓启动头几秒的窗口画面，核实「登场动画有没有播、有没有被抢断」 |
 | `WalkProbe` | **非 headless** | 自主走动是否真的触发、窗口 X 是否真的移动（**必须非 headless**：headless 下屏幕/窗口尺寸为 0，`尝试走动` 会直接放弃） |
 | `PoolProbe` | headless | 6 个语义池是否真的播出对应动画（断言没有回退到兼容池 fidget/idle/celerate） |
-| `InteractProbe` | headless | 摸摸反应是否**完整播放三段序列**（a 进入 → b 保持 → c 退出 → 回待机），且各段耗时与素材原时长一致 |
+| `InteractProbe` | headless | 摸摸反应是否**完整播放三段序列**（a 进入 → b 保持 → c 退出 → 回待机），且各段耗时与素材原时长一致（**心情钉中位 60**，隔离情绪变体择档）|
 | `HistoryProbe` | headless | 会话恢复回放的历史是否被切成**独立消息**（不再合并成一大段）。会真实连接 Agent |
 | `DragProbe` | **非 headless** | 桌宠贴近**屏幕上边缘**时仍能起手拖拽、窗口精确跟随光标（真实光标 + 注入按键；结束会恢复窗口与光标位置） |
 | `CommandProbe` | headless | 指令通道三组：解析（未闭合块/非 pet 围栏不误伤/坏 JSON 容忍）、执行（越权与超限的拒绝）、显示（跨 chunk 拼接不漏围栏） |
 | `ToolChannelProbe` | headless | 工具通道（收件箱协议）：MCP `pet_command` → `actions.jsonl` → `ActionInbox` 执行 + 回执；含「不吃旧账」/越权拒绝/坏 JSON 容忍 |
 | `CommandE2E` | headless | **真实 Agent** 下发指令 → 解析 → 执行 → 回复与历史都无残留。会真实调用一次 LLM |
-| `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并删测试存档） |
+| `StatsProbe` | headless | 数值层：漂移/事件节流/夹取/存盘往返/**离线补算**/指令接线（结束恢复数值并清理**临时**存档；真实档隔离 —— 修过「跑回归删主人真实数值档」的 bug）|
 | `ContextProbe` | headless | 上下文接口（`user://context.md`）：组装内容 / 脚手架只建不覆盖 / 只读不推送 |
 | `DegradeProbe` | headless | 降级路径：配了 Agent 起不来 → 提醒主人（气泡人话+事件池）；没配 Agent = 本地模式不打扰 |
 | `NetSpeedProbe` | headless（`-- hold` 可保持显示供外部截屏）| 网速桌面气泡：格式化/采样差分/文本与历史/位置+开关状态持久化/懒创建（位置断言在 headless 下跳过；配置走临时文件）|

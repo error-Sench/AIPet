@@ -21,7 +21,10 @@ public partial class StatsProbe : Node
         AddChild(ps.Instantiate());
         StatsTable.载入();
         _原心情 = StatsTable.当前心情; _原精力 = StatsTable.当前精力; _原亲密 = StatsTable.当前亲密;
-        GD.Print($"=== StatsProbe: 起始 {StatsTable.概述} ===");
+        // 探针隔离（2026-09-20）：**先取真实值，再把存盘路径切到临时档** ——
+        // 之后的 D5/E 组存盘/载入全走临时文件；收尾只删临时档，**绝不碰主人的真实存档**。
+        StatsTable.探针_覆盖存盘路径 = "user://probe_stats_tmp.json";
+        GD.Print($"=== StatsProbe: 起始 {StatsTable.概述}（存盘走临时档）===");
     }
 
     private void 断言(bool 条件, string 描述)
@@ -154,10 +157,11 @@ public partial class StatsProbe : Node
         }
         else if (_帧 == 20)
         {
-            // 恢复探针开始时的数值并清掉测试文件（不污染主人的存档）
-            StatsTable.探针_设值(_原心情, _原精力, _原亲密);
+            // 恢复数值 + 只删**临时档**（真实存档完全没被碰过；见 StatsTable.探针_覆盖存盘路径）
             try { System.IO.File.Delete(StatsTable.探针_存盘路径); } catch { /* 忽略 */ }
-            GD.Print($"[ST] 已恢复数值并清理测试存档 → {StatsTable.概述}");
+            StatsTable.探针_覆盖存盘路径 = null;
+            StatsTable.探针_设值(_原心情, _原精力, _原亲密);
+            GD.Print($"[ST] 已恢复数值并清理临时存档（真实档未动）→ {StatsTable.概述}");
             GD.Print($"[ST] ===== 失败数 = {_失败} =====");
             GD.Print(_失败 == 0 ? "[ST] PASS" : "[ST] FAIL");
             GetTree().Quit(_失败 == 0 ? 0 : 1);

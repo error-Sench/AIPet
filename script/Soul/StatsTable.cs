@@ -63,7 +63,18 @@ public static class StatsTable
     private static bool _已载入;
     private static double _存盘累计;
     private static float _摸冷却;
-    private static readonly string 存盘路径 = "user://stats.json";
+
+    /// <summary>默认存盘文件（主人真实数据所在）。</summary>
+    public const string 默认存盘路径 = "user://stats.json";
+
+    /// <summary>
+    /// 探针用：临时覆盖存盘路径（**隔离测试，别碰主人的真实存档**）。
+    /// 2026-09-20 修 bug：StatsProbe 曾在真实路径上写测试值、收尾 `File.Delete` 把主人的数值档删了
+    /// （回归每跑一次删一次）。null = 用默认。
+    /// </summary>
+    public static string 探针_覆盖存盘路径;
+
+    private static string 存盘路径 => 探针_覆盖存盘路径 ?? 默认存盘路径;
 
     // ================= 载入 / 存盘 =================
 
@@ -234,9 +245,14 @@ public static class StatsTable
 
     // ================= 探针专用 =================
 
-    /// <summary>探针：直接注入数值（跳过节流/事件），并强制夹取。</summary>
+    /// <summary>
+    /// 探针：直接注入数值（跳过节流/事件），并强制夹取。
+    /// **同时置「已载入」**：防止第一次心跳（帧 1）的懒载入把探针钉好的值覆盖回存档
+    /// （2026-09-20 修：InteractProbe 帧 0 钉 60 后被帧 1 的懒载入改回 82 → 变体断言随机失败）。
+    /// </summary>
     public static void 探针_设值(float 心情值, float 精力值, float 亲密值)
     {
+        _已载入 = true;
         当前心情 = 心情值; 当前精力 = 精力值; 当前亲密 = 亲密值;
         夹取并广播();
     }

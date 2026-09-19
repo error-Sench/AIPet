@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using desktop.script.Soul;
 using desktop.script.State;
 using desktop.script.UX;
 using Godot;
@@ -9,12 +10,15 @@ namespace desktop.tests;
 /// 摸摸反应「完整播放」实证探针（headless）：
 /// 断言摸头反应按 **进入(interact-a) → 保持(interact-b) → 退出(interact-c)** 三段完整播放，
 /// 播完后自动回待机（而不是在「抱头」姿势上硬切到 idle —— 用户反馈的突兀问题）。
+/// **心情钉中位 60**（隔离情绪变体择档：主人心情 ≥75 时序列会正确换 happy 变体，但会让名字断言认错段；
+/// 钉值自带「防懒载入覆盖」，见 `StatsTable.探针_设值`）。
 /// 用法：Godot_..._console.exe --headless --path D:/Games/Github/AIPet res://tests/InteractProbe.tscn
 /// </summary>
 public partial class InteractProbe : Node
 {
     private int _帧;
     private int _失败;
+    private float _原心情;
     private readonly List<string> 轨迹 = new();
 
     public override void _Ready()
@@ -22,7 +26,10 @@ public partial class InteractProbe : Node
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
-        GD.Print("=== InteractProbe: 场景已实例化 ===");
+        // 与 PoolProbe/TouchProbe 同一套隔离：该探针测「三段结构」，不测「按心情择档」
+        _原心情 = StatsTable.当前心情;
+        StatsTable.探针_设值(60f, StatsTable.当前精力, StatsTable.当前亲密);
+        GD.Print($"=== InteractProbe: 场景已实例化（心情钉中位 60；原心情 {_原心情:0}）===");
     }
 
     private void 断言(bool 条件, string 描述)
@@ -57,6 +64,7 @@ public partial class InteractProbe : Node
             断言(轨迹.Contains("interact-b"), "第 2 段是 interact-b（保持：抱头）");
             断言(轨迹.Count > 0 && 轨迹[^1] == "interact-c", "末段是 interact-c（退出：放下手回待机 —— 这就是原版的后半段）");
             断言(StateMachine.CurrentState == StateMachine.Idle, "序列播完自动回待机");
+            StatsTable.探针_设值(_原心情, StatsTable.当前精力, StatsTable.当前亲密);   // 恢复心情（隔离收尾）
             GD.Print($"[IX] ===== 失败数 = {_失败} =====");
             GD.Print(_失败 == 0 ? "[IX] PASS" : "[IX] FAIL");
             GetTree().Quit(_失败 == 0 ? 0 : 1);
