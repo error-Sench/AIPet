@@ -5,7 +5,7 @@ namespace desktop.script.UX;
 /// <summary>
 /// 「云母」(Mica) 视觉规范：浅色半透明磨砂，统一圆角/间距/配色。
 /// Godot 默认主题是深色，浅色面板上必须显式覆盖各控件的 StyleBox，故集中在此。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public static class MicaTheme
 {

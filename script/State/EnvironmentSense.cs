@@ -13,7 +13,7 @@ namespace desktop.script.State;
 /// 3. **默认关闭**（`config/behavior.json` 的 `环境感知启用`）——主人不开，它就完全不动、一次也不查。
 /// </para>
 /// 用途：让「不打扰」更聪明——主人在全屏（游戏/视频/演示）时彻底安静；主人刚回来时打个招呼。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public static class EnvironmentSense
 {

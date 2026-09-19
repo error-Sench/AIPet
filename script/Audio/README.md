@@ -1,6 +1,6 @@
 # 语音层（Audio）—— 分册
 
-> `AGENTS.md` 的分册。相关代码：`script/Audio/`；改动后跑 `tests/TtsProbe`（以及 Kws 相关的手工验证）。
+> `AIPet-Agent.md` 的分册。相关代码：`script/Audio/`；改动后跑 `tests/TtsProbe`（以及 Kws 相关的手工验证）。
 
 ## 1. 语音输出 TTS（`Tts.cs`）
 
@@ -26,4 +26,4 @@
 ## 2. 语音输入 KWS（`Kws.cs`）
 
 关键词唤醒（Sherpa-onnx），模型路径走 `Main.工具路径字典` 的 `KWS-*` 键（mod 的 `config/tool.json` 提供）。
-隐私/启动约束见 `AGENTS.md` 坑 #4（**麦克风按需启动**，不 autoplay）。
+隐私/启动约束见 `AIPet-Agent.md` 坑 #4（**麦克风按需启动**，不 autoplay）。

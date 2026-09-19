@@ -8,7 +8,7 @@ namespace desktop.script.Mode;
 /// 桌宠本体即游戏的一部分：办公与游戏不严格隔离，办公行为可作游戏内容。
 /// 未来横板动作游戏玩法挂在 Game 分支下；至今只实现接口，不实现玩法。
 /// 切换锚点(待扩展): 点击桌宠 -> SwitchMode(Game); ESC/手势 -> 切回办公。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class ModeManager : Node
 {

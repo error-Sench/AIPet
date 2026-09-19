@@ -7,7 +7,7 @@ namespace desktop.script.Util;
 /// 判断窗口内的局部坐标是否落在矩形里。两处共用：捏脸的脸区（`FacePinch`）、单击的身体区（`WindowDrag`）。
 /// <para>比例怎么来的：素材 500 空间 → 我们的帧（×0.5116 固定缩放）→ 桌宠窗口（×缩放）。
 /// 换算细节与实测校准见 `StateMachine.设置.默认摸身体命中区` 的注释（同一套算法也用在捏脸命中区）。</para>
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public static class HitRegion
 {

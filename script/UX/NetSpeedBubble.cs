@@ -23,7 +23,7 @@ namespace desktop.script.UX;
 /// 实现注记：**不在 game.tscn 里挂节点**，而是首次打开时用代码懒创建（避免给新 .cs 生成 .cs.uid 的编辑器依赖，
 /// 也保证不开气泡时零开销）。
 /// </para>
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class NetSpeedBubble : Window
 {

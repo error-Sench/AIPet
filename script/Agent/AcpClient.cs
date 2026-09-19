@@ -16,7 +16,7 @@ namespace desktop.script.Agent;
 /// 已实测（2026-09-15）：initialize -> authenticate -> session/new -> session/prompt 全通；
 ///   流式走 session/update 通知（sessionUpdate=agent_message_chunk, content.text）。
 /// 线程模型：stdout 后台线程逐行读 -> ConcurrentQueue；主线程 Poll() 取（不阻塞渲染）。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public sealed class AcpClient : IAgentBackend
 {

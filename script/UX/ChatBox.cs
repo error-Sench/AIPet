@@ -16,7 +16,7 @@ namespace desktop.script.UX;
 /// 唤出方式：右键桌宠（拖动桌宠时自动关闭）。
 /// 视觉：云母（Mica）浅色磨砂，规范见 MicaTheme。
 /// 不用 [Export] 中文属性绑定（Godot 不认中文属性名，会静默失败）——全代码构建。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class ChatBox : Window
 {
@@ -225,7 +225,7 @@ public partial class ChatBox : Window
             _命令栏.AddChild(b);
         }
 
-        // 「状态」：桌宠数值可视化（主人指定放菜单栏；数值与人格分离，见 AGENTS.md §2）
+        // 「状态」：桌宠数值可视化（主人指定放菜单栏；数值与人格分离，见 AIPet-Agent.md §2）
         var 状态 = 新命令按钮("状态", null);
         状态.TooltipText = "看看它现在的心情 / 精力 / 亲密";
         状态.Pressed += StatsWindow.显示;

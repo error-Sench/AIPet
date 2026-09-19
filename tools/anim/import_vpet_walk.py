@@ -1,6 +1,6 @@
 """导入 VPet 走路资产 -> mods/main_anim/anim/loris/walk/{left,right}/
 
-规则（对齐 AGENTS.md §10 / plan.md P2）：
+规则（对齐 AIPet-Agent.md §10 / plan.md P2）：
   1. 帧名重编号为三位零填充从 000 起（CharAnim 的帧排序是字符串序，非数值序）
   2. 缩放到 512x512 画布，且**按角色包围盒对齐**到现有 loris 素材的基线，
      避免切换动画时角色跳位/变大变小（直接 1000->512 缩放会导致尺寸不一致）

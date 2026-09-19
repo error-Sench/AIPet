@@ -8,7 +8,7 @@ namespace desktop.script.Agent;
 /// 能力层后端注册表：mod 式可插拔。
 /// 设计约束：桌宠核心不硬编码任何具体 Agent；后端按名字注册 + 配置选择。
 /// 第三方 mod 可在 `_Ready` 时 Register("myname", () => new MyBackend()) 接入自家 Agent。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public static class AgentBackends
 {

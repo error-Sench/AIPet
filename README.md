@@ -68,7 +68,7 @@ bash tools/run_probes.sh                            # 一键跑全部 headless �
 
 | 文件 | 内容 |
 |---|---|
-| [`AGENTS.md`](AGENTS.md) | **工程契约（主文档）**：六层架构、开发约定、踩坑清单索引 |
+| [`AIPet-Agent.md`](AIPet-Agent.md) | **工程契约（主文档）**：六层架构、开发约定、踩坑清单索引 |
 | [`document/开发历史记录.md`](document/开发历史记录.md) | 开发历史记录（施工过程 + 已拍板决策与「不做」清单）|
 | [`document/Plan表.md`](document/Plan表.md) | **待办唯一清单**（主人继续补充）|
 | [`document/idea.md`](document/idea.md) | 设计意图（Why / What）|
@@ -92,7 +92,7 @@ bash tools/run_probes.sh                            # 一键跑全部 headless �
 
 * **项目现状**：学习 Godot 时顺手做的项目，历史代码里有较多面条与 AI 生成代码，正在按 `document/开发历史记录.md` 记录的路线逐层重构。
 * **素材致谢**：角色美术来自开源项目 [VPet](https://github.com/LorisYounger/VPet)（**Apache-2.0**）。
-* **文档**：`AGENTS.md` 是工程契约，`document/` 是设计与交付文档，`script/*/README.md` 是各层分册。
+* **文档**：`AIPet-Agent.md` 是工程契约，`document/` 是设计与交付文档，`script/*/README.md` 是各层分册。
 
 ## 开源协议
 

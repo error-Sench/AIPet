@@ -6,7 +6,7 @@ namespace desktop.script.Agent;
 /// 能力层后端抽象：**不绑定任何具体 Agent**。
 /// 设计约束（用户确认）：Hermes 只是「一种接入方式」，等同 mod；不得硬编码。
 /// 任何 Agent（本地/远程/无）都通过实现本接口接入；桌宠核心只认这个接口。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public interface IAgentBackend
 {
@@ -62,7 +62,7 @@ public sealed class AgentOptions
 
     /// <summary>
     /// 实验性激进开关（**默认关**）：放宽指令白名单（当前只加 `open_url`）。
-    /// 见 AGENTS.md §6 安全边界。注意：**刻意不实现**任何「执行本地命令」能力——那需要一个专门设计与主人明确授权。
+    /// 见 AIPet-Agent.md §6 安全边界。注意：**刻意不实现**任何「执行本地命令」能力——那需要一个专门设计与主人明确授权。
     /// </summary>
     public bool AggressiveMode { get; set; }
 }

@@ -14,12 +14,12 @@ namespace desktop.script.State;
 /// <summary>
 /// 身体层：状态机 + 行为链 + **自主行为节律**。
 ///
-/// 定位（见 AGENTS.md §3）：本类是身体层的**唯一状态权威**——向上接收交互/Agent 事件，
+/// 定位（见 AIPet-Agent.md §3）：本类是身体层的**唯一状态权威**——向上接收交互/Agent 事件，
 /// 向下驱动 CharAnim；CharAnim 自身「动画播完回 idle」的旧逻辑在持续态期间让位（见 `接管中`）。
 ///
 /// 状态效果表见 `_效果表`：每个状态 → 动画池（目标池 / 当前兼容池）+ 是否持续态 + 秒数。
 /// 节律参数全部来自 `config/behavior.json`（改完重启生效，无需重编译）。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class StateMachine : Node
 {

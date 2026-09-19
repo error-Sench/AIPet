@@ -6,7 +6,7 @@ namespace desktop.script.UX;
 /// <summary>
 /// 桌宠窗口几何：窗口**恒定**正好套住角色（不再随面板撑开/收起，避免角色漂移）。
 /// 面板与工具栏都是独立窗口，不需要主窗口变形。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public static class PetWindow
 {

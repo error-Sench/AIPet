@@ -10,7 +10,7 @@ namespace desktop.script.UX;
 /// </para>
 /// 教训：状态窗首版漏了摆位 → 窗口落在屏幕 (0,0)（主人实机发现）。**新建独立窗口时，摆位是必做项，
 /// 探针也必须断言位置**（首版探针只断言了尺寸，白打印了 `位置=(0,0)` 却没拦住）。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public static class PanelPlacement
 {

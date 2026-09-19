@@ -3,7 +3,7 @@
 用法： python tools/anim/import_vpet_anim.py            # 导入 SPEC 里全部池
        python tools/anim/import_vpet_anim.py edge_hide  # 只导某个池
 
-硬规则（全部来自实测，见 AGENTS.md §3 / plan.md P2）：
+硬规则（全部来自实测，见 AIPet-Agent.md §3 / plan.md P2）：
   1. 帧名重编号为三位零填充从 000 起 —— CharAnim 的帧排序是**字符串序**，不是数值序
   2. 缩放到 512x512 并按**角色包围盒**对齐到现有 loris 素材基线 —— 直接 1000->512 会尺寸不一致、切动画时跳位
   3. 整段动画只算**一次**偏移逐帧套用 —— 否则会抹掉帧间位移（动作本身）

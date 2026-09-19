@@ -9,10 +9,10 @@ namespace desktop.script.UX;
 /// <para>
 /// 入口：聊天面板底部命令栏的「状态」按钮（主人指定：可视化按钮放菜单栏）。
 /// 2026-09-20 P5 返工：mood = 主人情绪读数（由 Agent 经 set_mood 写入；**只影响回复策略、不参与互动**）。
-/// 界面上**不出现任何数字**（主人决策）；数值与人格分离（AGENTS.md §2）。
+/// 界面上**不出现任何数字**（主人决策）；数值与人格分离（AIPet-Agent.md §2）。
 /// 无边框窗口的关闭沿用面板范式（自绘 × + CloseRequested + 系统标题栏）。
 /// </para>
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class StatsWindow : Window
 {

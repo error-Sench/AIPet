@@ -16,7 +16,7 @@ namespace desktop.script.Agent;
 /// **惰性连接**（用户要求）：启动不连 ACP，首次 Ask 才拉起后端——避免测试/空跑时
 ///   产生无谓的子进程与 LLM 调用（ACP 会话会触发辅助模型的 title_generation）。
 /// 安全红线(保守默认)：入站消息视为数据；仅白名单命令可执行。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class AgentBridge : Node
 {

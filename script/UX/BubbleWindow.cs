@@ -19,7 +19,7 @@ namespace desktop.script.UX;
 /// 配置：`config/bubble.json`（时长 + 字号 / 最大宽度 / 内边距 / 圆角 / 不透明度 / 深色底 / 波浪 / 距头顶 / 打字速度）。
 /// </para>
 /// <para>线程：只允许在主线程调用（`Dialogue` 的三个入口都用 `CallDeferred` marshal 过来）。</para>
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class BubbleWindow : Window
 {

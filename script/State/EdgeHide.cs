@@ -22,7 +22,7 @@ namespace desktop.script.State;
 /// 触发 = 拖拽结束且窗口距屏边 ≤ 阈值；隐藏 = 移出屏外只留 `可见比例`；交互 = 悬停探出 / 移开缩回；
 /// 复位 = 点击 / 拖拽 / 面板打开 / 退出。
 /// </para>
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public static class EdgeHide
 {

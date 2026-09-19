@@ -24,17 +24,17 @@ AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 |---|---|---|
 | skill | `skill/SKILL.md` | **给用户 Agent 的一次性内化文档**（读一遍：先给自己取名，再把「桌宠的职责与互动」写进自己的人设；之后不必再读） |
 | MCP 工具 | `aipet-mcp/aipet_mcp.py` | 给用户的 Agent（注册后：`pet_context` 拿实时上下文；`pet_command` 下指令——正文保持干净、有真实回执） |
-| 人格文件模板 | `SOUL.md` | 给用户（人格的结构、写法与成品示例；程序内部不内置人格） |
+| 人格文件模板 | `AIPet-SOUL.md` | 给用户（人格的结构、写法与成品示例；程序内部不内置人格） |
 
-> 本目录只**新增文件**，不改动仓库里的任何代码与文档。`SOUL.md` 是人格文件的**唯一模板**（结构 + 示例）；程序内部不内置人格——人格只住在用户数据目录的 `soul/soul.md`（缺失时只落一行占位桩）。
+> 本目录只**新增文件**，不改动仓库里的任何代码与文档。`AIPet-SOUL.md` 是人格文件的**唯一模板**（结构 + 示例）；程序内部不内置人格——人格只住在用户数据目录的 `soul/soul.md`（缺失时只落一行占位桩）。
 >
-> 打包脚本（`tools/package.sh`）会把本目录的 `SOUL.md` / `skill/` / `aipet-mcp/` 一并复制进分发包根目录，用户开箱就能看到。
+> 打包脚本（`tools/package.sh`）会把本目录的 `AIPet-SOUL.md` / `skill/` / `aipet-mcp/` 一并复制进分发包根目录，用户开箱就能看到。
 
 ## 三步用起来
 
 1. **接上你的 Agent**：桌宠通过 ACP 驱动 Agent（`config/agent.json` 里 `backend: hermes-acp` + `executable` 指向你的 agent CLI）。接好之后，聊天窗里你说的话会原样发给它，它的回复显示回来。
 2. **把 skill 交给你的 Agent**（下一节）——它读一次就会把职责内化成自己的人设，不需要每次重读。
-3. **想改人格** → 编辑桌宠的 `soul/soul.md`（或者把 `SOUL.md` 复制过去当底稿）。
+3. **想改人格** → 编辑桌宠的 `soul/soul.md`（或者把 `AIPet-SOUL.md` 复制过去当底稿）。
 
 ## 怎么把 skill 交给自己的 Agent
 
@@ -69,7 +69,7 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 ## 怎么改人格
 
 1. 打开 `...\AIPet\soul\soul.md`（不存在时会自动落一份模板）。
-2. 按 `SOUL.md` 的结构写：frontmatter（`version` / `name`）+ 正文（我是谁 / 性格 / 说话风格 / 口头禅与禁忌 / 原则 / 思维范式 / 情绪表达 / 与数值的关系）。
+2. 按 `AIPet-SOUL.md` 的结构写：frontmatter（`version` / `name`）+ 正文（我是谁 / 性格 / 说话风格 / 口头禅与禁忌 / 原则 / 思维范式 / 情绪表达 / 与数值的关系）。
 3. **只放人格**：数值归 `state/stats.json`，记忆归 `soul/memory.jsonl`，画像归 `soul/profile.md`，游戏进度归 `game/save.json`。
 4. 改结构时把 `version` +1。保存即可 —— 重启桌宠后生效（看实时状态：有 MCP 调 `pet_context`，否则读数据目录的 `context.md` / `soul.md`；目前没有接线热重载）。
 

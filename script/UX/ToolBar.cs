@@ -16,7 +16,7 @@ namespace desktop.script.UX;
 /// 禁用 / 删除：目录加 `_` 前缀＝禁用（与 mods 既有约定一致，见 Main.IgnorePath）；直接删目录＝移除。
 /// 导出后 `mods/` 在 exe 旁边（`LoadUtil.ModPath`），用户随时可增删。
 /// 关闭方式：① 内容区 × 按钮；② 标题栏关闭按钮（CloseRequested）。
-/// 约定：标识符英文，注释中文（见 AGENTS.md §8）。
+/// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
 public partial class ToolBar : Window
 {

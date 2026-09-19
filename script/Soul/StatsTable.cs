@@ -15,7 +15,7 @@ namespace desktop.script.Soul;
 /// 3. **衰减**：每 30 秒向中性（50）靠拢 5 点，防止过时情绪长期残留（§4.3）；离线按同一规则补算。
 /// 4. **精力 / 亲密 / 等级等属 mod 扩展范围**，核心不实现（亲密归空置的「关系层」）。
 /// </para>
-/// 文件：`user://state/stats.json`（§2.2）。约定：标识符英文，注释中文（AGENTS.md §8）。
+/// 文件：`user://state/stats.json`（§2.2）。约定：标识符英文，注释中文（AIPet-Agent.md §8）。
 /// </summary>
 public static class StatsTable
 {

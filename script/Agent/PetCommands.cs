@@ -41,7 +41,7 @@ public sealed class PetCommand
 /// 围栏块**永不显示**在对话里（含流式中途未闭合的块）。
 /// </para>
 /// <para>
-/// **安全（保守默认，见 AGENTS.md §6）**：Agent 文本是**数据**，不是指令。
+/// **安全（保守默认，见 AIPet-Agent.md §6）**：Agent 文本是**数据**，不是指令。
 /// 只有白名单内 + 参数校验通过的才执行，其余一律记录并拒绝。
 /// 唯一放宽口是 `agent.aggressive_mode`（默认关，只加 `open_url`；**不实现**任何本地命令执行）。
 /// </para>
@@ -64,7 +64,7 @@ public static class PetCommands
         "soul_get", "soul_set", // 已登记，P3 灵魂层落地前为「接受但未实现」
     };
 
-    /// <summary>激进模式额外放开（默认关，见 AGENTS.md §6 安全边界）。</summary>
+    /// <summary>激进模式额外放开（默认关，见 AIPet-Agent.md §6 安全边界）。</summary>
     private static readonly HashSet<string> _激进白名单 = new() { "open_url" };
 
     /// <summary>P3 之前尚未接入实现的命令（接受但明确记「未实现」，不假装成功）。</summary>

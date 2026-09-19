@@ -10,7 +10,7 @@
 # 为什么这样组装（见 document/打包审计.md）：
 #   * 导出产物读不到 res:// 里的 config/*.json → 必须把 config/ 放在 exe 旁边（ConfigFile 的查找顺序）
 #   * mods/ 与 config/ 是运行必需资产，必须随包（桌宠动画、命令、工具路径都在这）
-#   * dist/ 的交付资料（SOUL.md 人格模板 / skill/ 内化文档 / aipet-mcp/ 工具）也要进包：
+#   * dist/ 的交付资料（AIPet-SOUL.md 人格模板 / skill/ 内化文档 / aipet-mcp/ 工具）也要进包：
 #     它们本来就是「给用户的」，只放仓库里用户拿不到，Agent 也接不上
 #   * 分发包里的 agent.json 要清掉作者机器路径（默认「本地桌宠模式」，用户自己接 Agent）
 #   * 不要装进 Program Files：程序要在自己旁边读写 mods/ config/
@@ -64,7 +64,7 @@ cp -r "$ROOT/config" "$OUT_DIR/config"
 
 # 交付资料（给用户与其 Agent 用）：人格模板 + skill 内化文档 + MCP 工具
 # —— 只放在 dist/ 的话用户根本拿不到，Agent 也就接不上
-cp "$ROOT/dist/SOUL.md" "$OUT_DIR/" 2>/dev/null
+cp "$ROOT/dist/AIPet-SOUL.md" "$OUT_DIR/" 2>/dev/null
 cp -r "$ROOT/dist/skill" "$OUT_DIR/skill" 2>/dev/null
 cp -r "$ROOT/dist/aipet-mcp" "$OUT_DIR/aipet-mcp" 2>/dev/null
 
@@ -98,7 +98,7 @@ AIPet $VER —— 解压即用
 3) 退出：右键桌宠 → 退出。
 4) 想让它连上你自己的 Agent（推荐）：见 config/agent.json 与「新用户上手.md」。
 5) 语音：默认 Edge 在线语音（晓晓）；不想联网可在 config/tts.json 切「sapi」（Windows 自带）。
-6) 交付资料：SOUL.md（人格模板与写法示例）· skill/（给你的 Agent 读一遍的说明）· aipet-mcp/（MCP 工具，可选）。
+6) 交付资料：AIPet-SOUL.md（人格模板与写法示例）· skill/（给你的 Agent 读一遍的说明）· aipet-mcp/（MCP 工具，可选）。
    想调配置窗大小：config/panel.json 的「配置窗宽 / 配置窗高」（缺省 500×375）。
 TXTEOF
 

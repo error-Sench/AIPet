@@ -83,7 +83,7 @@ public partial class CharAnim : AnimatedSprite2D
     private void OnAnimationFinished()
     {
         // 状态机接管中（think/speak/working/listen/sleep 等持续态）：不回 idle，
-        // 由状态机决定是否重播当前状态。这是新旧两套状态逻辑的唯一交汇点（见 AGENTS.md §3）。
+        // 由状态机决定是否重播当前状态。这是新旧两套状态逻辑的唯一交汇点（见 AIPet-Agent.md §3）。
         // 例外：退出动画必须放行，否则 case "exit" 永不触发、程序关不掉。
         if (StateMachine.接管中 && Animation.ToString() != _退出动画名)
         {
