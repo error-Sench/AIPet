@@ -373,8 +373,18 @@ StateMachine.EnqueueChain(
 | **idle 三档** | 补 `Default/{Nomal,PoorCondition}` → `idle-nomal-1..3` / `idle-poor-1..2`（原 idle/1..3 重命名为 `idle-happy-1..3`）；`情绪变体("idle")` 入择档名单，档位对应**一组**时按前缀随机取一条（`应用表现` 的组变体分支）|
 | **爱心彩蛋** | `fidget-happy520`（VPet `IDEL/happy_like520`，连串比心 31帧）→ 进 fidget 随机池 |
 | **生日彩蛋** | `bday` 池三段 + 新状态 `Bday`（`序列表` = bday-a→b→c，播完回 idle）；触发 = `config/config.json` 的「生日」（MM-dd）命中当天 → 入场完成后播一遍 + 一句祝福（`phrases.json` 新分类「生日」）|
+| **Say/Think/Sleep 过渡段** | 补 VPet 的 A/C 段（think 三档各 2 帧 / sleep 4+7 帧 / say 四感情各一组）→ `StateMachine` 新机制**「包裹段」**：进入先播 A → 循环主段（**变体钉死**不随机换）→ 退出先播 C 再真正切。见下 |
 
-**验证**：`tests/PoolProbe`（新素材 12 个存在性）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle 全链路）。
+**包裹段机制**（`script/State/StateMachine.cs`，组①新增）：
+
+- 状态效果加 `包裹 = true`（现标：`think` / `speak` / `sleep` / `bubble_talk`）。进入时 `挑主名(池)` 挑一条主段**钉住整段会话**；有 A 段就先播 A，播完经 `重播当前状态()` 接主段；主段循环走「钉死主段」分支。
+- **退出是延迟的**：切别的状态先播 C，播完才落地（`_退出目标`）；C 期间逻辑状态仍是原状态。**硬接管例外**（拖拽 / 捏脸 / 贴边）跳过 C —— 用户上手要立刻响应。
+- 段名解析 `段名(主名, "a"/"c")`：优先 `{主名}-{段}`（`think-happy-a`），退回池级 `{池}-{段}`（`sleep-loop` → `sleep-a`）。
+- `挑主名()` 对包裹池（think/say/sleep）随机时**排除段本身**（`-a`/`-c` 结尾），否则 `sleep-a` 会被当主段抽到。
+- 重播门：`CharAnim.OnAnimationFinished` 派发条件加 `|| StateMachine.包裹中`（非锁定态如 bubble_talk 的段推进也归状态机管）；`标记状态`（拖拽）/ 链节 / `准备退出` 清包裹会话。
+- **探针要「即时切换」语义时置 `StateMachine.探针_禁用包裹`**（StateProbe / PoolProbe 已置；包裹段专测 = WrapProbe）。
+
+**验证**：`tests/PoolProbe`（新素材 12 个存在性）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle 全链路）+ `tests/WrapProbe`（包裹段机制专测）。
 
 ### 气泡说话（P8）
 

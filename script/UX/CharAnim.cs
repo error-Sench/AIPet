@@ -86,8 +86,9 @@ public partial class CharAnim : AnimatedSprite2D
     {
         // 状态机接管中（think/speak/working/listen/sleep 等持续态）：不回 idle，
         // 由状态机决定是否重播当前状态。这是新旧两套状态逻辑的唯一交汇点（见 AIPet-Agent.md §3）。
+        // 「包裹中」：非锁定态的包裹会话（气泡说话）段推进也归状态机管（见 StateMachine 包裹段）。
         // 例外：退出动画必须放行，否则 case "exit" 永不触发、程序关不掉。
-        if (StateMachine.接管中 && Animation.ToString() != _退出动画名)
+        if ((StateMachine.接管中 || StateMachine.包裹中) && Animation.ToString() != _退出动画名)
         {
             StateMachine.重播当前状态();
             return;
@@ -152,6 +153,10 @@ public partial class CharAnim : AnimatedSprite2D
 
     /// <summary>当前正在播的动画名（只读，供状态机避免重复重播导致相位重置）。</summary>
     public static string 当前动画名_只读 => _单例?.Animation.ToString() ?? "";
+
+    /// <summary>探针用：查询某动画是否按循环模式加载（包裹段 A/C 必须非循环——循环动画不回「播完」信号）。</summary>
+    public static bool 动画循环_只读(string 名)
+        => _单例 != null && _单例.SpriteFrames.HasAnimation(名) && _单例.SpriteFrames.GetAnimationLoop(名);
 
     /// <summary>按动画名精确播放（区别于 PlayState 的「按池随机取一项」）。可跨线程调用。</summary>
     public static void PlayNamed(string 动画名)
@@ -236,7 +241,10 @@ public partial class CharAnim : AnimatedSprite2D
         }
         状态机.AddAnimation(动画名);
         状态机.SetAnimationSpeed(动画名, 帧率);
-        状态机.SetAnimationLoop(动画名, 池 != null && 循环动画组.Contains(池));
+        // 包裹段（组①）的 A/C 段**不能**按循环加载：循环动画不回「播完」信号，进入/退出段会永远卡住。
+        // 段名约定 = `-a` / `-c` 结尾（sleep-a / sleep-happy-c / think-nomal-a …）——见 StateMachine 包裹段。
+        var 是段 = 动画名.EndsWith("-a", StringComparison.Ordinal) || 动画名.EndsWith("-c", StringComparison.Ordinal);
+        状态机.SetAnimationLoop(动画名, 池 != null && 循环动画组.Contains(池) && !是段);
 
         // 3. 获取所有 PNG 文件
         using var dir = DirAccess.Open(目录);

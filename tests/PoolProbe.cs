@@ -45,10 +45,16 @@ public partial class PoolProbe : Node
         "fidget-state-one", "fidget-state-two", "fidget-happy520",
         "idle-happy-1", "idle-nomal-1", "idle-poor-1",
         "bday-a", "bday-b", "bday-c",
+        // 2026-09-20 组①·过渡段（包裹段 A/C；挑主名要排除它们、段名解析要能找到它们）
+        "think-nomal-a", "think-nomal-c", "think-happy-a", "think-happy-c", "think-poor-a", "think-poor-c",
+        "say-smile-a", "say-smile-c", "say-self-a", "say-self-c",
+        "say-serious-a", "say-serious-c", "say-shy-a", "say-shy-c",
+        "sleep-a", "sleep-c", "sleep-happy-a", "sleep-happy-c",
     ];
 
     public override void _Ready()
     {
+        StateMachine.探针_禁用包裹 = true;   // 本探针只测「池路由」：包裹段（进入 A / 退出 C）旁路，断言即时播出池内主段
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());

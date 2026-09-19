@@ -91,6 +91,8 @@ public partial class StateMachine : Node
         public bool 免兜底; // true = 真·无限期持续态（贴边隐藏用）：不吃「持续态兜底」，否则 2 分钟被踢回 idle（实测 bug）
         public string 具体动画;   // 非空 = 这个状态固定播它（不按池随机）——「一个池服务多个状态」时用（switch-up / switch-down）
         public string 回落 = Idle; // 非持续态到点**回落到哪个状态**（默认 idle；干活过渡段回 working）
+        public bool 包裹;   // true = 包裹段状态（组①）：进入先播 A（`{主名}-a`，无则池级 `{池}-a`）→ 循环主段 → 退出先播 C 再真正切。
+                            // 只给有 A/C 素材的 think / sleep / 说话类标；会话期间主段变体钉死不换。
     }
 
     private static readonly Dictionary<string, 状态效果> _效果表 = new()
@@ -98,19 +100,20 @@ public partial class StateMachine : Node
         [Idle] = new 状态效果 { 目标池 = "idle", 兼容池 = "idle", 持续 = true, 锁定 = false, 秒 = 0 },
         [Interact] = new 状态效果 { 目标池 = "interact", 兼容池 = "fidget", 持续 = false, 锁定 = false, 秒 = 2.0f },
         [Drag] = new 状态效果 { 目标池 = "drag", 兼容池 = "drag", 持续 = true, 锁定 = false, 秒 = 0 },
-        [Think] = new 状态效果 { 目标池 = "think", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
-        [Speak] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
+        [Think] = new 状态效果 { 目标池 = "think", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
+        [Speak] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Listen] = new 状态效果 { 目标池 = "listen", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },  // 秒值不生效，见字段注释
         [Working] = new 状态效果 { 目标池 = "work", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
-        [Sleep] = new 状态效果 { 目标池 = "sleep", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0 },
+        [Sleep] = new 状态效果 { 目标池 = "sleep", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Greet] = new 状态效果 { 目标池 = "greet", 兼容池 = "celerate", 持续 = false, 锁定 = false, 秒 = 2.5f },
         // 贴边隐藏：持续 + 锁定；表现不走「池内随机」，由 EdgeHide.应用表现() 按阶段精确播（见应用表现）
         // 免兜底：贴边是**无限期**待着，不能吃 2 分钟的持续态兜底（否则会自己变 idle 挪回屏内 —— 实测 bug）
         [EdgeHideState] = new 状态效果 { 目标池 = "edge_hide", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
         // 捏脸：同上 —— 表现由 FacePinch 三段自管（A 进入 → B 循环 → 松手 C），锁定 + 免兜底（按住多久都行）
         [PinchState] = new 状态效果 { 目标池 = "pinch", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
-        // 气泡说话（P8）：**不锁定**（动作可被打断）+ 定时回 idle；真正的时长由 冒泡说话() 用「气泡显示秒」覆盖传入
-        [BubbleTalk] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = false, 锁定 = false, 秒 = 4f },
+        // 气泡说话（P8）：**不锁定**（动作可被打断；重播由「包裹中」兜住，见 CharAnim 播完回调）+ 定时回 idle；
+        // 真正的时长由 冒泡说话() 用「气泡显示秒」覆盖传入。组①加包裹段：say-{感情}-a 进入 → B 循环 → C 退出。
+        [BubbleTalk] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = false, 锁定 = false, 秒 = 4f, 包裹 = true },
         // 生日彩蛋（2026-09-20 组①）：三段序列自管（A惊喜→B摇摆→C比心），播完回 idle
         [Bday] = new 状态效果 { 目标池 = "bday", 兼容池 = "idle", 持续 = false, 锁定 = false, 秒 = 0f },
         // —— P10 ——（摸身体 / 转身 / 干活进出场；素材来源见 tools/README.md 池表）
@@ -154,6 +157,17 @@ public partial class StateMachine : Node
     private static string _排队状态;     // 排队等待「当前动画播完」再切的交互反应
     private static float _排队秒 = -1f;
     private static float _排队兜底剩余;  // 防止动画不回完成信号导致排队状态永远不生效
+
+    // ── 包裹段（组①）：think / sleep / 说话类的「进入 A → 循环 B → 退出 C」会话状态 ──
+    private static string _包裹主名;      // 本会话钉死的主段动画名（如 think-happy / say-smile / sleep-loop）；会话结束清空
+    private static bool _进入段中;        // 正在播 A 段（播完接主段）
+    private static bool _退出段中;        // 正在播 C 段（播完落地 _退出目标 的切换）
+    private static string _退出目标;      // 退出段播完后要切到的状态
+    private static float _退出目标秒 = -1f;
+    /// <summary>探针隔离：断言「即时切换」语义的探针置 true，包裹段整体旁路。</summary>
+    public static bool 探针_禁用包裹;
+    /// <summary>包裹会话进行中（CharAnim 用它把「动画播完」派发给状态机——非锁定态如气泡说话也走重播）。</summary>
+    public static bool 包裹中 => _包裹主名 != null;
     private static bool _已报可走动;     // 「空闲达标」日志只报一次，避免刷屏
     private static readonly List<double> _主动时间戳 = new();
     private static double _运行秒;
@@ -253,7 +267,48 @@ public partial class StateMachine : Node
         if (state != PinchState && FacePinch.占用中) FacePinch.取消();
 
         var 变化 = CurrentState != state;
+
+        // ── 包裹段（组①）：think / sleep / 说话类的「进入 A → 循环 B → 退出 C」──
+        // 已在会话中又切到同状态（连发气泡等）：只复位计时，保持当前段相位，不重播；
+        // 若正在播退出段则取消退出、回主段（状态又被要回来了，如 think 续期赶上退出窗口）。
+        if (!变化 && _包裹主名 != null)
+        {
+            if (_退出段中)
+            {
+                _退出段中 = false;
+                _退出目标 = null;
+                if (CharAnim.有动画(_包裹主名)) CharAnim.PlayNamed(_包裹主名);
+            }
+            设定计时(效果, 秒);
+            return;
+        }
+        // 退出包裹态：先播 C 段，播完在 重播当前状态() 里落地切换（延迟极短，衔接顺）。
+        // 硬接管（拖拽 / 捏脸 / 贴边）跳过退出段 —— 用户上手要立刻响应，不等过渡。
+        if (_包裹主名 != null && !_进入段中 && !探针_禁用包裹
+            && state != Drag && state != PinchState && state != EdgeHideState)
+        {
+            if (_退出段中)
+            {
+                _退出目标 = state;   // 已在退出段：更新目标即可
+                _退出目标秒 = 秒;
+                return;
+            }
+            var 退出段 = 段名(_包裹主名, "c");
+            if (退出段 != null)
+            {
+                _退出段中 = true;
+                _退出目标 = state;
+                _退出目标秒 = 秒;
+                CharAnim.PlayNamed(退出段);
+                return;
+            }
+        }
+
         CurrentState = state;
+        _包裹主名 = null;      // 真切换：旧会话结束（若新状态也是包裹态，下面重建）
+        _进入段中 = false;
+        _退出段中 = false;
+        _退出目标 = null;
 
         // 交互序列：有些互动在素材里本身就是「进入 → 保持 → 退出(回待机)」多段
         // （VPet 摸头 = Touch_Head/A + B + C）。只播其中一段会在姿势上硬切到待机 —— 用户反馈「很突兀」。
@@ -270,22 +325,35 @@ public partial class StateMachine : Node
             _保持剩余 = 0f; // 序列自己会收尾，不走保持计时
             _兜底剩余 = 0f;
         }
-        else if (效果.持续)
-        {
-            _保持剩余 = 0f;
-            var 上限 = 秒 >= 0f ? 秒 : 设置.持续态兜底秒;
-            _兜底剩余 = 效果.锁定 && !效果.免兜底 && 上限 > 0f ? 上限 : 0f; // 只在锁定的持续态上设兜底（免兜底者除外）
-        }
         else
         {
-            _保持剩余 = 秒 >= 0f ? 秒 : 效果.秒;
-            _兜底剩余 = 0f;
+            设定计时(效果, 秒);
         }
 
         if (序列 != null)
         {
             _当前序列 = 序列;
             播放序列段();
+        }
+        else if (效果.包裹 && !探针_禁用包裹)
+        {
+            // 包裹态进入：挑一个主名钉住本次会话（变体不再随机换）；池里有 A 段就先播 A，播完接主段
+            _包裹主名 = 挑主名(选择池(效果));
+            var 进入段 = _包裹主名 != null ? 段名(_包裹主名, "a") : null;
+            if (进入段 != null)
+            {
+                _进入段中 = true;
+                CharAnim.PlayNamed(进入段);
+            }
+            else if (_包裹主名 != null && CharAnim.有动画(_包裹主名))
+            {
+                CharAnim.PlayNamed(_包裹主名);   // 没有 A 段就直接起主段
+            }
+            else
+            {
+                _包裹主名 = null;                // 池空：退回普通表现
+                应用表现(state);
+            }
         }
         else
         {
@@ -299,12 +367,30 @@ public partial class StateMachine : Node
     {
         if (_重播冷却 > 0f) return;
         _重播冷却 = 0.05f;
+        // 包裹段：C 播完 → 落地延迟切换；A 播完 → 接主段（先清会话再派发，避免又走一次退出段）
+        if (_退出段中)
+        {
+            _退出段中 = false;
+            var 目标 = _退出目标;
+            var 目标秒 = _退出目标秒;
+            _退出目标 = null;
+            _退出目标秒 = -1f;
+            _包裹主名 = null;
+            if (!string.IsNullOrEmpty(目标)) { SetState(目标, 目标秒); return; }
+        }
+        if (_进入段中)
+        {
+            _进入段中 = false;
+            if (_包裹主名 != null && CharAnim.有动画(_包裹主名)) { CharAnim.PlayNamed(_包裹主名); return; }
+        }
         // 交互序列：播完一段就推进到下一段（最后一段播完 → 回 idle）
         if (_当前序列 != null) { 推进序列(); return; }
         // 贴边隐藏：阶段推进由 EdgeHide 自管（缩进→静止→探出→缩回→退出）
         if (CurrentState == EdgeHideState) { EdgeHide.动画播完(); return; }
         // 捏脸：段推进由 FacePinch 自管（A → B 循环 → 松手 C）
         if (CurrentState == PinchState) { FacePinch.动画播完(); return; }
+        // 包裹态主段循环：重播钉死的主段（变体不再随机换）
+        if (_包裹主名 != null && CharAnim.有动画(_包裹主名)) { CharAnim.PlayNamed(_包裹主名); return; }
         if (!_效果表.TryGetValue(CurrentState, out var 效果)) return;
         CharAnim.PlayState(选择池(效果));
     }
@@ -399,6 +485,11 @@ public partial class StateMachine : Node
             _当前序列 = null;
             _序列序 = 0;
         }
+        // 包裹会话同样作废：拖拽/松手立即生效，旧会话不能残留（否则重播会错播上一条会话的主段）
+        _包裹主名 = null;
+        _进入段中 = false;
+        _退出段中 = false;
+        _退出目标 = null;
         CurrentState = state;
         接管中 = _效果表[state].锁定;
     }
@@ -409,6 +500,10 @@ public partial class StateMachine : Node
     public static void 准备退出()
     {
         接管中 = false;
+        _包裹主名 = null;   // 退出前清包裹会话：退出动画的播完回调不能被包裹逻辑吞掉（同 接管中 的理由）
+        _进入段中 = false;
+        _退出段中 = false;
+        _退出目标 = null;
         EdgeHide.让位();   // 退出前把宠从屏外拉回来，别让它烂在边上
         _chainRunning = false;
         _chainQueue.Clear();
@@ -897,6 +992,9 @@ public partial class StateMachine : Node
         // 链节状态直接落到 CurrentState（不走 SetState，避免清空链）
         CurrentState = step.State;
         接管中 = false;
+        _包裹主名 = null;   // 链节绕过 SetState：旧包裹会话不能残留（否则重播会错播上一条会话的主段）
+        _进入段中 = false;
+        _退出段中 = false;
         应用表现(step.State);
         _chainRunning = true;
         StateChanged?.Invoke(step.State);
@@ -939,6 +1037,67 @@ public partial class StateMachine : Node
         return 效果.兼容池;
     }
 
+    /// <summary>设定保持/兜底计时（SetState 与「同状态重入」共用）。</summary>
+    private static void 设定计时(状态效果 效果, float 秒)
+    {
+        if (效果.持续)
+        {
+            _保持剩余 = 0f;
+            var 上限 = 秒 >= 0f ? 秒 : 设置.持续态兜底秒;
+            _兜底剩余 = 效果.锁定 && !效果.免兜底 && 上限 > 0f ? 上限 : 0f; // 只在锁定的持续态上设兜底（免兜底者除外）
+        }
+        else
+        {
+            _保持剩余 = 秒 >= 0f ? 秒 : 效果.秒;
+            _兜底剩余 = 0f;
+        }
+    }
+
+    /// <summary>有 A/C 过渡段的池（包裹段机制）：挑主名从这里挑随机时要把段本身排除掉（别把 sleep-a 当主段）。</summary>
+    private static readonly string[] 包裹池 = { "think", "say", "sleep" };
+
+    /// <summary>是不是 A/C 过渡段变体（`-a` / `-c` 结尾）。</summary>
+    private static bool 是段名(string 名)
+        => 名.EndsWith("-a", StringComparison.Ordinal) || 名.EndsWith("-c", StringComparison.Ordinal);
+
+    /// <summary>按三档/组变体规则从池里挑一条主段动画名（不播放）；池不存在或为空返回 null。与包裹段共用同一套挑法。</summary>
+    private static string 挑主名(string 池)
+    {
+        try
+        {
+            var 排除段 = Array.IndexOf(包裹池, 池) >= 0;
+            var 变体 = 情绪变体(池);
+            if (变体.Length > 0)
+            {
+                var 精确 = $"{池}-{变体}";
+                if (CharAnim.有动画(精确)) return 精确;
+                // 组变体（如 idle-happy-1/2/3）：该档位对应的是一组时，按 `{池}-{档}-` 前缀随机取一条
+                var 组 = Main.显示人物?.动画池字典.GetValueOrDefault(池)?
+                    .FindAll(x => x.name.StartsWith($"{精确}-", StringComparison.Ordinal) && !(排除段 && 是段名(x.name)));
+                if (组 is { Count: > 0 }) return 组.列表随机项().name;
+            }
+            var 列表 = Main.显示人物?.动画池字典.GetValueOrDefault(池);
+            if (排除段) 列表 = 列表?.FindAll(x => !是段名(x.name));
+            return 列表 is { Count: > 0 } ? 列表.列表随机项().name : null;
+        }
+        catch (Exception)
+        {
+            return null;   // 人物数据未就绪（同 选择池 的惯例）：交给应用表现的兜底
+        }
+    }
+
+    /// <summary>包裹段解析：优先 `{主名}-{段}`（think-nomal-a / sleep-happy-c），没有则退回池级 `{池}-{段}`（sleep-a）；都没有返回 null。</summary>
+    private static string 段名(string 主名, string 段)
+    {
+        if (string.IsNullOrEmpty(主名)) return null;
+        var 变体段 = $"{主名}-{段}";
+        if (CharAnim.有动画(变体段)) return 变体段;
+        var i = 主名.IndexOf('-');
+        if (i < 0) return null;
+        var 池段 = $"{主名[..i]}-{段}";
+        return CharAnim.有动画(池段) ? 池段 : null;
+    }
+
     private static void 应用表现(string state)
     {
         if (state is WalkStart or WalkLoop or WalkEnd)
@@ -969,17 +1128,9 @@ public partial class StateMachine : Node
         if (!string.IsNullOrEmpty(效果.具体动画) && CharAnim.有动画(效果.具体动画)) { CharAnim.PlayNamed(效果.具体动画); return; }
         var 池 = 选择池(效果);
         // 情绪表达：心情好/糟时优先用该池的对应变体（如 think-happy / think-poor、摸头用 interact-happy）。
-        // 该池没有这个变体就退回池内随机 —— 不硬造。
-        var 变体 = 情绪变体(池);
-        if (变体.Length > 0)
-        {
-            var 精确 = $"{池}-{变体}";
-            if (CharAnim.有动画(精确)) { CharAnim.PlayNamed(精确); return; }
-            // 组变体（如 idle-happy-1/2/3）：该档位对应的是一组时，按 `{池}-{档}-` 前缀随机取一条
-            var 组 = Main.显示人物?.动画池字典.GetValueOrDefault(池)?
-                .FindAll(x => x.name.StartsWith($"{精确}-", StringComparison.Ordinal));
-            if (组 is { Count: > 0 }) { CharAnim.PlayNamed(组.列表随机项().name); return; }
-        }
+        // 该池没有这个变体就退回池内随机 —— 不硬造。（挑主名 与包裹段共用同一套挑法）
+        var 主名 = 挑主名(池);
+        if (主名 != null) { CharAnim.PlayNamed(主名); return; }
         CharAnim.PlayState(池);
     }
 

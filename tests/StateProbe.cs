@@ -21,6 +21,7 @@ public partial class StateProbe : Node
     public override void _Ready()
     {
         Main.探针_禁首启提示 = true;   // 确定性：首启问候气泡会顶状态（入场门/回 idle 断言），禁掉
+        StateMachine.探针_禁用包裹 = true;   // 本探针只测状态语义（即时切换）：包裹段（A/C 过渡）整体旁路——包裹段另有 WrapProbe
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());

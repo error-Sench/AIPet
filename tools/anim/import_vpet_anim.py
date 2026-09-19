@@ -24,7 +24,7 @@ from PIL import Image
 
 VPET = r"D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup"
 DST_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mods", "main_anim", "anim", "loris")
-REF = os.path.join(DST_ROOT, "idle/happy-1/00.png")   # 2026-09-20：idle 变体重命名为 {档}-{n} 后跟着更新
+REF = os.path.join(DST_ROOT, "idle/happy-1/000.png")   # 2026-09-20：idle 变体重命名 {档}-{n} 后跟着更新；注意帧名是 3 位（%03d），重导后会覆盖旧 2 位文件
 CANVAS = 512
 
 # 固定缩放（不用每段动画各自的包围盒高度来反推！）
@@ -54,10 +54,24 @@ SPEC = {
         ("nomal", [("Think/Nomal/B", None, None)]),
         ("happy", [("Think/Happy/B", None, None)]),
         ("poor", [("Think/PoorCondition/B", None, None)]),
+        # 2026-09-20 组①·过渡段：A=进入思考姿态 / C=退出（各 2 帧）。运行时按 `{主名}-a` / `{主名}-c`
+        # 解析（StateMachine「包裹段」：进入播 A → 循环 B → 退出播 C）——三档×2 共 6 个变体。
+        ("nomal-a", [("Think/Nomal/A", None, None)]),
+        ("nomal-c", [("Think/Nomal/C", None, None)]),
+        ("happy-a", [("Think/Happy/A_2", None, None)]),
+        ("happy-c", [("Think/Happy/C_2", None, None)]),
+        ("poor-a", [("Think/PoorCondition/A", None, None)]),
+        ("poor-c", [("Think/PoorCondition/C", None, None)]),
     ],
     "sleep": [
         ("loop", [("Sleep/B_Nomal", None, None)]),
         ("happy", [("Sleep/B_Happy", None, None)]),
+        # 2026-09-20 组①·过渡段：A=躺下入睡 / C=醒来起身（首尾与站姿衔接，逐帧看图核对过）。
+        # 主名 sleep-happy 的段按精确名命中；sleep-loop 的段用池级回退（sleep-a/sleep-c）。
+        ("a", [("Sleep/A_Nomal", None, None)]),
+        ("c", [("Sleep/C_Nomal", None, None)]),
+        ("happy-a", [("Sleep/A_Happy", None, None)]),
+        ("happy-c", [("Sleep/C_Happy", None, None)]),
     ],
     "greet": [
         ("amuse", [("IDEL/amusement_B", None, None)]),
@@ -68,6 +82,15 @@ SPEC = {
         ("self", [("Say/Self/B_1", None, None)]),
         ("serious", [("Say/Serious/B", None, None)]),
         ("shy", [("Say/Shy/B", None, None)]),        # P10：VPet 的害羞档（说话池第 4 个变体）
+        # 2026-09-20 组①·过渡段：A=进入说话姿态 / C=退出（与站姿衔接，逐帧看图核对过）。
+        ("smile-a", [("Say/Shining/A", None, None)]),
+        ("smile-c", [("Say/Shining/C", None, None)]),
+        ("self-a", [("Say/Self/A", None, None)]),
+        ("self-c", [("Say/Self/C", None, None)]),
+        ("serious-a", [("Say/Serious/A", None, None)]),
+        ("serious-c", [("Say/Serious/C", None, None)]),
+        ("shy-a", [("Say/Shy/A", None, None)]),
+        ("shy-c", [("Say/Shy/C", None, None)]),
     ],
     # 干活：VPet 的 WORK 图共 13 种（直播/学习/写字 已导）—— P10 补齐余下 10 种（Nomal 段，与既有三个同口径）。
     # 池内随机播 → 干活不再千篇一律。**VPet 的金钱/体力/心情收益一律不抄**（主人 2026-09-19）。
