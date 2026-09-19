@@ -25,6 +25,8 @@ public partial class StateMachine : Node
 {
     // —— 状态常量 ——
     public const string Idle = "idle";
+    /// <summary>生日彩蛋（VPet BDay 三段序列；config「生日」MM-dd 命中 → 入场完成后自动触发）。</summary>
+    public const string Bday = "bday";
     public const string Drag = "drag";
     public const string Interact = "interact";
     public const string Think = "think";
@@ -109,6 +111,8 @@ public partial class StateMachine : Node
         [PinchState] = new 状态效果 { 目标池 = "pinch", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
         // 气泡说话（P8）：**不锁定**（动作可被打断）+ 定时回 idle；真正的时长由 冒泡说话() 用「气泡显示秒」覆盖传入
         [BubbleTalk] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = false, 锁定 = false, 秒 = 4f },
+        // 生日彩蛋（2026-09-20 组①）：三段序列自管（A惊喜→B摇摆→C比心），播完回 idle
+        [Bday] = new 状态效果 { 目标池 = "bday", 兼容池 = "idle", 持续 = false, 锁定 = false, 秒 = 0f },
         // —— P10 ——（摸身体 / 转身 / 干活进出场；素材来源见 tools/README.md 池表）
         [InteractBody] = new 状态效果 { 目标池 = "interact_body", 兼容池 = "interact", 持续 = false, 锁定 = false, 秒 = 2.0f },
         [Turn] = new 状态效果 { 目标池 = "turn", 兼容池 = "interact_body", 持续 = false, 锁定 = false, 秒 = 1.6f },
@@ -126,6 +130,7 @@ public partial class StateMachine : Node
         [Interact] = ["interact-a", "interact-b", "interact-c"],
         [InteractBody] = ["interact_body-a", "interact_body-b", "interact_body-c"],   // P10：VPet Touch_Body（摸身体）
         [Turn] = ["turn-a", "turn-b", "turn-c"],                                       // P10：VPet Happy_Turn（被摸转身）
+        [Bday] = ["bday-a", "bday-b", "bday-c"],                                       // 2026-09-20 组①：VPet BDay（生日彩蛋）
     };
 
     private static string[] _当前序列;
@@ -716,7 +721,7 @@ public partial class StateMachine : Node
     /// </summary>
     private static string 情绪变体(string 池)
     {
-        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work")) return "";
+        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle")) return "";
         // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
         if (设置.三档状态启用)
             return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "" };
@@ -966,7 +971,15 @@ public partial class StateMachine : Node
         // 情绪表达：心情好/糟时优先用该池的对应变体（如 think-happy / think-poor、摸头用 interact-happy）。
         // 该池没有这个变体就退回池内随机 —— 不硬造。
         var 变体 = 情绪变体(池);
-        if (变体.Length > 0 && CharAnim.有动画($"{池}-{变体}")) { CharAnim.PlayNamed($"{池}-{变体}"); return; }
+        if (变体.Length > 0)
+        {
+            var 精确 = $"{池}-{变体}";
+            if (CharAnim.有动画(精确)) { CharAnim.PlayNamed(精确); return; }
+            // 组变体（如 idle-happy-1/2/3）：该档位对应的是一组时，按 `{池}-{档}-` 前缀随机取一条
+            var 组 = Main.显示人物?.动画池字典.GetValueOrDefault(池)?
+                .FindAll(x => x.name.StartsWith($"{精确}-", StringComparison.Ordinal));
+            if (组 is { Count: > 0 }) { CharAnim.PlayNamed(组.列表随机项().name); return; }
+        }
         CharAnim.PlayState(池);
     }
 

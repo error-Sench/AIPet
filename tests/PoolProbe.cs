@@ -41,6 +41,10 @@ public partial class PoolProbe : Node
         "turn-a", "turn-b", "turn-c",
         "interact-happy-a", "interact-happy-b", "interact-happy-c",
         "switch-up", "switch-down",
+        // 2026-09-20 组①：State 待机变体 / 爱心彩蛋 / 生日三段 / idle 三档（重命名后必须还在）
+        "fidget-state-one", "fidget-state-two", "fidget-happy520",
+        "idle-happy-1", "idle-nomal-1", "idle-poor-1",
+        "bday-a", "bday-b", "bday-c",
     ];
 
     public override void _Ready()

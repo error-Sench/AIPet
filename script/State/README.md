@@ -353,7 +353,7 @@ StateMachine.EnqueueChain(
 | 项 | 做法 |
 |---|---|
 | **摸身体** | 单击部位分流：**脸区优先**（捏脸那套）→ 身体区（`HitRegion` 公共命中判定；比例由官方 `.lps` 的 `touchbody: px166 py206 sw163 sh136` 换算）→ 都不中当摸头。头 = `interact` 序列；身体 = `interact_body` 序列；**30% 概率**改成 `turn`（转身躲一下）|
-| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。开着时 `情绪变体()` **手动档位生效**（开心→happy / 不良→poor / 普通→不带变体）；关着时池内随机。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）|
+| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。开着时 `情绪变体()` **手动档位生效**（开心→happy / 不良→poor / 普通→不带变体）；关着时池内随机。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）。**2026-09-20 组①：`idle` 也纳入择档**（`idle-happy-1..3` / `idle-nomal-1..3` / `idle-poor-1..2`——档位对应一组时按 `{池}-{档}-` 前缀随机取一条）|
 | **走路快慢** | 快/慢 = 三档档位（VPet 里 faster=Happy、slow=PoorCondition）：动画 `walk-{方向}[-fast|-slow]` + 位移速度 ×1.35 / ×0.72（同步，避免滑步；三档默认关 = 常速）|
 | **干活进出场** | `开始干活()` → `work_in`（`switch-up`）→ **自动回落** working；`结束干活()` → `work_out`（`switch-down`）→ idle。`状态效果` 新增两个字段：`具体动画`（一个池服务多个状态时钉死播哪个）与 `回落`（非持续态到点回落到哪，默认 idle）|
 | **摸头高兴档** | 序列也支持换档：`播放序列段()` 会用 `情绪变体(池)` 把 `interact-a` 换成 `interact-happy-a`（素材在才换，不硬造）|
@@ -362,6 +362,19 @@ StateMachine.EnqueueChain(
 → 修法：`冒泡说话()` 加闸门 `if (排队中) return;` —— **气泡照显，说话动作让位给交互反应**。
 
 **验证**：`tests/TouchProbe`（17 断言：命中区纯函数 / 部位分流（轮询等排队反应）/ 三档四种情形 / 干活进出场四步）；`tests/PoolProbe` 加了 4 个新状态 + 31 个新动画的存在性核对。
+
+### 2026-09-20 待机扩充（组①：State 坐/躺 + idle 三档 + 彩蛋）
+
+来源：VPet 素材盘点（子 Agent 全量对比），主人拍板「组①②全做 + 组③只做 Music」（Music 待做）。SPEC 见 `tools/anim/import_vpet_anim.py`（含逐帧看图核对结论）。
+
+| 项 | 做法 |
+|---|---|
+| **State 待机变体** | VPet `StateONE`=坐下待机 / `StateTWO`=躺下休息。原件是「A 进入 → B 循环（加权停留，还能 ONE↔TWO 互转）→ C 退出」的待机链（`MainDisplay.cs`）——**简化为一次过**：A+B_1+B_2+C 拼成一条，作为 `fidget` 变体随机冒（`fidget-state-one` 28帧 / `fidget-state-two` 16帧）|
+| **idle 三档** | 补 `Default/{Nomal,PoorCondition}` → `idle-nomal-1..3` / `idle-poor-1..2`（原 idle/1..3 重命名为 `idle-happy-1..3`）；`情绪变体("idle")` 入择档名单，档位对应**一组**时按前缀随机取一条（`应用表现` 的组变体分支）|
+| **爱心彩蛋** | `fidget-happy520`（VPet `IDEL/happy_like520`，连串比心 31帧）→ 进 fidget 随机池 |
+| **生日彩蛋** | `bday` 池三段 + 新状态 `Bday`（`序列表` = bday-a→b→c，播完回 idle）；触发 = `config/config.json` 的「生日」（MM-dd）命中当天 → 入场完成后播一遍 + 一句祝福（`phrases.json` 新分类「生日」）|
+
+**验证**：`tests/PoolProbe`（新素材 12 个存在性）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle 全链路）。
 
 ### 气泡说话（P8）
 

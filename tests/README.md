@@ -44,7 +44,8 @@
 | `SettingsProbe` | **非 headless** | 配置窗真实几何 + 把窗口画面存 PNG 供视觉复核 |
 | `EnterProbe` | **非 headless** | 抓启动头几秒的窗口画面，核实「登场动画有没有播、有没有被抢断」 |
 | `WalkProbe` | **非 headless** | 自主走动是否真的触发、窗口 X 是否真的移动（**必须非 headless**：headless 下屏幕/窗口尺寸为 0，`尝试走动` 会直接放弃） |
-| `PoolProbe` | headless | 6 个语义池是否真的播出对应动画（断言没有回退到兼容池 fidget/idle/celerate） |
+| `PoolProbe` | headless | 6 个语义池是否真的播出对应动画（断言没有回退到兼容池 fidget/idle/celerate）+ 新素材存在性核对（P10 + 2026-09-20 组①，共 40 个动画） |
+| `BirthdayProbe` | headless | 生日彩蛋全链路：把「生日」覆写成今天（不碰真实 config）→ 入场完成后自动进 `bday` 三段序列 → 逐段推进（模拟播完）→ 回 idle |
 | `InteractProbe` | headless | 摸摸反应是否**完整播放三段序列**（a 进入 → b 保持 → c 退出 → 回待机），且各段耗时与素材原时长一致 |
 | `HistoryProbe` | headless | 会话恢复回放的历史是否被切成**独立消息**（不再合并成一大段）。会真实连接 Agent |
 | `DragProbe` | **非 headless** | 桌宠贴近**屏幕上边缘**时仍能起手拖拽、窗口精确跟随光标（真实光标 + 注入按键；结束会恢复窗口与光标位置） |

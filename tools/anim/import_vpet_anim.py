@@ -24,7 +24,7 @@ from PIL import Image
 
 VPET = r"D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup"
 DST_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mods", "main_anim", "anim", "loris")
-REF = os.path.join(DST_ROOT, "idle/1/00.png")
+REF = os.path.join(DST_ROOT, "idle/happy-1/00.png")   # 2026-09-20：idle 变体重命名为 {档}-{n} 后跟着更新
 CANVAS = 512
 
 # 固定缩放（不用每段动画各自的包围盒高度来反推！）
@@ -37,6 +37,19 @@ CANVAS = 512
 # 池 -> [(变体, [片段, ...]), ...]；片段 = (源叶子相对路径, 起帧序号|None, 止帧序号|None)
 # 语义说明：Touch_Head/Touch_Body 是「被摸的反应」→ interact；greet 用开心姿势（VPet 无专门打招呼动作）
 SPEC = {
+    # 待机（核心池）：VPet Default 三档 —— 1/2/3 = Happy 档三条（原来导入为 idle/1..3）。
+    # 2026-09-20 组①：补 Nomal/Poor 档并对齐三档系统 —— 变体命名 `{档}-{n}`（idle-happy-1 / idle-nomal-1 / idle-poor-1 …），
+    # 三档=开心/不良时 StateMachine 按 `idle-{档}-` 前缀随机取一条（普通/关闭 = 池内随机混演，与 think 等池同口径）。
+    "idle": [
+        ("happy-1", [("Default/Happy/1", None, None)]),
+        ("happy-2", [("Default/Happy/2", None, None)]),
+        ("happy-3", [("Default/Happy/3", None, None)]),
+        ("nomal-1", [("Default/Nomal/1", None, None)]),
+        ("nomal-2", [("Default/Nomal/2", None, None)]),
+        ("nomal-3", [("Default/Nomal/3", None, None)]),
+        ("poor-1", [("Default/PoorCondition/1", None, None)]),
+        ("poor-2", [("Default/PoorCondition/2", None, None)]),
+    ],
     "think": [
         ("nomal", [("Think/Nomal/B", None, None)]),
         ("happy", [("Think/Happy/B", None, None)]),
@@ -142,6 +155,17 @@ SPEC = {
         ("bubbles", [("IDEL/Bubbles/B", None, None)]),
         ("boring",  [("IDEL/Boring/B_Nomal", None, None)]),
         ("aside",   [("IDEL/aside/Nomal/B", None, None)]),
+        # 2026-09-20 组①：
+        # State 待机变体 —— VPet StateONE=坐下待机 / StateTWO=躺下休息（逐帧看图核对过：
+        # A=进入过渡、B=循环微动、C=退出过渡）。VPet 原件是加权待机链（MainDisplay.cs：B 循环到
+        # looptimes>GetDuration 才退出，还能 ONE↔TWO 互转）——我们简化为**一次过**：
+        # A + B_1 + B_2 + C 顺序拼成一条（B 只走一遍），当 fidget 小动作随机冒一下。
+        ("state-one", [("State/StateONE/A_Nomal", None, None), ("State/StateONE/B_Nomal/1", None, None),
+                       ("State/StateONE/B_Nomal/2", None, None), ("State/StateONE/C_Nomal", None, None)]),
+        ("state-two", [("State/StateTWO/A_Nomal", None, None), ("State/StateTWO/B_Nomal", None, None),
+                       ("State/StateTWO/C_Nomal", None, None)]),
+        # IDEL 彩蛋：一连串比心/爱心（VPet happy_like520）。
+        ("happy520", [("IDEL/happy_like520", None, None)]),
     ],
     "edge_hide": [
         ("left-in",     [("SideHide_Left_Main/Nomal/A", None, None)]),
@@ -158,6 +182,13 @@ SPEC = {
         ("right-peek",  [("SideHide_Right_Rise/Nomal/A", None, None)]),
         ("right-rise",  [("SideHide_Right_Rise/Nomal/B", None, None)]),
         ("right-unpeek",[("SideHide_Right_Rise/Nomal/C", None, None)]),
+    ],
+    # 生日彩蛋（2026-09-20 组①）：VPet BDay —— A(惊喜进入) → B(开心摇摆 ~5.6s) → C(比心退出)。
+    # 触发：config/config.json 的「生日」（MM-dd）命中当天 → 入场完成后播一遍（Main 接线）。
+    "bday": [
+        ("a", [("BDay/A", None, None)]),
+        ("b", [("BDay/B", None, None)]),
+        ("c", [("BDay/C", None, None)]),
     ],
 }
 

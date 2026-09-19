@@ -37,6 +37,9 @@ public partial class Main:Node
 
 	/// <summary>探针用：禁掉首启问候（headless 探针要确定性，别让欢迎气泡插进来）。</summary>
 	public static bool 探针_禁首启提示;
+
+	/// <summary>探针用：覆写「生日」（MM-dd）——隔离测试，不碰 config。</summary>
+	public static string 探针_生日覆写;
 	public override void _Ready()
 	{
 		_单例 = this;
@@ -57,6 +60,18 @@ public partial class Main:Node
 		{
 			GD.Print($"[AIPet] 首次运行：数据目录 = {ProjectSettings.GlobalizePath("user://")}");
 			StateMachine.入场完成后 += () => Dialogue.显示临时标题($"初次见面，我是{NameTable.当前名字}～右键我 → 配置，能看到我的数据都存在哪");
+		}
+
+		// 生日彩蛋（一年一次）：config/config.json 的「生日」= MM-dd；命中当天 → 入场完成后播一遍 BDay 序列
+		var 生日 = 探针_生日覆写 ?? 配置信息字典.GetValueOrDefault("生日", "");
+		if (生日.Length == 5 && 生日 == DateTime.Now.ToString("MM-dd"))
+		{
+			GD.Print($"[AIPet] 生日命中（{生日}）→ 入场后播 BDay 彩蛋");
+			StateMachine.入场完成后 += () =>
+			{
+				StateMachine.SetState(StateMachine.Bday);
+				if (Soul.PhraseTable.有("生日")) Dialogue.显示临时标题(Soul.PhraseTable.取("生日"));
+			};
 		}
 
 		ModLoader.加载模组();

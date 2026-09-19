@@ -98,7 +98,7 @@ D:/Games/Github/AIPet/
 │   ├── Mode/              #   模式层：办公/游戏接口
 │   ├── Game/              #   ★ 游戏模式：横板动作玩法（开发区，见 script/Game/README.md）
 │   └── Audio/ UX/ Steam/ Util/ Asset/    # 语音 / 界面与动画 / Steam / 工具 / 图标
-├── tests/                 # 回归探针（36 个场景；跑法与清单见 tests/README.md）
+├── tests/                 # 回归探针（37 个场景；跑法与清单见 tests/README.md）
 ├── tools/                 # ★ 开发工具（不参与运行、不随包发布）
 │   ├── anim/              #   动画资产导入（VPet → mods/main_anim）
 │   ├── package.sh         #   打包（构建→导出→组装→打 zip）
