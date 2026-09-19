@@ -17,6 +17,8 @@ mono_crash.*.json
 
 # 开发工具产物（勿入库）
 .vs/
+# git worktree（并行会话副本；Hermes 等工具用，勿入库）
+.worktrees/
 *.old
 *.old.*
 
