@@ -3,7 +3,7 @@
 """AIPet 桌宠 · MCP 工具（stdio 服务）—— 让 Agent 读实时上下文、下结构化指令。
 
 两个工具：
-- `pet_context`（读）：调用即**当场读盘**组装（人格 / 数值 / 画像 / 记忆 / 事件池 / 指令说明），
+- `pet_context`（读）：调用即**当场读盘**组装（数值 / 画像 / 记忆 / 事件池 / 指令说明），
   永远是最新状态——桌宠「不做主动注入」，读取靠 Agent 自己发起。
 - `pet_command`（写）：把一条指令写进桌宠的收件箱 `user://actions.jsonl`，等桌宠轮询执行并写回执，
   再把**真实执行结果**（✓ / ✗ + 原因）返回。正文里不再需要嵌指令块（那是没有 MCP 时的兼容通道）。
@@ -152,7 +152,6 @@ def build_context():
         return ("（找不到 AIPet 的数据目录：桌宠至少运行过一次吗？"
                 "也可以用环境变量 AIPET_DATA 指向 `%APPDATA%/Godot/app_userdata/AIPet`。）")
 
-    soul = read_text(os.path.join(data_dir, "soul", "soul.md"), "（soul.md 还没有内容）")
     profile = read_text(os.path.join(data_dir, "soul", "profile.md"), "（还没有建立画像）")
     memory = read_tail_lines(os.path.join(data_dir, "soul", "memory.jsonl"), 12)
     stats = read_json(os.path.join(data_dir, "state", "stats.json"))
@@ -166,17 +165,12 @@ def build_context():
     out.append("")
     out.append(f"> 本内容为 {now} 当场从磁盘读取 —— **永远是最新**（不是缓存快照、不受刷新节奏影响）。")
     out.append(f"> 数据目录：`{data_dir}`")
-    out.append("> 源文件：`soul/soul.md`（人格，主人/你写）· `state/stats.json`（主人情绪读数，程序写、你经 set_mood 更新）· `soul/profile.md`（画像，你写）·")
+    out.append("> 源文件：`state/stats.json`（主人情绪读数，程序写、你经 set_mood 更新）· `soul/profile.md`（画像，你写）·")
     out.append("> `soul/memory.jsonl`（记忆，你写）· `events.jsonl`（事件池，程序写 + 你追加 ack）")
     out.append("")
     out.append("## 主人情绪读数（stats.json）")
     out.append(f"- mood {mood}/100 —— {mood_word(mood)}（0–100，中性 50；由**你**判断后经 set_mood 写入，程序只做衰减）")
-    out.append("- 它**只影响你的回复策略**（怎么回应主人），不参与互动、不驱动动画；改它不会改变桌宠的人格。")
-    out.append("")
-    out.append("## 人格（soul.md 全文）")
-    out.append("```")
-    out.append(soul)
-    out.append("```")
+    out.append("- 它**只影响你的回复策略**（怎么回应主人），不参与互动、不驱动动画。")
     out.append("")
     out.append("## 用户画像（profile.md）")
     out.append("```")
@@ -273,7 +267,7 @@ TOOLS = [
     {
         "name": "pet_context",
         "description": (
-            "读取 AIPet 桌宠的最新上下文：人格、主人情绪读数（mood）、用户画像、最近记忆、"
+            "读取 AIPet 桌宠的最新上下文：主人情绪读数（mood）、显示名、用户画像、最近记忆、"
             "待处理事件、最近事件与指令通道说明。每次调用都当场读盘，永远是最新状态。"
             "需要了解桌宠、准备下发指令、或处理它的事件池时调用。"
         ),

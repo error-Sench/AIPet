@@ -48,7 +48,7 @@ public partial class SettingsWindow : Window
     private PanelContainer _标题底;
     private TabContainer _页签;
     private OptionButton _语言框;
-    private readonly List<string> _语言代码 = new();
+    private readonly List<string> _语言代码 = new();   // 语言下拉的代码表（名字在 config/config.json，程序里没有改名件）
     private readonly List<Button> _路径按钮 = new();
     private readonly List<Func<string>> 目录取路径 = new();
     private readonly List<string> _行为键 = new();

@@ -22,7 +22,7 @@
 | 层 | 能力 |
 |---|---|
 | **身体** | 状态机自主行为：待机小动作、自主走动、打瞌睡、打招呼、被摸摸（三段动画）、**贴边隐藏**（拖到屏幕边缩进去、鼠标靠近探出；判据与对齐方式对照 VPet 官方源码实现）|
-| **灵魂** | `soul.md` 人格文件（改文件即改性格，显示名取自 frontmatter 的 `name`）+ 数值层（**主人情绪读数 mood**：LLM 判断 → `set_mood` 写入；只影响回复策略，不加入互动）|
+| **灵魂** | 人格**不落程序**：随包内化材料（`dist/AIPet-SOUL.md`）+ skill → Agent 读一次、写进自己的人设；程序只存动态数据（**主人情绪读数 mood** + 名字，显示名缺省「萝莉丝」）|
 | **记忆** | `profile.md` 用户画像 + `memory.jsonl` 记忆流水（**由 Agent 自己写**）+ 事件池 `events.jsonl`（行为日志 + 待 Agent 处理的事件）|
 | **能力** | ACP 协议接外部 Agent（Hermes 实测打通）：流式对话、会话恢复、**指令通道**（Agent 用 MCP 工具 `pet_command` 或 ` ```pet ` 围栏块指挥桌宠：set_state / speak / play_anim / set_mode / queue_chain / set_mood …）|
 | **感知** | 环境感知（**默认关**）：只读「键鼠空闲秒数」与「前台是否全屏」→ 全屏静默、离开/回来打招呼、久坐提醒 |
@@ -34,7 +34,7 @@
 1. **运行**：解压到**可写目录**（不要放 `Program Files`）→ 双击 `MagicPet.exe`。
    详见 [`document/新用户上手.md`](document/新用户上手.md)。
 2. **接上你自己的 Agent**（推荐）：编辑 `config/agent.json` 的 `backend` / `executable`。
-3. **改人格**：编辑数据目录里的 `soul/soul.md`（右键桌宠 → 配置 → 「数据」可直接打开数据目录）。
+3. **改人格**：跟你的 Agent 说（人格在它自己的内化里）；**改名字**：改 `config/config.json` 的「名字」（缺省「萝莉丝」）。
 4. **交出 skill**：把 `dist/skill/SKILL.md` 给你自己的 Agent（Claude Code / Hermes / Codex…），
    它就会按约定自主读数据、写记忆、用指令通道指挥桌宠 —— 见 [`dist/README.md`](dist/README.md)。
 

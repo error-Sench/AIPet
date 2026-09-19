@@ -21,7 +21,7 @@
 
 | 想知道什么 | 看哪 |
 |---|---|
-| 灵魂层：`soul.md` 结构、思维范式、数值层（mood=主人情绪读数）、数值可视化 | `script/Soul/README.md` |
+| 灵魂层：人格内化（程序不保存）、数值层（mood=主人情绪读数）、名字、数值可视化 | `script/Soul/README.md` |
 | 身体层：状态效果表、交互时序、自主行为节律、环境感知（P6） | `script/State/README.md` |
 | 界面层：面板群（聊天/工具栏/配置/状态窗）、窗口铁律、动画池机制、云母样式 | `script/UX/README.md` |
 | 能力层：ACP 客户端、AgentBridge、指令通道协议、白名单与安全边界、人格与数据的获取方式（**Agent 自主读取，不做注入**） | `script/Agent/README.md` |
@@ -40,10 +40,10 @@
 
 | 层 | 职责 | 状态 |
 |---|---|---|
-| **灵魂层** | 维护三张持久化的**灵魂表**（人格 / 记忆 / 状态），一切「我」的数据源 |  核心 → `script/Soul/README.md` |
+| **灵魂层** | 人格（内化进 Agent，不落程序）+ 动态数据（记忆 / 数值 / 名字 / 画像） |  核心 → `script/Soul/README.md` |
 | **身体层** | **状态机 + 行为链**：驱动动画、反馈、表现 |  核心 → `script/State/README.md` |
 | **模式层** | 办公 / 游戏**一体**：桌宠本体即游戏的一部分，无缝切换、进度保留；游戏玩法留接口待扩展 | 🆕 接口 → `script/Mode/README.md` |
-| **关系层** | 亲密度 / 养成 / 专属感 |  空置，占位不实现（`soul.md` 中 `# 关系` 节保留为空） |
+| **关系层** | 亲密度 / 养成 / 专属感 |  空置，占位不实现 |
 | **行为层** | 现有交互：右键菜单、拖拽、剪贴板、语音关键词 | 🔒 维持现状（`mods/` + `ModLoader` 管线不动） |
 | **能力层** | Agent 接入（理解/决策/生成）+ 外部工具链（确定性/高频/本地操作）双路 | 核心 → `script/Agent/README.md` |
 
@@ -56,7 +56,7 @@
 行为层(现有交互) ──► 能力层(Agent/Hermes 桥或本地工具链)
                           │ 响应: 文本 + 命令
                           ▼
-                   灵魂层(读写表: 记忆/状态)
+                   灵魂层(读写: 记忆/数值/名字)
                           │
                           ▼
                    身体层(状态机+行为链) ──► 动画/气泡/TTS
@@ -93,7 +93,7 @@ D:/Games/Github/AIPet/
 │   ├── Logic/             #   总控与数据流（Main / IO / FileDrop / ClipboardRead…）
 │   ├── Loader/            #   加载管线（ModLoader / AnimLoader / CommandLoader…）
 │   ├── State/             #   身体层：状态机 + 环境感知
-│   ├── Soul/              #   灵魂层：人格读取 + 数值统计
+│   ├── Soul/              #   灵魂层：数据接口（数值/名字/上下文）
 │   ├── Agent/             #   能力层：后端抽象 + ACP 客户端 + 桥
 │   ├── Mode/              #   模式层：办公/游戏接口
 │   └── Audio/ UX/ Steam/ Util/ Asset/    # 语音 / 界面与动画 / Steam / 工具 / 图标
@@ -104,7 +104,7 @@ D:/Games/Github/AIPet/
 │   ├── run_probes.sh/.ps1 #   一键回归
 │   └── install_edge_tts.ps1   # Edge 语音依赖安装
 ├── document/              # 项目文档（plan / idea / 打包审计 / 隐私模型 / 新用户上手）
-├── dist/                  # 对外交付物（skill + 灵魂模板 + 用户 README）
+├── dist/                  # 对外交付物（skill + 人格内化材料 + 用户 README）
 ├── licenses/              # 第三方许可
 ├── addons/                # Godot 插件（dialogue_manager）
 └── font/ icon/            # Godot 素材（字体 / 菜单图标；原项目）
@@ -120,7 +120,7 @@ D:/Games/Github/AIPet/
 
 ## 7. 实现顺序建议（路线图）
 
-1. **SoulTable.cs**：读取人格文件 `soul.md`（**只读不推**：不做注入，见 §9 硬规则）（基础，无依赖）。
+1. **灵魂层数据接口**：`StatsTable`（主人情绪读数）+ `NameTable`（显示名，读 `config/config.json`）+ `ContextTable`（上下文接口）——**人格不落程序**（内化进 Agent，见 §9 硬规则）。
 2. **ModeManager.cs**：双模式接口 + 进度存取桩（轻量，先钉住模式层）。
 3. **CharAnim.cs** ✅ 已加 `PlayState(string)` 公开入口（状态机的地基）。
 4. **StateMachine.cs（含行为链）**：接现有动画，接 `set_state/speak/play_anim/queue_chain`。
@@ -137,7 +137,7 @@ D:/Games/Github/AIPet/
 - **.uid 文件**：新增 `.cs` 后，必须在 Godot 编辑器打开项目一次生成 `.cs.uid`，否则导入失败。
 - **验证闭环**：改代码 → `dotnet build`（路径见下）→ Godot 编辑器运行 → `get_debug_output` 查错。
 - **不破坏行为层**：`mods/` 结构与 `ModLoader` 管线是现有用户资产，默认只加不改。
-- **游戏属性一体**：办公与游戏不严格隔离，办公行为可挂 `Game` 分支作游戏内容；游戏进度不入灵魂表（归 ModeManager/GameSession）。
+- **游戏属性一体**：办公与游戏不严格隔离，办公行为可挂 `Game` 分支作游戏内容；游戏进度不入数据文件（归 ModeManager/GameSession）。
 - **git**：提交前 `git status` 自查；`.godot/` 等构建缓存不提交。
 
 ```
@@ -153,12 +153,13 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 - `desktop.csproj` 的 SDK 已由 Godot 4.7.2 编辑器自动从 `4.5.1` 升级为 `4.7.2`（用户无手动改动；编辑器打开即自动改写）。**保留**该改动——本地引擎是 4.7.2，还原后打开又会被升回。
 - 架构图参考：`D:/Games/Github/ACPPet-架构图.html`（旧名文件，内容对应本项目）。
 - 骨架文件（`script/Soul/`、`script/State/`、`script/Agent/`、`script/Mode/`）已建，均为桩/TODO，待按此文档实现。
-- 灵魂职责已重新定义为「人格 prompt 资产」：数值归 `state/stats.json`，用户画像归 `soul/profile.md`，记忆流水归 `soul/memory.jsonl`，三者独立于 soul.md。
+- 灵魂职责已重新定义为「人格 prompt 资产」，且**人格不落程序**（主人四次强调，2026-09-20 定稿）：人格经 skill **一次性内化**进 Agent 自己；程序只存动态数据——数值归 `state/stats.json`、画像归 `soul/profile.md`、记忆流水归 `soul/memory.jsonl`；显示名是配置值（`config/config.json` 的「名字」，缺省「萝莉丝」）。
 - **数值语义（2026-09-20 主人定）**：`mood` = 主人情绪读数（LLM 判断 → `set_mood` 写入；程序只做衰减与存储，每 30s 向中性 50 回 5 点），**只影响回复策略、不加入互动**；精力/亲密属 mod 扩展（亲密归空置的关系层）。
-- **人格与数据的获取方式 = Agent 自主读取（硬规则，主人三次强调 2026-09-16 定稿）**：桌宠**不做任何主动注入**——
-  不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **灵魂模板**（结构）+ **skill**（用户提交给自己的 Agent），
-  **skill 是一次性内化文档**：Agent 读一次 → 先问主人「我叫什么？」→ 把「桌宠的职责与互动」写进自己的人设（自主注入），之后不必再读 skill、按需读数据文件。skill 与模板**在项目完工时定稿**（P8）。
-- **上下文组装照做，形态是接口**：`ContextTable` 把「人格 + 数值 + 画像 + 最近记忆 + 指令通道 + 源文件路径」组装成 `user://context.md`（**只在启动 + 事件池变动时**刷新——数值漂移不触发；文件头标只读）；
+- **人格与数据的获取方式（硬规则；主人 2026-09-16 三次强调 + 2026-09-20 第四次补充）**：桌宠**不做任何主动注入**——
+  不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **人格内化材料**（结构 + 示例）+ **skill**（用户提交给自己的 Agent），
+  **skill 是一次性内化文档**：Agent 读一次 → 先问主人「我叫什么？」→ 把「桌宠的职责与互动」写进自己的人设（自主注入），之后不必再读 skill、按需读**动态数据**文件。
+  **人格不落程序**：程序侧不保存、不供读人格文件（`SoulTable` 已删除）；显示名 = 配置值（`config/config.json`）。skill 与材料**在项目完工时定稿**（P8）。
+- **上下文组装照做，形态是接口**：`ContextTable` 把「数值 + 名字 + 画像 + 最近记忆 + 待处理事件 + 指令通道 + 动态文件路径」组装成 `user://context.md`（**只在启动 + 事件池变动时**刷新——数值漂移不触发；文件头标只读）；
   另有 **MCP 工具 `pet_context`**（`dist/aipet-mcp/`，Agent 调用即当场读盘、永远最新）。
   Agent **读这一份就够**、不必到处翻文件；要深挖再顺路径去读源文件。
 

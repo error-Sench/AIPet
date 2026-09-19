@@ -8,12 +8,12 @@ namespace desktop.script.Soul;
 /// <summary>
 /// 上下文接口（**Agent 自主读取**，我们不做主动推送 —— 见 `script/Soul/README.md` 硬规则）。
 /// <para>
-/// 桌宠把「人格 + 数值 + 画像 + 最近记忆 + 指令协议」组装成**一份文件**写到磁盘：`user://context.md`。
+/// 桌宠把「数值 + 画像 + 最近记忆 + 待处理事件 + 指令协议」组装成**一份文件**写到磁盘：`user://context.md`。
 /// Agent 想了解桌宠时**读这一个文件就够了**，不必到处翻目录；要深挖再顺着文件里给的路径去读源文件。
 /// </para>
 /// <para>
 /// 分工（重要）：**源文件各由负责方写** —— 数值由程序写、画像/记忆由 Agent 自己写；
-/// 本文件是**只读视图**（下次生成会覆盖，Agent 不要改这里）。
+/// 本文件是**只读视图**（下次生成会覆盖，Agent 不要改这里）。**不含人格**——人格由 Agent 经 skill 一次性内化。
 /// </para>
 /// </summary>
 public static class ContextTable
@@ -29,6 +29,7 @@ public static class ContextTable
     public static string 上下文路径 => string.IsNullOrEmpty(探针_上下文覆写)
         ? ProjectSettings.GlobalizePath($"user://{上下文文件名}") : 探针_上下文覆写;
     public static string 数值路径 => ProjectSettings.GlobalizePath("user://state/stats.json");   // §2.2：数值放 state/ 子目录
+    // 名字不是动态数据：它是配置值（config/config.json 的「名字」），Agent 不用读
     public static string 画像路径 => string.IsNullOrEmpty(探针_画像覆写) ? ProjectSettings.GlobalizePath("user://soul/profile.md") : 探针_画像覆写;
     public static string 记忆路径 => string.IsNullOrEmpty(探针_记忆覆写) ? ProjectSettings.GlobalizePath("user://soul/memory.jsonl") : 探针_记忆覆写;
 
@@ -76,8 +77,7 @@ public static class ContextTable
         sb.AppendLine("# 桌宠上下文（给 Agent 读取）");
         sb.AppendLine();
         sb.AppendLine($"> 桌宠程序自动生成 · {DateTime.Now:yyyy-MM-dd HH:mm:ss} · **本文件只读**：下次生成会覆盖，别在这里写东西。");
-        sb.AppendLine("> 想深挖就顺着这些路径去读源文件（哪个文件归谁写也标了）：");
-        sb.AppendLine($"  - 人格 soul.md → `{SoulTable.FilePath}`（主人 / 你）");
+        sb.AppendLine($"> 想深挖就顺着这些路径去读源文件（哪个文件归谁写也标了）：");
         sb.AppendLine($"  - 情绪读数 stats.json → `{数值路径}`（程序写；值由你经 set_mood 更新）");
         sb.AppendLine($"  - 用户画像 profile.md → `{画像路径}`（**你写**）");
         sb.AppendLine($"  - 记忆流水 memory.jsonl → `{记忆路径}`（**你写**）");
@@ -88,13 +88,6 @@ public static class ContextTable
         sb.AppendLine("## 主人情绪读数（stats.json）");
         sb.AppendLine($"- mood {StatsTable.心情整}/100 —— {StatsTable.当前心情文字}（0–100，中性 50；由**你**判断后经 set_mood 写入，程序只做衰减）");
         sb.AppendLine("- 它**只影响你的回复策略**（怎么回应主人），不参与互动、不驱动动画；改它不会改变桌宠的人格。");
-        sb.AppendLine();
-
-        // —— 人格 ——
-        sb.AppendLine("## 人格（soul.md 全文）");
-        sb.AppendLine("```");
-        sb.AppendLine(string.IsNullOrWhiteSpace(SoulTable.RawText) ? "（soul.md 还没写内容）" : SoulTable.RawText.TrimEnd());
-        sb.AppendLine("```");
         sb.AppendLine();
 
         // —— 画像 ——

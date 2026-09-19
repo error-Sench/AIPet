@@ -180,6 +180,8 @@ public partial class StateMachine : Node
         GD.Print("[StateMachine] 入场完成 → 启动招呼");
         启动招呼();
         DailyRoutine.启动问候();   // 主人定的口径：每次启动打一次招呼（话由 config/phrases.json 定）
+        入场完成后?.Invoke();
+        入场完成后 = null;   // 一次性：入场只完成一次，回调也只用一次
     }
 
     public override void _Process(double delta)
@@ -474,6 +476,9 @@ public partial class StateMachine : Node
 
     // ================= 心跳：自主行为 =================
 
+    /// <summary>入场完成后的一次性回调（首启提示等启动流程挂这里——**入场期间不许冒泡**，会顶状态、抢入场动画）。</summary>
+    public static event System.Action 入场完成后;
+
     private static bool _入场未完成 = true;
 
     private static void 心跳()
@@ -657,6 +662,7 @@ public partial class StateMachine : Node
     public static void 冒泡说话()
     {
         if (Instance == null || !设置.启用) return;
+        if (入场未完成_只读) return;   // 入场期间不抢表现（气泡照显；入场动画由 CharAnim 独占——首启提示实测会顶掉状态）
         if (排队中) return;   // 有排队中的交互反应 → 说话动作让位（气泡照显，但别用 SetState 把排队项冲掉——实测踩过）
         if (CurrentState != Idle && CurrentState != BubbleTalk) return;
         SetState(BubbleTalk, Math.Max(0.5f, UX.Dialogue.气泡显示秒));

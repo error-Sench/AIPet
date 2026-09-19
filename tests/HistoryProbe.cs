@@ -41,14 +41,15 @@ public partial class HistoryProbe : Node
         else if (_帧 == 1200) // ≈20s：回放已在 t≈10s 完成，留足余量
         {
             var 记录 = ChatBox.记录文本_只读;
-            var 小萝数 = System.Text.RegularExpressions.Regex.Matches(记录, "小萝").Count;
-            GD.Print($"[HS] 记录长度={记录.Length} 「小萝」出现次数={小萝数} 含分隔线={记录.Contains("以下为上次会话")}");
+            var 名字 = desktop.script.Soul.NameTable.当前名字;
+            var 桌宠数 = System.Text.RegularExpressions.Regex.Matches(记录, 名字).Count;
+            GD.Print($"[HS] 记录长度={记录.Length} 「{名字}」出现次数={桌宠数} 含分隔线={记录.Contains("以下为上次会话")}");
             GD.Print("[HS] ---- 记录原文（转义换行）----");
             GD.Print(记录.Replace("\n", "\\n"));
             GD.Print("[HS] ---- 结束 ----");
 
             断言(记录.Contains("以下为上次会话"), "历史区块有分隔提示");
-            断言(小萝数 >= 2, "历史里的多条助手回复被切成独立消息（「小萝」出现 ≥2 次）");
+            断言(桌宠数 >= 2, $"历史里的多条助手回复被切成独立消息（「{名字}」出现 ≥2 次）");
             断言(!记录.Contains("好西瓜"), "没有出现合并产物「好西瓜」");
             ChatBox.显示();
             GD.Print("[HS] ---- 记录原文（<NL>=换行）----");

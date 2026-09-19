@@ -1,3 +1,4 @@
+using desktop.script.logic;
 using desktop.script.State;
 using Godot;
 
@@ -19,6 +20,7 @@ public partial class StateProbe : Node
 
     public override void _Ready()
     {
+        Main.探针_禁首启提示 = true;   // 确定性：首启问候气泡会顶状态（入场门/回 idle 断言），禁掉
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());

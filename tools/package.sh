@@ -92,13 +92,13 @@ cp "$ROOT/VERSION" "$OUT_DIR/"
 cat > "$OUT_DIR/README.txt" <<TXTEOF
 AIPet $VER —— 解压即用
 重要：请放在**可写目录**（例如 D:\\AIPet），不要放进 Program Files —— 它要在自己旁边读写 mods/ config/。
-1) 双击 MagicPet.exe 启动桌宠（首次启动会生成人格与数据文件）。
-2) 数据位置：%APPDATA%\\Godot\\app_userdata\\AIPet\\（人格 soul/soul.md、数值 stats.json、
+1) 双击 MagicPet.exe 启动桌宠（首次启动会生成数据文件）。
+2) 数据位置：%APPDATA%\\Godot\\app_userdata\\AIPet\\（数值 state/stats.json、名字 state/name.json、
    上下文接口 context.md、事件 events.jsonl、画像 soul/profile.md、记忆 soul/memory.jsonl）。
 3) 退出：右键桌宠 → 退出。
 4) 想让它连上你自己的 Agent（推荐）：见 config/agent.json 与「新用户上手.md」。
 5) 语音：默认 Edge 在线语音（晓晓）；不想联网可在 config/tts.json 切「sapi」（Windows 自带）。
-6) 交付资料：AIPet-SOUL.md（人格模板与写法示例）· skill/（给你的 Agent 读一遍的说明）· aipet-mcp/（MCP 工具，可选）。
+6) 交付资料：AIPet-SOUL.md（人格内化材料与写法示例）· skill/（给你的 Agent 读一遍的说明）· aipet-mcp/（MCP 工具，可选）。
    想调配置窗大小：config/panel.json 的「配置窗宽 / 配置窗高」（缺省 500×375）。
 TXTEOF
 

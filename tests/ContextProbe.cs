@@ -62,13 +62,13 @@ public partial class ContextProbe : Node
 
         断言(文本.Contains("桌宠上下文（给 Agent 读取）"), "A1 有标题（一眼看出这是给 Agent 的接口文件）");
         断言(文本.Contains("本文件只读"), "A2 标明只读（下次生成会覆盖）");
-        断言(文本.Contains("soul.md") && 文本.Contains("state/stats.json") &&
+        断言(文本.Contains("state/stats.json") &&
             文本.Contains("profile.md") && 文本.Contains("memory.jsonl"),
-            "A3 四个源文件路径都在（想深挖顺着路径去读，不用到处翻）");
+            "A3 三个动态文件路径都在（情绪/画像/记忆；想深挖顺着路径去读）");
         断言(文本.Contains($"mood {StatsTable.心情整}/100") && 文本.Contains(StatsTable.当前心情文字),
             $"A4 主人情绪读数摘要 + 文字状态（{StatsTable.当前心情文字}）");
-        断言(文本.Contains(SoulTable.RawText.Trim()) || SoulTable.RawText.Trim().Length == 0,
-            "A5 人格全文（soul.md）已带进上下文");
+        断言(!文本.Contains("soul.md") && !文本.Contains("name.json"),
+            "A5 上下文不含人格段/名字——只给动态数据（人格经 Agent 一次性内化；名字是配置值）");
         断言(文本.Contains("## 最近记忆"), "A6 记忆段落存在");
         断言(文本.Contains("\"anim\"") && !文本.Contains("play_anim\",\"name"),
             "A7a 指令示例用对了键名（play_anim 的键是 anim，写 name 会被丢弃 —— 子 Agent 核对时抓到的）");

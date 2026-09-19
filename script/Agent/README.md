@@ -42,7 +42,7 @@
 
 > 主人三次强调的硬规则：桌宠**不推送**人格/数值/记忆（不拼消息、不写插件钩子、不改 system prompt），
 > 只把文件**放在磁盘上**；交付物是一份 **skill**，用户把它提交给自己的 Agent，Agent 按指引**自己来读**
-> `soul.md` / `state/stats.json` / `profile.md` / `memory.jsonl`（路径表见 `script/Soul/README.md`）。
+> `state/stats.json` / `profile.md` / `memory.jsonl`（路径表见 `script/Soul/README.md`；名字是配置值，不在数据目录）。
 
 保留的技术事实（供选型参考，**不作为我们的方案**）：
 

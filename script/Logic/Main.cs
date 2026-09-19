@@ -31,12 +31,19 @@ public partial class Main:Node
 	private static Main _单例;
 	public static 脚本信息 当前脚本;
 	public static bool 结束标题;
+
+	/// <summary>本次是否首次运行（数据目录还没建过）——_Ready 开头判定，供首启问候用。</summary>
+	private static bool 首启;
+
+	/// <summary>探针用：禁掉首启问候（headless 探针要确定性，别让欢迎气泡插进来）。</summary>
+	public static bool 探针_禁首启提示;
 	public override void _Ready()
 	{
 		_单例 = this;
 
+		// 首次运行判定（数据目录里还没有我们的画像文件）——必须在任何 user:// 写入之前判断
+		首启 = !Godot.FileAccess.FileExists("user://soul/profile.md");
 		LoadUtil.初始化();
-		SoulTable.Load();
 		Soul.PhraseTable.加载();       // 本地话语表（config/phrases.json；缺失走内置兜底）
 		UX.Dialogue.载入配置();        // 气泡显示时长（config/behavior.json 的 气泡显示秒；默认 4s）
 		Audio.Tts.载入配置();          // 语音输出（系统 TTS；不内置模型）
@@ -44,11 +51,12 @@ public partial class Main:Node
 		UX.NetSpeedBubble.启动恢复();      // 按上次开关状态恢复（入口＝工具栏「网速监控」；删/禁用 mod 即不再恢复）
 		ContextTable.确保数据文件();   // 画像/记忆两个数据文件（只创建、不覆盖）
 		ContextTable.生成();           // 上下文接口文件 user://context.md（Agent 自主读取，见 Soul/README.md 硬规则）
-		// 首启引导（打包审计 A7）：第一次运行（还没有人格文件）→ 说一声，并提示数据目录怎么找
-		if (!SoulTable.IsLoaded)
+		// 首启引导（打包审计 A7）：第一次运行 → 打一行日志，并在**入场完成后**说一声
+		// （入场期间冒泡会顶状态、抢入场动画 → 挂到入场门的一次性回调上）
+		if (首启 && !探针_禁首启提示)
 		{
 			GD.Print($"[AIPet] 首次运行：数据目录 = {ProjectSettings.GlobalizePath("user://")}");
-			Dialogue.显示临时标题($"初次见面，我是{SoulTable.名字}～右键我 → 配置，能看到我的数据都存在哪");
+			StateMachine.入场完成后 += () => Dialogue.显示临时标题($"初次见面，我是{NameTable.当前名字}～右键我 → 配置，能看到我的数据都存在哪");
 		}
 
 		ModLoader.加载模组();

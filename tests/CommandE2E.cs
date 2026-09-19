@@ -91,11 +91,11 @@ public partial class CommandE2E : Node
         CallDeferred(nameof(延迟断言));
     }
 
-    /// <summary>从历史富文本里抽出所有「小萝」气泡的正文（用于断言残留）。</summary>
+    /// <summary>从历史富文本里抽出所有桌宠气泡的正文（用于断言残留）。</summary>
     private static System.Collections.Generic.List<string> 助手消息(string 历史)
     {
         var 结果 = new System.Collections.Generic.List<string>();
-        const string 标记 = "[b]小萝[/b][/color] ";
+        var 标记 = $"[b]{desktop.script.Soul.NameTable.当前名字}[/b][/color] ";
         var i = 0;
         while ((i = 历史.IndexOf(标记, i, System.StringComparison.Ordinal)) >= 0)
         {

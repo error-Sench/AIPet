@@ -23,6 +23,7 @@ public partial class StatsWindow : Window
 
     private readonly List<(Label 值, System.Func<string> 取词, bool 占位)> _行 = new();
     private Label _概览;
+    private Label _标题标签;
 
     public static bool 存在 => _单例 != null;
 
@@ -91,9 +92,9 @@ public partial class StatsWindow : Window
         var 标题行 = new HBoxContainer();
         标题行.AddThemeConstantOverride("separation", 8);
         标题底.AddChild(标题行);
-        var 标题 = new Label { Text = "小萝的状态", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-        MicaTheme.应用(标题, 15);
-        标题行.AddChild(标题);
+        _标题标签 = new Label { Text = $"{Soul.NameTable.当前名字}的状态", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        MicaTheme.应用(_标题标签, 15);
+        标题行.AddChild(_标题标签);
         var 关闭 = new Button { Text = "×", TooltipText = "关闭", CustomMinimumSize = new Vector2(26, 24) };
         MicaTheme.应用(关闭, 16, 扁平: true);
         关闭.Pressed += 隐藏;
@@ -154,6 +155,7 @@ public partial class StatsWindow : Window
     {
         foreach (var (值, 取词, _) in _行) 值.Text = 取词();
         if (_概览 != null) _概览.Text = 概览文本();
+        if (_标题标签 != null) _标题标签.Text = $"{Soul.NameTable.当前名字}的状态";
     }
 
     /// <summary>一句话状态（只是描述读数，不替代人格说话）。</summary>
