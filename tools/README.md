@@ -67,13 +67,18 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 
 | 池 | 变体 | 帧数 | 说明 |
 |---|---|---|---|
-| `walk` | left / right | 6 + 6 | 走动（循环） |
+| `walk` | left / right / left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | 走动（**循环**）。P10：**快/慢 = 心情档**（VPet `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition），位移速度同步变（×1.35 / ×0.72，否则会滑步）|
 | `think` | nomal / happy / poor | 9×3 | 三档状态（对接 P5 情绪变体） |
-| `say` | smile / self / serious | 7/15/4 | 说话 |
-| `work` | pc / read / write | 14/12/10 | 干活 |
+| `say` | smile / self / serious / shy | 7/15/4/5 | 说话（P10 补 VPet `Say/Shy` 害羞档）|
+| `work` | pc / read / write / calligraphy / paint / study2 / sausage / clean / fixmenu / game / water / remove / rope | 5~31 | 干活（P10 补齐 VPet `WORK` 全部 13 种：书法/画画/研究/烤肠/清屏/修屏幕/玩游戏/玩水/删错误/跳绳）。**只导 Nomal 段**，金钱/体力收益等玩法数值不抄）|
 | `sleep` | loop / happy | 6+6 | 睡觉（循环） |
 | `greet` | amuse / meow | 11/20 | 打招呼（VPet 无专用动作，用开心姿势） |
-| `interact` | a / b / c | 9/11/2 | 摸头反应**三段序列**（进入→保持→退出） |
+| `interact` | a / b / c | 2/11/2 | 摸头反应**三段序列**（进入→保持→退出）|
+| `interact` | happy-a / happy-b / happy-c | 3/12/2 | 摸头的高兴档（P10，VPet `Touch_Head/Happy`）—— 三档/心情=开心时序列**换档**（`interact-a` → `interact-happy-a`）|
+| `interact_body` | a / b / c | 15/14/3 | **摸身体**反应三段（P10，VPet `Touch_Body/{A,B,C}_Happy/tb1`；官方只有 Happy/ill 两档，取 Happy）|
+| `turn` | a / b / c | 3/15/4 | **被摸转身**（P10，VPet `Touch_Body/Happy_Turn`）—— 摸身体时 30% 概率改成她转身躲一下 |
+| `switch` | up / down | 13/14 | **干活进出场过渡**（P10，VPet `Switch/Up·Down/Nomal`）—— `switch-up` 起身开工、`switch-down` 收工坐下 |
+| `fidget` | 原项目 6（bubble/doze/meow/meowlook/spin/yawning）+ VPet 5（squat/tennis/bubbles/boring/aside）| 共 250+ | 待机小动作（P10 加 VPet 的 蹲/网球/泡泡/打呼噜/侧看；`+` 追加模式导入，不清空原有变体）|
 | `edge_hide` | {left,right}-{in,keep,hold,out,peek,rise,unpeek} | 共 76 | 贴边隐藏：`Main`=隐藏姿态序列（in/keep/hold/out），`Rise`=探出（A 弹出 → **B 探出后微动循环** → C 缩回）。左右**逐段一一对应**（每侧 in9/keep4/hold1/out7/peek4/rise10/unpeek3） |
 | `pinch` | a / b / c | 1 / 6 / 21 | 捏脸（照 VPet 官方「**长按脸**」抄）：A 进入 → B **循环**（按住时连续播）→ C 松手退出。**只导 Nomal**——官方按它自己的 Mode 选 Happy/PoorCondition，我们的心情定义与官方不同 → 不做映射；官方的体力-2/心情+1 也不抄（捏脸只做动作） |
 

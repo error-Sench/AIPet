@@ -64,7 +64,10 @@ StateMachine.EnqueueChain(
 | `working` | work | fidget | ✔ | ✔ | 120 | 显式结束 / 兜底超时 |
 | `sleep` | sleep | idle | ✔ | ✔ | — | 任何交互唤醒（→ greet） |
 | `greet` | greet | celerate | — | — | 2.5 | 保持期满 → idle |
-| `walk_start/loop/end` | `walk-left` / `walk-right`（按方向，**循环播放**） | drag（占位） | 行为链 | — | 链节时长 | 链结束 → idle |
+| `walk_start/loop/end` | `walk-left` / `walk-right`（按方向，**循环播放**；P10 起带上快/慢档后缀） | drag（占位） | 行为链 | — | 链节时长 | 链结束 → idle |
+| `interact_body` | interact_body-a/b/c（**三段序列**） | interact | — | — | 序列驱动 | 末段播完 → idle |
+| `turn` | turn-a/b/c（**三段序列**） | interact_body | — | — | 序列驱动 | 末段播完 → idle |
+| `work_in` / `work_out` | `switch`（`具体动画` 钉死 switch-up / -down） | work | — | ✔ | 1.7 / 1.8 | **回落** = working / idle |
 
 #### 3.1.2 动画池资产管理（VPet 资产导入）
 
@@ -74,13 +77,16 @@ StateMachine.EnqueueChain(
 
 | 池 | 变体（源） | 帧数 | 说明 |
 |---|---|---|---|
-| `walk` | left / right | 6+6 | VPet `MOVE/walk.*` 的 `B_Nomal`；**循环** |
+| `walk` | left / right + left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | VPet `MOVE/walk.*` 的 `B_Nomal`；**循环**。P10：快/慢 = 心情档（`walk.*.faster`=Happy / `walk.*.slow`=PoorCondition），位移速度同步 |
 | `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
-| `say` | smile / self / serious | 7/15/4 | VPet `Say/Shining·Self·Serious` |
-| `work` | pc / read / write | 14/12/10 | VPet `WORK/WorkTWO·Study·WorkONE/A_Nomal` |
+| `say` | smile / self / serious / shy | 7/15/4/5 | VPet `Say/Shining·Self·Serious·Shy`（P10 补害羞档）|
+| `work` | 13 种（pc/read/write/calligraphy/paint/study2/sausage/clean/fixmenu/game/water/remove/rope）| 5~31 | VPet `WORK/*/Nomal/A`（P10 补齐余下 10 种，池内随机 → 干活不再千篇一律）|
 | `sleep` | loop / happy | 6+6 | VPet `Sleep/B_Nomal·B_Happy`；**循环** |
 | `greet` | amuse / meow | 11/20 | VPet `IDEL/amusement_B·Meow/Happy/1`（VPet 无专门打招呼动作，取开心姿势） |
-| `interact` | head / body / happy | 11/11/15 | VPet `Touch_Head`·`Touch_Body`（摸头/被摸 = 被摸的反应） |
+| `interact` | a / b / c + happy-a / happy-b / happy-c | 2/11/2 + 3/12/2 | VPet `Touch_Head/{Nomal,Happy}/{A,B,C}`（**三段序列**；P10 补高兴档）|
+| `interact_body` | a / b / c | 15/14/3 | VPet `Touch_Body/{A,B,C}_Happy/tb1`（P10 摸身体反应；官方只有 Happy/ill 档 → 取 Happy）|
+| `turn` | a / b / c | 3/15/4 | VPet `Touch_Body/Happy_Turn`（P10 被摸转身）|
+| `switch` | up / down | 13/14 | VPet `Switch/Up·Down/Nomal`（P10 干活进出场过渡）|
 
 > **未导入**：`listen` —— VPet 无对应资产，仍回退 `fidget`。
 
@@ -339,6 +345,23 @@ StateMachine.EnqueueChain(
 | 表现归属 | 状态机只当「锁定 + 免兜底」占位（`PinchState`），三段由 `FacePinch` 推进（同 EdgeHide 模式） |
 
 **验证**：`tests/PinchProbe`（headless，26 断言）：命中区纯函数 / 长按阈值 / 三段流转 / 被拖拽抢走作废 / 贴边时不捏 / 数值不动。
+
+### P10 扩充（摸身体 / 转身 / 三档状态 / 走路快慢 / 干活进出场）
+
+素材与接线（主人 2026-09-19：「都加上吧，不用白用」；**数值与玩法不抄 VPet**）：
+
+| 项 | 做法 |
+|---|---|
+| **摸身体** | 单击部位分流：**脸区优先**（捏脸那套）→ 身体区（`HitRegion` 公共命中判定；比例由官方 `.lps` 的 `touchbody: px166 py206 sw163 sh136` 换算）→ 都不中当摸头。头 = `interact` 序列；身体 = `interact_body` 序列；**30% 概率**改成 `turn`（转身躲一下）|
+| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。开着时 `情绪变体()` **手动档位优先**（开心→happy / 不良→poor / 普通→不带变体），关着时维持原来的心情择档（心情≥75 happy、<35 poor）|
+| **走路快慢** | 快/慢 = 心情档（VPet 里 faster=Happy、slow=PoorCondition）：动画 `walk-{方向}[-fast|-slow]` + 位移速度 ×1.35 / ×0.72（同步，避免滑步）|
+| **干活进出场** | `开始干活()` → `work_in`（`switch-up`）→ **自动回落** working；`结束干活()` → `work_out`（`switch-down`）→ idle。`状态效果` 新增两个字段：`具体动画`（一个池服务多个状态时钉死播哪个）与 `回落`（非持续态到点回落到哪，默认 idle）|
+| **摸头高兴档** | 序列也支持换档：`播放序列段()` 会用 `情绪变体(池)` 把 `interact-a` 换成 `interact-happy-a`（素材在才换，不硬造）|
+
+**踩坑**：`冒泡说话()` 用 `SetState` 切 `bubble_talk`，而 `SetState` 会**作废排队项** —— 于是「点一下 → 本地话语气泡 + 排队摸摸」时，摸摸反应被气泡冲掉（实测：摸头 8 秒不反应，摸身体却正常，因为它的 15s 冷却恰好没让第二个气泡冒出来）。
+→ 修法：`冒泡说话()` 加闸门 `if (排队中) return;` —— **气泡照显，说话动作让位给交互反应**。
+
+**验证**：`tests/TouchProbe`（17 断言：命中区纯函数 / 部位分流（轮询等排队反应）/ 三档四种情形 / 干活进出场四步）；`tests/PoolProbe` 加了 4 个新状态 + 31 个新动画的存在性核对。
 
 ### 气泡说话（P8）
 

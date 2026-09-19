@@ -66,7 +66,9 @@
 | `PinchProbe` | headless | 捏脸：命中区纯函数 / 长按阈值 / 三段流转（A→B 循环→松手 C）/ 被拖拽抢走作废 / 贴边时不捏 / 不产生数值变化 |
 | `BubbleProbe` | headless | 气泡：说话动作（可打断 + 忙态/流式不偷）/ 时长到点自动收 / **按内容自适应尺寸** / 字号 / 鼠标穿透 / BBCode 转义 |
 | `BubbleShot` | **非 headless** | 气泡实机：把气泡窗渲成 PNG（供视觉复核）+ 位置数值断言（头顶居中 / 上方放不下自动翻下方）|
+| `AnimShot` | **非 headless** | 新导入动画实机渲图：逐个播并各存一张 PNG（缩放/落地线只靠数值不够，得看得见）|
 | `AudioProbe` | headless | 音频输入设备诊断（列出 Godot 能看到的麦克风）|
+| `TouchProbe` | headless | P10：命中区纯函数（脸/身体不重叠）/ 摸摸部位分流（**排队**等反应，不能定帧断言）/ 三档状态四种情形 / 干活进出场四步（`switch-up` → working → `switch-down` → idle）|
 
 **踩坑：验节律必须在场景实例化「之前」写配置。** `StateMachine._Ready` 会读 `user://behavior.json` 并用它算好 `_走动倒计时`；之后再改内存里的 `设置` 字段已经晚了（探针曾因此在 20s 内一次走动都触发不了）。`WalkProbe` 的做法：`_Ready` 里先写临时 `user://behavior.json` → 再实例化场景 → 结束时删除。
 
@@ -88,6 +90,8 @@
 | 指定 Godot 可执行文件 / 日志目录 | `--godot <exe> --logs <dir>` | `-Godot <exe> -Logs <dir>` |
 
 **判定规则**：退出码 0 = 通过、非 0 = 失败；日志里 `FAIL  `（FAIL + 两个空格）行数 = 失败断言数；**通过 = 退出码 0 且 0 条 FAIL**。脚本自己的退出码：`0` 全过 / `1` 有失败 / `2` 用法错 / `3` 环境错（找不到 Godot、找不到 `tests/`）。
+
+**别在回归运行中改 `run_probes.sh`**：bash 按**字节偏移**增量读脚本文件，边跑边改会让它从错位处继续读 → 报假语法错（实测：跑完 24 个探针后收尾处 `syntax error near unexpected token`，`bash -n` 却是干净的）。要改先等跑完，或改完重跑。
 
 **headless 与非 headless 的区别**（清单由脚本扫 `tests/*.tscn` 得到，新增探针不用改脚本；`--list` 里的清单是权威版，10.1 表里还没登记的探针也会列出来）：
 

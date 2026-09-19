@@ -63,7 +63,7 @@ public partial class Main:Node
 	public static void 选择脚本(脚本信息 脚本信息)
 	{
 		StateMachine.NotifyInteraction("task"); // 右键/粘贴/拖入/语音/面板 5 个入口都汇聚到这里
-		StateMachine.SetState(StateMachine.Working);
+		StateMachine.开始干活();   // P10：先播「起身」过渡（VPet Switch_Up）再进 working
 		当前脚本 = 脚本信息;
 		if (!string.IsNullOrEmpty(脚本信息.tool))
 		{
@@ -149,7 +149,7 @@ public partial class Main:Node
 	}
 	private static void 执行函数完成()
 	{
-		StateMachine.SetState(StateMachine.Idle);
+		StateMachine.结束干活();    // P10：先播「坐下」过渡（VPet Switch_Down）再回 idle
 		StateMachine.NotifyInteraction("task_done");
 		if (当前脚本.cheer)CharAnim.开始庆祝();
 		// 行为事件（#3）：任务完成也进事件池（程序侧；日志用途，不打扰主人）

@@ -51,7 +51,7 @@ $DefaultGodot = 'D:/Games/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stab
 #   DragProbe, SettingsProbe, StatsWindowProbe, EdgeHideBehaviorProbe, EnterProbe
 #   WalkProbe: tests/README.md marks it "must NOT be headless" - the walking code
 #     gives up when screen size is 0, so a headless run is a false green.
-$NonHeadless = @('DragProbe', 'SettingsProbe', 'StatsWindowProbe', 'EdgeHideBehaviorProbe', 'EnterProbe', 'WalkProbe', 'BubbleShot')
+$NonHeadless = @('DragProbe', 'SettingsProbe', 'StatsWindowProbe', 'EdgeHideBehaviorProbe', 'EnterProbe', 'WalkProbe', 'BubbleShot', 'AnimShot')
 
 # Probes that need a live Agent (LLM). Skipped by default (flaky / env-dependent); run with -Agent.
 $AgentProbes = @('AcpTest', 'ChatFlowTest', 'CommandE2E', 'HistoryProbe', 'SessionProbe')

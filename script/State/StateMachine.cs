@@ -43,6 +43,18 @@ public partial class StateMachine : Node
     /// <summary>气泡说话（伴随气泡的短动作）：**不锁定**（任何交互都能立刻打断）+ 定时回 idle；时长 = 气泡显示秒。</summary>
     public const string BubbleTalk = "bubble_talk";
 
+    // —— P10 扩充（VPet 素材：摸身体 / 转身 / 干活进出场）——
+    /// <summary>摸身体：单击落在「身体区」时走这条序列（VPet `Touch_Body` 三段）。</summary>
+    public const string InteractBody = "interact_body";
+    /// <summary>被摸转身：摸身体时按概率改成她转身躲一下（VPet `Touch_Body/Happy_Turn`）。</summary>
+    public const string Turn = "turn";
+    /// <summary>干活进出场：VPet `Switch_Up`（起身开工）/ `Switch_Down`（收工坐下）的过渡段。</summary>
+    public const string WorkIn = "work_in";
+    public const string WorkOut = "work_out";
+
+    /// <summary>单击落在哪儿：头（默认，抱头反应）还是身体（另一套反应 / 概率转身）。</summary>
+    public enum TouchPart { Head, Body }
+
     // —— 行为链状态（不映射固定动画，语义化） ——
     public const string WalkStart = "walk_start";
     public const string WalkLoop = "walk_loop";
@@ -75,6 +87,8 @@ public partial class StateMachine : Node
         public float 秒;    // 非持续态 = 保持时长；**持续态的秒值是死值**——SetState 传 -1 时统一用 `设置.持续态兜底秒`（默认 120s），
                             // 只有 `免兜底=true`（贴边隐藏）才是真正无限期。别再往持续态写「超时秒数」，它是不会被读的（子 Agent 核对时发现）
         public bool 免兜底; // true = 真·无限期持续态（贴边隐藏用）：不吃「持续态兜底」，否则 2 分钟被踢回 idle（实测 bug）
+        public string 具体动画;   // 非空 = 这个状态固定播它（不按池随机）——「一个池服务多个状态」时用（switch-up / switch-down）
+        public string 回落 = Idle; // 非持续态到点**回落到哪个状态**（默认 idle；干活过渡段回 working）
     }
 
     private static readonly Dictionary<string, 状态效果> _效果表 = new()
@@ -95,6 +109,11 @@ public partial class StateMachine : Node
         [PinchState] = new 状态效果 { 目标池 = "pinch", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
         // 气泡说话（P8）：**不锁定**（动作可被打断）+ 定时回 idle；真正的时长由 冒泡说话() 用「气泡显示秒」覆盖传入
         [BubbleTalk] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = false, 锁定 = false, 秒 = 4f },
+        // —— P10 ——（摸身体 / 转身 / 干活进出场；素材来源见 tools/README.md 池表）
+        [InteractBody] = new 状态效果 { 目标池 = "interact_body", 兼容池 = "interact", 持续 = false, 锁定 = false, 秒 = 2.0f },
+        [Turn] = new 状态效果 { 目标池 = "turn", 兼容池 = "interact_body", 持续 = false, 锁定 = false, 秒 = 1.6f },
+        [WorkIn] = new 状态效果 { 目标池 = "switch", 兼容池 = "work", 具体动画 = "switch-up", 持续 = false, 锁定 = true, 秒 = 1.7f, 回落 = Working },
+        [WorkOut] = new 状态效果 { 目标池 = "switch", 兼容池 = "work", 具体动画 = "switch-down", 持续 = false, 锁定 = true, 秒 = 1.8f, 回落 = Idle },
     };
 
     /// <summary>
@@ -105,6 +124,8 @@ public partial class StateMachine : Node
     private static readonly Dictionary<string, string[]> _序列表 = new()
     {
         [Interact] = ["interact-a", "interact-b", "interact-c"],
+        [InteractBody] = ["interact_body-a", "interact_body-b", "interact_body-c"],   // P10：VPet Touch_Body（摸身体）
+        [Turn] = ["turn-a", "turn-b", "turn-c"],                                       // P10：VPet Happy_Turn（被摸转身）
     };
 
     private static string[] _当前序列;
@@ -282,10 +303,21 @@ public partial class StateMachine : Node
     }
 
     /// <summary>播放交互序列的当前段。</summary>
+    /// <summary>把变体插进动画名末尾那段之前：`interact-a` + happy → `interact-happy-a`。</summary>
+    private static string 带变体(string 动画名, string 变体)
+    {
+        var i = 动画名.LastIndexOf('-');
+        return i < 0 ? 动画名 : 动画名[..i] + "-" + 变体 + 动画名[i..];
+    }
+
     private static void 播放序列段()
     {
         if (_当前序列 == null) return;
         var 名 = _当前序列[_序列序];
+        // 三档 / 心情择档：序列也能换档（`interact-a` → `interact-happy-a`，摸头高兴档）——素材在才换，不硬造
+        var 池名 = 名.Contains('-') ? 名[..名.IndexOf('-')] : 名;
+        var 档 = 情绪变体(池名);
+        if (档.Length > 0) { var 换 = 带变体(名, 档); if (CharAnim.有动画(换)) 名 = 换; }
         GD.Print($"[StateMachine] 交互序列 {_序列序 + 1}/{_当前序列.Length}: {名}");
         CharAnim.PlayNamed(名);
     }
@@ -392,17 +424,38 @@ public partial class StateMachine : Node
         if (CurrentState == Sleep) 唤醒(来源);
     }
 
-    /// <summary>左键单击（摸摸）：按下未超拖动阈值即松手。</summary>
-    public static void 摸摸()
+    /// <summary>
+    /// 左键单击（摸摸）：按下未超拖动阈值即松手。P10 起**分部位** —— 头（默认）= 抱头反应；
+    /// 身体 = 另一套反应（VPet `Touch_Body`），并按 30% 概率改成**转身躲一下**（`Happy_Turn`）。
+    /// 部位由 `WindowDrag` 用窗口比例矩形判定（脸区优先）。
+    /// </summary>
+    public static void 摸摸(TouchPart 部位 = TouchPart.Head)
     {
-        NotifyInteraction("摸摸");
+        NotifyInteraction(部位 == TouchPart.Body ? "摸摸·身体" : "摸摸");
         Soul.StatsTable.事件_摸摸(); // 被碰到就是正面互动（即便当时忙、反应被推迟或跳过）
-        if (CurrentState is Drag or Think or Speak or Working) return; // 忙时不当成互动
+        if (CurrentState is Drag or Think or Speak or Working or WorkIn or WorkOut) return; // 忙时不当成互动
+        if (CurrentState is InteractBody or Turn) return;   // 已经在对上一次摸做反应了
         if (CurrentState == Sleep) return; // 唤醒流程已接管（会走 greet），让招呼播完
-        // 不硬切：等当前这次动画播完再进入 interact
-        排队状态(Interact);
+        // 不硬切：等当前这次动画播完再进入对应反应
+        var 目标 = 部位 == TouchPart.Body && CharAnim.有动画("interact_body-a")
+            ? (Random.Shared.NextDouble() < 0.3 && CharAnim.有动画("turn-a") ? Turn : InteractBody)
+            : Interact;
+        排队状态(目标);
         // 本地模式（没接 Agent）时，被摸也要有话说 —— 走话语表；接了 Agent 则由 Agent 自己回
         本地说话("被摸", 15f);
+    }
+
+    /// <summary>开工（P10）：先播「起身」（VPet `Switch_Up`，到点自动落到 `working`）；素材缺就直接进 working。</summary>
+    public static void 开始干活() => SetState(CharAnim.有动画("switch-up") ? WorkIn : Working);
+
+    /// <summary>
+    /// 收工（P10）：先播「坐下」（VPet `Switch_Down`，到点自动回 idle）；素材缺就直接回 idle。
+    /// 只在干活（working / 开工过渡）时有效 —— 别把别处的 idle 切换也绕进来。
+    /// </summary>
+    public static void 结束干活()
+    {
+        if (CurrentState is not (Working or WorkIn)) return;
+        SetState(CharAnim.有动画("switch-down") ? WorkOut : Idle);
     }
 
     /// <summary>从休眠唤醒：先打招呼，再回待机。</summary>
@@ -599,9 +652,13 @@ public partial class StateMachine : Node
     /// 姿态偷换成说话（实测踩过）。
     /// </para>
     /// </summary>
+    /// <summary>是否有排队等待中的交互反应（摸摸等当前动画播完）。</summary>
+    public static bool 排队中 => _排队状态 != null;
+
     public static void 冒泡说话()
     {
         if (Instance == null || !设置.启用) return;
+        if (排队中) return;   // 有排队中的交互反应 → 说话动作让位（气泡照显，但别用 SetState 把排队项冲掉——实测踩过）
         if (CurrentState != Idle && CurrentState != BubbleTalk) return;
         SetState(BubbleTalk, Math.Max(0.5f, UX.Dialogue.气泡显示秒));
     }
@@ -659,11 +716,21 @@ public partial class StateMachine : Node
     /// <summary>按数值挑情绪变体（`think-happy` / `think-poor` …）。返回 "" = 用池内随机（该池没有这个变体）。</summary>
     private static string 情绪变体(string 池)
     {
-        if (池 is not ("think" or "say" or "interact")) return "";
+        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work")) return "";
+        // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位优先** —— 主人定「默认普通」，
+        // 自动切换的判据与表现还没定，所以先只做开关 + 手动档位（配置窗「行为」页）。
+        if (设置.三档状态启用)
+            return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "" };
         if (Soul.StatsTable.当前心情 >= 75f) return "happy";
         if (Soul.StatsTable.当前心情 < 35f) return "poor";
         return "";
     }
+
+    /// <summary>走动画后缀（快/慢 = 心情档；没素材就没后缀 = 常速）。</summary>
+    private static string 走动档后缀 => 情绪变体("walk") switch { "happy" => "-fast", "poor" => "-slow", _ => "" };
+
+    /// <summary>走动位移倍率（与动画档位同步，避免滑步）。</summary>
+    private static float 走动档倍率 => 走动档后缀 switch { "-fast" => 1.35f, "-slow" => 0.72f, _ => 1f };
 
     private static float 首次间隔() =>
         (float)GD.RandRange(设置.首次走动最小秒, 设置.首次走动最大秒);
@@ -687,7 +754,7 @@ public partial class StateMachine : Node
         if (Math.Abs(目标 - 当前X) < 4) return; // 已在边界，没必要走
 
         _走动目标X = 目标;
-        _走动速度 = Math.Max(1f, 设置.走动速度像素每秒);
+        _走动速度 = Math.Max(1f, 设置.走动速度像素每秒 * 走动档倍率);   // P10：心情档 → 快走/慢走（动画与位移一起变）
         var 时长 = Math.Abs(目标 - 当前X) / _走动速度;
 
         GD.Print($"[StateMachine] 自主走动: {当前X} → {目标}（{时长:0.0}s）");
@@ -720,7 +787,7 @@ public partial class StateMachine : Node
             if (_保持剩余 <= 0f)
             {
                 _保持剩余 = 0f;
-                if (_效果表.TryGetValue(CurrentState, out var 效果) && !效果.持续) SetState(Idle);
+                if (_效果表.TryGetValue(CurrentState, out var 效果) && !效果.持续) SetState(效果.回落 ?? Idle);
             }
         }
 
@@ -878,7 +945,10 @@ public partial class StateMachine : Node
             // 走动：按方向播 walk-left / walk-right（VPet 资产、已设为循环）。
             // 三个链节共用同一段动画 —— 已经是目标动画时不重播，否则会在链节边界重置相位、看起来一顿一顿。
             var 方向 = _走动目标X >= DisplayServer.WindowGetPosition().X ? "right" : "left";
-            var 期望 = $"walk-{方向}";
+            // P10：**快/慢 = 心情档**（VPet 里 walk.*.faster 就是 Happy、walk.*.slow 就是 PoorCondition）
+            //      —— 位移速度也跟着变（走动档倍率），否则快动作配慢位移会滑步。
+            var 期望 = $"walk-{方向}{走动档后缀}";
+            if (!CharAnim.有动画(期望)) 期望 = $"walk-{方向}";
             if (CharAnim.有动画(期望))
             {
                 if (CharAnim.当前动画名_只读 != 期望) CharAnim.PlayNamed(期望);
@@ -894,6 +964,8 @@ public partial class StateMachine : Node
         if (state == EdgeHideState) { EdgeHide.应用表现(); return; }
         // 捏脸：同理（三段由 FacePinch 自管）
         if (state == PinchState) { FacePinch.应用表现(); return; }
+        // 固定动画（一个池服务多个状态时用，如 switch-up / switch-down）
+        if (!string.IsNullOrEmpty(效果.具体动画) && CharAnim.有动画(效果.具体动画)) { CharAnim.PlayNamed(效果.具体动画); return; }
         var 池 = 选择池(效果);
         // 情绪表达：心情好/糟时优先用该池的对应变体（如 think-happy / think-poor、摸头用 interact-happy）。
         // 该池没有这个变体就退回池内随机 —— 不硬造。
@@ -946,6 +1018,14 @@ public partial class StateMachine : Node
         // —— P7 捏脸（照 VPet 官方：**长按脸**触发；实现见 FacePinch.cs） ——
         public static float 捏脸长按秒 = 0.3f;         // 官方 presslength 默认 300ms
         public static float[] 捏脸命中区;               // null = 用 FacePinch 默认（窗口比例 x0,y0,x1,y1）
+
+        // —— P10 摸身体 / 三档状态 ——
+        /// <summary>摸身体命中区（窗口比例 x0,y0,x1,y1）；null = 用 WindowDrag 默认。</summary>
+        public static float[] 摸身体命中区;
+        /// <summary>三档状态开关（开心 / 普通 / 不良）：**默认关** = 一直按「普通」演（= 不改现有观感）。</summary>
+        public static bool 三档状态启用;
+        /// <summary>三档下的当前档位（自动切换的判据与表现还没定 → 先手动选；配置窗「行为」页）。</summary>
+        public static string 状态档位 = "普通";
         public static float 久坐提醒分钟 = 90f;      // 连续活跃多久提醒休息（程序侧事件）；0 = 关
         public static float 久坐提醒冷却分钟 = 90f;  // 两次提醒的最小间隔
 
@@ -998,17 +1078,10 @@ public partial class StateMachine : Node
                     贴边左偏移像素 = 取整数(根, "贴边左偏移像素", 贴边左偏移像素);
                     贴边右偏移像素 = 取整数(根, "贴边右偏移像素", 贴边右偏移像素);
                     捏脸长按秒 = 取浮点(根, "捏脸长按秒", 捏脸长按秒);
-                    if (根.TryGetProperty("捏脸命中区", out var 捏区) && 捏区.ValueKind == JsonValueKind.Array && 捏区.GetArrayLength() == 4)
-                    {
-                        var 命中值 = new float[4];
-                        var 下标 = 0;
-                        foreach (var e in 捏区.EnumerateArray())
-                        {
-                            if (!e.TryGetSingle(out var f)) break;
-                            命中值[下标++] = f;
-                        }
-                        if (下标 == 4) 捏脸命中区 = 命中值;
-                    }
+                    捏脸命中区 = 取矩形(根, "捏脸命中区", 捏脸命中区);
+                    摸身体命中区 = 取矩形(根, "摸身体命中区", 摸身体命中区);
+                    三档状态启用 = 取布尔(根, "三档状态启用", 三档状态启用);
+                    状态档位 = 取文本(根, "状态档位", 状态档位);
                     久坐提醒分钟 = 取浮点(根, "久坐提醒分钟", 久坐提醒分钟);
                     久坐提醒冷却分钟 = 取浮点(根, "久坐提醒冷却分钟", 久坐提醒冷却分钟);
                     问候启用 = 取布尔(根, "问候启用", 问候启用);
@@ -1044,11 +1117,27 @@ public partial class StateMachine : Node
             // 捏脸（P7）：长按阈值 + 命中区（照 VPet 官方；命中区是窗口宽高的比例）
             FacePinch.长按秒 = Math.Clamp(捏脸长按秒, 0.1f, 3f);
             if (捏脸命中区 is { Length: 4 }) FacePinch.命中区 = 捏脸命中区;
+            // 摸身体（P10）：命中区交给 WindowDrag（它做单击判定；脸区优先）
+            UX.WindowDrag.命中区 = 摸身体命中区 is { Length: 4 } ? 摸身体命中区 : null;
 
             // 把 Plan #11 的时间驱动行为参数交给 DailyRoutine（含夹取，避免配置写坏）
             DailyRoutine.问候启用 = 问候启用;
             DailyRoutine.磁盘提醒启用 = 磁盘提醒启用;
             DailyRoutine.磁盘剩余下限GB = 磁盘剩余下限GB;
+        }
+
+        /// <summary>读 [x0,y0,x1,y1] 比例数组（长度必须是 4 且都是数字，否则用兜底）。</summary>
+        private static float[] 取矩形(JsonElement 根, string 键, float[] 兜底)
+        {
+            if (!根.TryGetProperty(键, out var 区) || 区.ValueKind != JsonValueKind.Array || 区.GetArrayLength() != 4) return 兜底;
+            var 值 = new float[4];
+            var 下标 = 0;
+            foreach (var e in 区.EnumerateArray())
+            {
+                if (!e.TryGetSingle(out var f)) return 兜底;
+                值[下标++] = f;
+            }
+            return 值;
         }
 
         private static bool 取布尔(JsonElement 根, string 键, bool 兜底) =>

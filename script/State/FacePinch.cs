@@ -57,15 +57,8 @@ public static class FacePinch
     // ================= 纯函数（探针可直接断言） =================
 
     /// <summary>窗口内坐标是否落在「脸」上（命中区是窗口宽高的比例）。</summary>
-    public static bool 脸区命中(Vector2 局部, Vector2I 窗口尺寸)
-    {
-        if (命中区 is not { Length: 4 }) return false;
-        var x0 = 命中区[0] * 窗口尺寸.X;
-        var y0 = 命中区[1] * 窗口尺寸.Y;
-        var x1 = 命中区[2] * 窗口尺寸.X;
-        var y1 = 命中区[3] * 窗口尺寸.Y;
-        return 局部.X >= x0 && 局部.X <= x1 && 局部.Y >= y0 && 局部.Y <= y1;
-    }
+    public static bool 脸区命中(Vector2 局部, Vector2I 窗口尺寸) =>
+        desktop.script.Util.HitRegion.命中(命中区, 局部, 窗口尺寸);
 
     // ================= 输入（WindowDrag 调用） =================
 

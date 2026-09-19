@@ -54,11 +54,24 @@ SPEC = {
         ("smile", [("Say/Shining/B_2", None, None)]),
         ("self", [("Say/Self/B_1", None, None)]),
         ("serious", [("Say/Serious/B", None, None)]),
+        ("shy", [("Say/Shy/B", None, None)]),        # P10：VPet 的害羞档（说话池第 4 个变体）
     ],
+    # 干活：VPet 的 WORK 图共 13 种（直播/学习/写字 已导）—— P10 补齐余下 10 种（Nomal 段，与既有三个同口径）。
+    # 池内随机播 → 干活不再千篇一律。**VPet 的金钱/体力/心情收益一律不抄**（主人 2026-09-19）。
     "work": [
         ("pc", [("WORK/WorkTWO/A_Nomal", None, None)]),
         ("read", [("WORK/Study/A_Nomal", None, None)]),
         ("write", [("WORK/WorkONE/A_Nomal", None, None)]),
+        ("calligraphy", [("WORK/Calligraphy/Nomal/A", None, None)]),
+        ("paint", [("WORK/StudyPaint/Nomal/A", None, None)]),
+        ("study2", [("WORK/StudyTWO/Nomal/A", None, None)]),
+        ("sausage", [("WORK/GrilledSausage/Nomal/A", None, None)]),
+        ("clean", [("WORK/WorkClean/Nomal/A", None, None)]),
+        ("fixmenu", [("WORK/FixMenu/Nomal/A", None, None)]),
+        ("game", [("WORK/PlayONE/Nomal/A", None, None)]),
+        ("water", [("WORK/PlayWater/Nomal/A", None, None)]),
+        ("remove", [("WORK/RemoveObject/Nomal/A", None, None)]),
+        ("rope", [("WORK/RopeSkipping/Nomal/A", None, None)]),
     ],
     "interact": [
         # 摸头反应其实是三段：A=进入(中立→抱头) B=保持(抱头) C=退出(抱头→中立)。
@@ -88,6 +101,48 @@ SPEC = {
     #     第 9/10 帧其实是「退出」的起跳两帧（与左 C 的第 0/1 帧镜像一致），11-13 帧是收尾。
     #     → 右「缩进」切 0..8，那两帧起跳帧拼进右「退出」，两侧这才真正一一对应。
     #   * `SideHide_*_Rise/Nomal/B`（10 帧）是**探出后的微动循环**，早先漏导 → 表现为「探出没动画」。
+    # 走路：**快/慢 = 心情档**（VPet 里 `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition 的走法）
+    # —— 与我们「三档状态 / 心情择档」天然对齐，不要当成两个独立速度档。
+    "walk": [
+        ("left",      [("MOVE/walk.left/B_Nomal", None, None)]),
+        ("right",     [("MOVE/walk.right/B_Nomal", None, None)]),
+        ("left-fast", [("MOVE/walk.left.faster/B_Happy", None, None)]),
+        ("right-fast",[("MOVE/walk.right.faster/B_Happy", None, None)]),
+        ("left-slow", [("MOVE/walk.left.slow/B_PoorCondition_1", None, None)]),
+        ("right-slow",[("MOVE/walk.right.slow/B_PoorCondition_1", None, None)]),
+    ],
+    # 干活进出场：VPet `Switch_Up`（起身开工）/ `Switch_Down`（收工坐下）—— P10 小件三连之一。
+    "switch": [
+        ("up",   [("Switch/Up/Nomal", None, None)]),
+        ("down", [("Switch/Down/Nomal", None, None)]),
+    ],
+    # 摸身体（P10）：VPet `Touch_Body`（官方只有 Happy/ill 两档；取 Happy）+ `Happy_Turn`（被摸转身）。
+    # 命中区在 .lps：`touchbody: px#166 py#206 sw#163 sh#136`（500 空间，换算见 config/behavior.json 的 摸身体命中区）。
+    "interact_body": [
+        ("a", [("Touch_Body/A_Happy/tb1", None, None)]),
+        ("b", [("Touch_Body/B_Happy/tb1", None, None)]),
+        ("c", [("Touch_Body/C_Happy/tb1", None, None)]),
+    ],
+    "turn": [
+        ("a", [("Touch_Body/Happy_Turn/A", None, None)]),
+        ("b", [("Touch_Body/Happy_Turn/B", None, None)]),
+        ("c", [("Touch_Body/Happy_Turn/C", None, None)]),
+    ],
+    # 追加模式（`+`）：这两个池里混着非 VPet 来源的变体，只补、不清空。
+    # 摸头的高兴档（VPet Touch_Head/Happy）→ `interact-happy-a/b/c`，三档状态=开心时用它。
+    "interact+": [
+        ("happy-a", [("Touch_Head/Happy/A", None, None)]),
+        ("happy-b", [("Touch_Head/Happy/B", None, None)]),
+        ("happy-c", [("Touch_Head/Happy/C", None, None)]),
+    ],
+    # 待机小动作扩充：VPet IDEL 的 蹲 / 网球 / 泡泡 / 打呼噜 / 侧看（我们原有 bubble/doze/meow/meowlook/spin/yawning）
+    "fidget+": [
+        ("squat",   [("IDEL/Squat/B_Nomal/1", None, None)]),
+        ("tennis",  [("IDEL/Tennis/Nomal/B", None, None)]),
+        ("bubbles", [("IDEL/Bubbles/B", None, None)]),
+        ("boring",  [("IDEL/Boring/B_Nomal", None, None)]),
+        ("aside",   [("IDEL/aside/Nomal/B", None, None)]),
+    ],
     "edge_hide": [
         ("left-in",     [("SideHide_Left_Main/Nomal/A", None, None)]),
         ("left-keep",   [("SideHide_Left_Main/Nomal/B_1", None, None)]),
@@ -222,14 +277,18 @@ def main():
     print(f"参考基线: 底边={基线值['bottom']} 中心x={基线值['cx']} 角色高={基线值['h']}")
     报告 = []
     总帧 = 0
-    for 池, 项列表 in SPEC.items():
-        if only and 池 not in only:
+    for 池原始, 项列表 in SPEC.items():
+        # 池名末尾 `+` = **追加模式**：只补变体、不清空池目录。
+        # 用在「池里混着非 VPet 来源的变体」时（如 fidget/interact 里有原项目素材）——整池重导会误删它们。
+        追加 = 池原始.endswith("+")
+        池 = 池原始.rstrip("+")
+        if only and 池 not in only and 池原始 not in only:
             continue
-        # 整池重导：先清空池目录，避免旧变体残留（`进入状态` 是池内随机取一项）
         池目录 = os.path.join(DST_ROOT, 池)
-        if os.path.isdir(池目录):
+        if not 追加 and os.path.isdir(池目录):
+            # 整池重导：先清空池目录，避免旧变体残留（`进入状态` 是池内随机取一项）
             shutil.rmtree(池目录)
-        报告.append(f"### {池}")
+        报告.append(f"### {池}{'（追加）' if 追加 else ''}")
         for 变体, 片段列表 in 项列表:
             总帧 += 导入一个动画(池, 变体, 片段列表, 基线值, 报告)
     print("\n".join(报告))

@@ -8,6 +8,22 @@ public partial class WindowDrag : Node
 {
     private bool _dragging;
     private bool _isPreparing;
+
+    /// <summary>摸身体命中区（窗口比例 x0,y0,x1,y1）；null = 用默认。由 `StateMachine.设置.加载()` 注入。</summary>
+    public static float[] 命中区;
+
+    /// <summary>
+    /// 默认「身体区」：VPet `.lps` 的 `touchbody: px#166 py#206 sw#163 sh#136`（500 空间）换算成窗口比例。
+    /// 换算与捏脸命中区同源（素材 500 空间 → 帧 ×0.5116 → 窗口 ×缩放）：先用实测校准过的捏脸区
+    /// （px149,128,sw56,sh59 → [0.315,0.261,0.427,0.379]）反解出「窗口像素 = 素材 × 0.5125 + (4.2, 1.3)」，
+    /// 再套到身体区 → 窗口 x 89~173、y 107~176（256 窗口）= 躯干位置，与脸区（y 67~97）不重叠。
+    /// 点不准就改 `config/behavior.json` 的 `摸身体命中区`。
+    /// </summary>
+    public static readonly float[] 默认身体命中区 = [0.349f, 0.417f, 0.675f, 0.689f];
+
+    /// <summary>身体区命中（探针可直接断言；脸区优先由调用方处理）。</summary>
+    public static bool 身体区命中(Vector2 局部, Vector2I 窗口尺寸) =>
+        desktop.script.Util.HitRegion.命中(命中区 ?? 默认身体命中区, 局部, 窗口尺寸);
     private Vector2I _dragOffset;
     private Vector2I _pressOrigin;
     
@@ -136,7 +152,14 @@ public partial class WindowDrag : Node
             var 本窗口按着 = _isPreparing || _dragging;
             取消桌宠拖拽();
             if (本窗口按着) FacePinch.松手();       // 捏脸中 → 播退出段（相.按住中 → 直接清）
-            if (单击) StateMachine.摸摸();
+            if (单击)
+            {
+                // P10：单击分部位 —— 脸区优先（捏脸那套），再看身体区；都不中当摸头（老行为）
+                var 局部 = DisplayServer.MouseGetPosition() - DisplayServer.WindowGetPosition();
+                var 窗口尺寸 = DisplayServer.WindowGetSize();
+                var 身体 = 身体区命中(局部, 窗口尺寸) && !FacePinch.脸区命中(局部, 窗口尺寸);
+                StateMachine.摸摸(身体 ? StateMachine.TouchPart.Body : StateMachine.TouchPart.Head);
+            }
             // 拖拽结束（非单击）→ 检查是否贴到屏幕边缘：贴中就缩进隐藏（P2 行为层）
             else if (拖过) EdgeHide.检查贴边();
         }

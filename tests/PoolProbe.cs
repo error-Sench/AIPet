@@ -23,6 +23,24 @@ public partial class PoolProbe : Node
         (StateMachine.Sleep, "sleep", "休眠 → sleep 池"),
         (StateMachine.Greet, "greet", "打招呼 → greet 池"),
         (StateMachine.Interact, "interact", "被摸 → interact 池"),
+        (StateMachine.InteractBody, "interact_body", "摸身体 → interact_body 池（P10）"),
+        (StateMachine.Turn, "turn", "被摸转身 → turn 池（P10）"),
+        (StateMachine.WorkIn, "switch-up", "开工过渡 → switch-up（P10，VPet Switch_Up）"),
+        (StateMachine.WorkOut, "switch-down", "收工过渡 → switch-down（P10，VPet Switch_Down）"),
+    ];
+
+    /// <summary>P10 新素材必须真的在池里（缺一个 = 导入或注册漏了；池里少了变体时「池内随机」会悄悄少一种观感）。</summary>
+    private static readonly string[] 必存在动画 =
+    [
+        "say-shy",
+        "work-calligraphy", "work-paint", "work-study2", "work-sausage", "work-clean",
+        "work-fixmenu", "work-game", "work-water", "work-remove", "work-rope",
+        "walk-left-fast", "walk-right-fast", "walk-left-slow", "walk-right-slow",
+        "fidget-squat", "fidget-tennis", "fidget-bubbles", "fidget-boring", "fidget-aside",
+        "interact_body-a", "interact_body-b", "interact_body-c",
+        "turn-a", "turn-b", "turn-c",
+        "interact-happy-a", "interact-happy-b", "interact-happy-c",
+        "switch-up", "switch-down",
     ];
 
     public override void _Ready()
@@ -43,6 +61,15 @@ public partial class PoolProbe : Node
     public override void _Process(double delta)
     {
         _帧++;
+        if (_帧 == 19)
+        {
+            // P10 素材核对：全部必须在（缺失即报 FAIL，别让「池里少一种」悄悄溜过）
+            var 缺 = new System.Collections.Generic.List<string>();
+            foreach (var 名 in 必存在动画) if (!CharAnim.有动画(名)) 缺.Add(名);
+            if (缺.Count == 0) GD.Print($"[PL] PASS  P10 新素材齐全（{必存在动画.Length} 个动画）");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  缺素材：{string.Join(", ", 缺)}"); }
+            return;
+        }
         if (_帧 < 20) return;
         var i = (_帧 - 20) / 2;
         if (i >= 用例.Length)
