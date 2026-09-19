@@ -1018,6 +1018,8 @@ public partial class StateMachine : Node
         // —— P7 捏脸（照 VPet 官方：**长按脸**触发；实现见 FacePinch.cs） ——
         public static float 捏脸长按秒 = 0.3f;         // 官方 presslength 默认 300ms
         public static float[] 捏脸命中区;               // null = 用 FacePinch 默认（窗口比例 x0,y0,x1,y1）
+        /// <summary>拖拽命中区（窗口比例 x0,y0,x1,y1）；null = 用 WindowDrag 默认（窗口顶部 40% = 头部）。</summary>
+        public static float[] 拖拽命中区;
 
         // —— P10 摸身体 / 三档状态 ——
         /// <summary>摸身体命中区（窗口比例 x0,y0,x1,y1）；null = 用 WindowDrag 默认。</summary>
@@ -1079,6 +1081,7 @@ public partial class StateMachine : Node
                     贴边右偏移像素 = 取整数(根, "贴边右偏移像素", 贴边右偏移像素);
                     捏脸长按秒 = 取浮点(根, "捏脸长按秒", 捏脸长按秒);
                     捏脸命中区 = 取矩形(根, "捏脸命中区", 捏脸命中区);
+                    拖拽命中区 = 取矩形(根, "拖拽命中区", 拖拽命中区);
                     摸身体命中区 = 取矩形(根, "摸身体命中区", 摸身体命中区);
                     三档状态启用 = 取布尔(根, "三档状态启用", 三档状态启用);
                     状态档位 = 取文本(根, "状态档位", 状态档位);
@@ -1119,6 +1122,8 @@ public partial class StateMachine : Node
             if (捏脸命中区 is { Length: 4 }) FacePinch.命中区 = 捏脸命中区;
             // 摸身体（P10）：命中区交给 WindowDrag（它做单击判定；脸区优先）
             UX.WindowDrag.命中区 = 摸身体命中区 is { Length: 4 } ? 摸身体命中区 : null;
+            // 拖拽命中区（2026-09-19）：只有头顶（窗口顶部 40%）能起手拖拽；脸区优先
+            UX.WindowDrag.拖拽命中区 = 拖拽命中区 is { Length: 4 } ? 拖拽命中区 : null;
 
             // 把 Plan #11 的时间驱动行为参数交给 DailyRoutine（含夹取，避免配置写坏）
             DailyRoutine.问候启用 = 问候启用;
