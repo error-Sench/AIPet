@@ -27,7 +27,11 @@ public partial class CharAnim : AnimatedSprite2D
          "pinch",
          "interact_body", "turn", "switch",
          // 生日彩蛋（2026-09-20 组①：VPet BDay 三段；触发在 Main）
-         "bday"];
+         "bday",
+         // 爬边（2026-09-20 组②：VPet MOVE/*；表现由 Climb 自管）——crawl 是走动的慢速变体
+         "climb", "climb_top", "crawl", "fall",
+         // 音乐反应（2026-09-20 组③：VPet Music；包裹段 + MusicSense）
+         "music"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。</summary>
     private static readonly List<string> 循环动画组 = ["walk", "sleep"];

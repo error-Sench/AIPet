@@ -24,6 +24,7 @@ public partial class WalkProbe : Node
         // 必须先写临时节律配置：StateMachine._Ready（场景实例化时）会读 user://behavior.json，
         // 之后再改内存里的值就晚了（_走动倒计时 已经用旧配置算好了）。
         写临时节律();
+        MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会挡住走动断言）
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
@@ -44,7 +45,10 @@ public partial class WalkProbe : Node
           "走动距离最小像素": 80,
           "走动距离最大像素": 120,
           "走动速度像素每秒": 120,
-          "睡眠空闲秒": 9999
+          "睡眠空闲秒": 9999,
+          "_组②隔离": "本探针只验「走动」：爬边/趴行关掉（爬边是独立行为、趴行会改动画名）",
+          "爬边概率": 0,
+          "爬行概率": 0
         }
         """);
         GD.Print($"[WK] 已写临时节律配置: {路径}");

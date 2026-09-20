@@ -28,6 +28,7 @@ public partial class TouchProbe : Node
     public override void _Ready()
     {
         StateMachine.探针_禁用包裹 = true;   // 本探针测三档映射与部位分流（即时切换语义）：包裹段（A/C 过渡）旁路——包裹段另有 WrapProbe
+        MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会顶状态）
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());

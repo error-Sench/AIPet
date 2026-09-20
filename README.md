@@ -31,7 +31,7 @@
 
 ## 快速上手
 
-1. **运行**：解压到**可写目录**（不要放 `Program Files`）→ 双击 `MagicPet.exe`。
+1. **运行**：解压到**可写目录**（不要放 `Program Files`）→ 双击 `AIPet.exe`。
    详见 [`document/新用户上手.md`](document/新用户上手.md)。
 2. **接上你自己的 Agent**（推荐）：编辑 `config/agent.json` 的 `backend` / `executable`。
 3. **改人格**：跟你的 Agent 说（人格在它自己的内化里）；**改名字**：改 `config/config.json` 的「名字」（缺省「萝莉丝」）。

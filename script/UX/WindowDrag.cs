@@ -180,6 +180,8 @@ public partial class WindowDrag : Node
                             // 贴边隐藏中开始拖拽 → **直接让位**（不用「复位」，因为复位会同时让窗口滑向原位，
                             // 与拖拽同一帧抢窗口位置，表现为「拖不动/往边缘吸」）。让位是瞬时回位且清阶段，交给拖拽独占窗口。
                             if (EdgeHide.占用中) EdgeHide.让位();
+                            // 爬边同理（组②）：爬半路被拖 → 拉回屏内、终止爬边，拖拽独占窗口
+                            if (Climb.占用中) Climb.让位();
                             _dragging = true;
                             _isPreparing = false;
                             // 正式锁定 Offset

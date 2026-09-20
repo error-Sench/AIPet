@@ -50,11 +50,17 @@ public partial class PoolProbe : Node
         "say-smile-a", "say-smile-c", "say-self-a", "say-self-c",
         "say-serious-a", "say-serious-c", "say-shy-a", "say-shy-c",
         "sleep-a", "sleep-c", "sleep-happy-a", "sleep-happy-c",
+        // 2026-09-20 组②·爬边（Climb.cs 按名精确播；缺一段就断链）
+        "climb-left-a", "climb-left-b", "climb-left-c", "climb-right-a", "climb-right-b", "climb-right-c",
+        "climb_top-left-a", "climb_top-left-b", "climb_top-left-c", "climb_top-right-a", "climb_top-right-b", "climb_top-right-c",
+        "crawl-left", "crawl-right",
+        "fall-left-a", "fall-left-b", "fall-left-c", "fall-right-a", "fall-right-b", "fall-right-c",
     ];
 
     public override void _Ready()
     {
         StateMachine.探针_禁用包裹 = true;   // 本探针只测「池路由」：包裹段（进入 A / 退出 C）旁路，断言即时播出池内主段
+        MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会顶状态）
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());

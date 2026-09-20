@@ -9,7 +9,7 @@
 |---|---|
 | `anim/import_vpet_anim.py` | **动画资产导入（通用）**：VPet → `mods/main_anim/anim/loris/<池>/` |
 | `anim/import_vpet_walk.py` | 走动专用导入器（历史原因保留：它要按角色包围盒对齐基线） |
-| `package.sh` | 打包：构建 → 导出 → 组装 `dist/AIPet-<版本>/` → 打 zip |
+| `package.sh` | 打包：构建 → 导出 → 组装 `dist/AIPet-<版本>/` → 打 zip（**导出前先关掉在跑的 Godot 编辑器**——挂起态编辑器会锁构建产物，导致 .NET 构建失败、包变砖） |
 | `run_probes.sh` / `run_probes.ps1` | 一键跑全部回归探针（`--list` / `--all` / `--only`） |
 | `aipet_mcp_smoke.py` | MCP 服务冒烟（不依赖 Hermes）：`pet_context` 读盘 + `pet_command` 收件箱/回执（含「无桌宠超时」「假桌宠回执」两态）；改过 `dist/aipet-mcp/` 后跑一次 |
 | `install_edge_tts.ps1` | 装 Edge 语音（TTS 可选依赖；装到 `%LOCALAPPDATA%\AIPet\tts-venv`，不碰系统 Python） |
@@ -82,6 +82,11 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `fidget` | 原项目 6（bubble/doze/meow/meowlook/spin/yawning）+ VPet 5（squat/tennis/bubbles/boring/aside）+ 组① 3（state-one/state-two/happy520）| 共 325+ | 待机小动作（P10 加 VPet 的 蹲/网球/泡泡/打呼噜/侧看；2026-09-20 组①加 State 坐下/躺下待机与比心彩蛋；`+` 追加模式导入，不清空原有变体）|
 | `edge_hide` | {left,right}-{in,keep,hold,out,peek,rise,unpeek} | 共 76 | 贴边隐藏：`Main`=隐藏姿态序列（in/keep/hold/out），`Rise`=探出（A 弹出 → **B 探出后微动循环** → C 缩回）。左右**逐段一一对应**（每侧 in9/keep4/hold1/out7/peek4/rise10/unpeek3） |
 | `pinch` | a / b / c | 1 / 6 / 21 | 捏脸（照 VPet 官方「**长按脸**」抄）：A 进入 → B **循环**（按住时连续播）→ C 松手退出。**只导 Nomal**——官方按它自己的 Mode 选 Happy/PoorCondition，我们的心情定义与官方不同 → 不做映射；官方的体力-2/心情+1 也不抄（捏脸只做动作） |
+| `climb` | left-a/b/c / right-a/b/c | 3/4/3 ×2 | **组② 爬边**（VPet `MOVE/climb.*`）：A 扑向墙挂住 / B 手脚交替爬（循环，方向由窗口位移决定）/ C 脱手回站姿。官方吸附 = 窗口推出屏外（左 145 / 右 185 @Zoom1）→ 我们用「挂边可见比例」参数换算 |
+| `climb_top` | left-a/b/c / right-a/b/c | 1/4/2 ×2 | **组② 顶边横爬**（`MOVE/climb.top.*`）：A 抓住顶边 / B 沿顶边爬（循环）/ C 离开。素材是横置构图（挂在顶边、身体垂在屏内） |
+| `crawl` | left / right | 9 / 9 | **组② 趴行**（`MOVE/crawl.*` 的 B 段）：贴地慢爬，当**走动的慢速变体**用（0.72 倍速）——不进行为链 |
+| `fall` | left-a/b/c / right-a/b/c | 4/8/21 ×2 | **组② 掉落**（`MOVE/fall.*`）：A 脱手 / B 横着下落（循环）/ C 落地起身（右版 21 帧长起身）。C_Nomal 混了两条命名序列（FLA 触地 + FLB 起身）→ 按前缀拆开拼接 |
 | `bday` | a / b / c | 4 / 45 / 4 | **生日彩蛋**（2026-09-20 组①）：A 惊喜 → B 开心摇摆（~5.6s）→ C 比心。触发 = `config/config.json` 的「生日」MM-dd 命中当天 → 入场完成后播一遍 |
+| `music` | a / c / {nomal,happy,poor}-1..n / single-{档} | 1 / 6 / 16~30 / 14 | **组③ 音乐反应**（VPet `Music/*`）：A 起跳 → 舞蹈循环（三档，Happy>Nomal>Poor 欢快度，带音符特效）→ C 收尾；`single-*` = 嗨档（音量超刺激阈值时 MusicSense 显式指定，不进普通随机）。运行时 = 包裹段（music 已入包裹池）|
 
-**验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）+ `tests/BirthdayProbe`（生日命中 → 三段序列 → 回 idle）。
+**验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle）+ `tests/WrapProbe` / `ClimbProbe` / `MusicProbe`（组①~③ 机制专测）。

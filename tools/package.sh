@@ -48,16 +48,18 @@ if ! ls "$TEMPLATE_DIR" 2>/dev/null | grep -q "4\.7"; then
     exit 2
 fi
 mkdir -p "$EXPORT_DIR"
-"$GODOT" --headless --path "$ROOT" --export-release "MagicPet" "$EXPORT_DIR/MagicPet.exe" || {
-    echo "✗ 导出失败（看上面 Godot 输出）"; exit 1;
+# ⚠ 导出前务必关掉在跑的 Godot 编辑器：挂起/运行中的编辑器会锁 .godot 构建产物，
+#   导致 .NET publish 失败——导出的包会缺 data_*（exe 弹「.NET assemblies not found」）。
+"$GODOT" --headless --path "$(cygpath -m "$ROOT")" --export-release "MagicPet" "$(cygpath -m "$EXPORT_DIR")/AIPet.exe" || {
+    echo "✗ 导出失败（看上面 Godot 输出；若为「Export .NET Project: Failed to build project」，先关掉在跑的 Godot 编辑器再重试）"; exit 1;
 }
 echo "✓ 导出完成"
 
 echo "=== [3/5] 组装分发包 ==="
 rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR/licenses"
-cp "$EXPORT_DIR/MagicPet.exe" "$OUT_DIR/" 2>/dev/null
-cp "$EXPORT_DIR/MagicPet.pck" "$OUT_DIR/" 2>/dev/null || echo "  （提示：embed_pck=false 时 exe 与 pck 必须一起发）"
+cp "$EXPORT_DIR/AIPet.exe" "$OUT_DIR/" 2>/dev/null
+cp "$EXPORT_DIR/AIPet.pck" "$OUT_DIR/" 2>/dev/null || echo "  （提示：embed_pck=false 时 exe 与 pck 必须一起发）"
 cp -r "$EXPORT_DIR"/data_* "$OUT_DIR/" 2>/dev/null   # .NET 导出产物目录
 cp -r "$ROOT/mods" "$OUT_DIR/mods"                   # 运行必需资产
 cp -r "$ROOT/config" "$OUT_DIR/config"
@@ -92,9 +94,9 @@ cp "$ROOT/VERSION" "$OUT_DIR/"
 cat > "$OUT_DIR/README.txt" <<TXTEOF
 AIPet $VER —— 解压即用
 重要：请放在**可写目录**（例如 D:\\AIPet），不要放进 Program Files —— 它要在自己旁边读写 mods/ config/。
-1) 双击 MagicPet.exe 启动桌宠（首次启动会生成数据文件）。
-2) 数据位置：%APPDATA%\\Godot\\app_userdata\\AIPet\\（数值 state/stats.json、名字 state/name.json、
-   上下文接口 context.md、事件 events.jsonl、画像 soul/profile.md、记忆 soul/memory.jsonl）。
+1) 双击 AIPet.exe 启动桌宠（首次启动会生成数据文件）。
+2) 数据位置：%APPDATA%\\Godot\\app_userdata\\AIPet\\（数值 state/stats.json、上下文接口 context.md、
+   事件 events.jsonl、画像 soul/profile.md、记忆 soul/memory.jsonl）。
 3) 退出：右键桌宠 → 退出。
 4) 想让它连上你自己的 Agent（推荐）：见 config/agent.json 与「新用户上手.md」。
 5) 语音：默认 Edge 在线语音（晓晓）；不想联网可在 config/tts.json 切「sapi」（Windows 自带）。
@@ -109,7 +111,9 @@ if command -v 7z >/dev/null 2>&1; then
 elif command -v zip >/dev/null 2>&1; then
     ( cd "$ROOT/dist" && zip -qr "AIPet-$VER.zip" "AIPet-$VER" ) && ZIP_OK=1
 else
-    powershell -NoProfile -Command "Compress-Archive -Path '$OUT_DIR' -DestinationPath '$ROOT/dist/AIPet-$VER.zip' -Force" >/dev/null 2>&1 && ZIP_OK=1
+    W_OUT=$(cygpath -w "$OUT_DIR" 2>/dev/null || printf '%s' "$OUT_DIR")
+    W_ZIP=$(cygpath -w "$ROOT/dist/AIPet-$VER.zip" 2>/dev/null || printf '%s' "$ROOT/dist/AIPet-$VER.zip")
+    powershell -NoProfile -Command "Compress-Archive -Path '$W_OUT' -DestinationPath '$W_ZIP' -Force" >/dev/null 2>&1 && ZIP_OK=1
 fi
 if [ "$ZIP_OK" = "1" ]; then ls -lh "$ROOT/dist/AIPet-$VER.zip"; else echo "  （没打 zip：装个 zip / 7z，或手动右键压缩）"; fi
 

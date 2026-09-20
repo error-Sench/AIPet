@@ -25,6 +25,7 @@ public partial class WrapProbe : Node
     public override void _Ready()
     {
         Main.探针_禁首启提示 = true;                       // 与首启提示互不打扰
+        MusicSense.启用 = false;                           // 组③：隔离音乐反应（系统有声就跳舞会顶状态）
         StateMachine.设置.问候启用 = false;                 // 隔离时间驱动（同 StateProbe 口径）
         DailyRoutine.问候启用 = false;
         StateMachine.设置.磁盘提醒启用 = false;

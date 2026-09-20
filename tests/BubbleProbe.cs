@@ -21,6 +21,7 @@ public partial class BubbleProbe : Node
 
     public override void _Ready()
     {
+        MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会顶气泡/状态）
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
