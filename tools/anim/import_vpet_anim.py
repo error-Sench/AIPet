@@ -126,6 +126,31 @@ SPEC = {
         ("b", [("Pinch/Nomal/B", None, None)]),
         ("c", [("Pinch/Nomal/C", None, None)]),
     ],
+    # ── 组③（2026-09-20）：音乐反应（VPet `Music/*`；语义 = 官方 `MainWindow.cs` Handle_Music/MusicTimer）──
+    # 官方逻辑：系统输出峰值音量持续 3 秒 > MusicCatch → 起身跳舞；音量平均再超 MusicMax → 换「Single」档；
+    #   安静后播 C_End 收场。A=起跳过渡（1帧）/ B=三档舞蹈循环（带音符特效；Happy>Nomal>Poor 欢快度）/
+    #   C=收尾（取 Nomal_1；另有 Happy/Poor/Nomal_2 变体未用）/ Single=轻快摇摆（14帧，表情三版）。
+    # 运行时 = StateMachine「包裹段」（music 池已入包裹池）：A → 主段（按档随机舞蹈 或 嗨档 Single）→ C。
+    "music": [
+        ("a", [("Music/A/Nomal", None, None)]),
+        ("c", [("Music/C/Nomal_1", None, None)]),
+        ("nomal-1", [("Music/B/Nomal_1", None, None)]),
+        ("nomal-2", [("Music/B/Nomal_2", None, None)]),
+        ("nomal-3", [("Music/B/Nomal/3", None, None)]),
+        ("nomal-4", [("Music/B/Nomal/4", None, None)]),
+        ("nomal-5", [("Music/B/Nomal/5", None, None)]),
+        ("happy-1", [("Music/B/Happy_1", None, None)]),
+        ("happy-2", [("Music/B/Happy_2", None, None)]),
+        ("happy-3", [("Music/B/Happy/3", None, None)]),
+        ("happy-4", [("Music/B/Happy/4", None, None)]),
+        ("poor-1", [("Music/B/PoorCondition/1", None, None)]),
+        ("poor-2", [("Music/B/PoorCondition/2", None, None)]),
+        ("poor-3", [("Music/B/PoorCondition/3", None, None)]),
+        ("poor-4", [("Music/B/PoorCondition/5", None, None)]),
+        ("single-nomal", [("Music/Single/Nomal", None, None)]),
+        ("single-happy", [("Music/Single/Happy", None, None)]),
+        ("single-poor", [("Music/Single/PoorCondition", None, None)]),
+    ],
     # ── 组②（2026-09-20）：爬边 / 顶爬 / 趴行 / 掉落（VPet `MOVE/*`，语义见 `vup.lps` move 行 + GraphHelper.Move）──
     # 侧边爬：A=扑向墙上挂住 B=手脚交替爬（循环，方向由窗口位移决定：Y±10/125ms）C=脱手回站姿。
     #   官方吸附：`LocateType Left/Right` → A 播完把窗口推出屏外 LocateLength（左 145 / 右 185 @Zoom1）。

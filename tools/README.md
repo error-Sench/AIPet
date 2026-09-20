@@ -87,5 +87,6 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `crawl` | left / right | 9 / 9 | **组② 趴行**（`MOVE/crawl.*` 的 B 段）：贴地慢爬，当**走动的慢速变体**用（0.72 倍速）——不进行为链 |
 | `fall` | left-a/b/c / right-a/b/c | 4/8/21 ×2 | **组② 掉落**（`MOVE/fall.*`）：A 脱手 / B 横着下落（循环）/ C 落地起身（右版 21 帧长起身）。C_Nomal 混了两条命名序列（FLA 触地 + FLB 起身）→ 按前缀拆开拼接 |
 | `bday` | a / b / c | 4 / 45 / 4 | **生日彩蛋**（2026-09-20 组①）：A 惊喜 → B 开心摇摆（~5.6s）→ C 比心。触发 = `config/config.json` 的「生日」MM-dd 命中当天 → 入场完成后播一遍 |
+| `music` | a / c / {nomal,happy,poor}-1..n / single-{档} | 1 / 6 / 16~30 / 14 | **组③ 音乐反应**（VPet `Music/*`）：A 起跳 → 舞蹈循环（三档，Happy>Nomal>Poor 欢快度，带音符特效）→ C 收尾；`single-*` = 嗨档（音量超刺激阈值时 MusicSense 显式指定，不进普通随机）。运行时 = 包裹段（music 已入包裹池）|
 
-**验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）+ `tests/BirthdayProbe`（生日命中 → 三段序列 → 回 idle）。
+**验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle）+ `tests/WrapProbe` / `ClimbProbe` / `MusicProbe`（组①~③ 机制专测）。

@@ -60,6 +60,8 @@ public partial class StateMachine : Node
     // —— 行为链状态（不映射固定动画，语义化） ——
     /// <summary>爬边（组②，行为层 Climb.cs 自管相位：走向边→侧爬→顶爬→下落→落地）。</summary>
     public const string ClimbState = "climb";
+    /// <summary>音乐反应（组③）：包裹段自管（A 起跳 → 主段舞蹈循环 → C 收尾），检测在 MusicSense.cs。</summary>
+    public const string Music = "music";
     public const string WalkStart = "walk_start";
     public const string WalkLoop = "walk_loop";
     public const string WalkEnd = "walk_end";
@@ -115,6 +117,8 @@ public partial class StateMachine : Node
         [PinchState] = new 状态效果 { 目标池 = "pinch", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
         // 爬边（组②）：表现由 Climb.cs 自管（A/B/C 段按相位精确播），锁定 + 免兜底（爬多久都行）
         [ClimbState] = new 状态效果 { 目标池 = "climb", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true },
+        // 音乐反应（组③）：包裹段（A 起跳 → 主段舞蹈 → C 收尾）；退出由 MusicSense 在静音够了时 SetState(Idle) 触发
+        [Music] = new 状态效果 { 目标池 = "music", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 包裹 = true },
         // 气泡说话（P8）：**不锁定**（动作可被打断；重播由「包裹中」兜住，见 CharAnim 播完回调）+ 定时回 idle；
         // 真正的时长由 冒泡说话() 用「气泡显示秒」覆盖传入。组①加包裹段：say-{感情}-a 进入 → B 循环 → C 退出。
         [BubbleTalk] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = false, 锁定 = false, 秒 = 4f, 包裹 = true },
@@ -170,6 +174,8 @@ public partial class StateMachine : Node
     private static float _退出目标秒 = -1f;
     /// <summary>探针隔离：断言「即时切换」语义的探针置 true，包裹段整体旁路。</summary>
     public static bool 探针_禁用包裹;
+    /// <summary>包裹态进入时的「主段指定」（MusicSense 挑歌等用；空 = 交给 挑主名 默认挑）。用后即清。</summary>
+    public static string 包裹主名指定;
     /// <summary>包裹会话进行中（CharAnim 用它把「动画播完」派发给状态机——非锁定态如气泡说话也走重播）。</summary>
     public static bool 包裹中 => _包裹主名 != null;
     private static bool _已报可走动;     // 「空闲达标」日志只报一次，避免刷屏
@@ -237,6 +243,9 @@ public partial class StateMachine : Node
 
         // —— 爬边（组② 行为层）：位移 + 相位推进 ——
         Climb.每帧((float)delta);
+
+        // —— 音乐反应（组③）：系统音量采样 + 起跳/收场 ——
+        MusicSense.每帧((float)delta);
 
         // —— 心跳（默认 1s，可配置） ——
         _心跳累加 += delta;
@@ -309,6 +318,7 @@ public partial class StateMachine : Node
                 _退出段中 = true;
                 _退出目标 = state;
                 _退出目标秒 = 秒;
+                GD.Print($"[StateMachine] 包裹退出段: {退出段}（目标 {state}）");
                 CharAnim.PlayNamed(退出段);
                 return;
             }
@@ -348,7 +358,8 @@ public partial class StateMachine : Node
         else if (效果.包裹 && !探针_禁用包裹)
         {
             // 包裹态进入：挑一个主名钉住本次会话（变体不再随机换）；池里有 A 段就先播 A，播完接主段
-            _包裹主名 = 挑主名(选择池(效果));
+            _包裹主名 = string.IsNullOrEmpty(包裹主名指定) ? 挑主名(选择池(效果)) : 包裹主名指定;
+            包裹主名指定 = null;
             var 进入段 = _包裹主名 != null ? 段名(_包裹主名, "a") : null;
             if (进入段 != null)
             {
@@ -386,6 +397,7 @@ public partial class StateMachine : Node
             _退出目标 = null;
             _退出目标秒 = -1f;
             _包裹主名 = null;
+            GD.Print($"[StateMachine] 包裹退出完成 → {目标}");
             if (!string.IsNullOrEmpty(目标)) { SetState(目标, 目标秒); return; }
         }
         if (_进入段中)
@@ -684,6 +696,10 @@ public partial class StateMachine : Node
 
     /// <summary>主动行为闸门（供状态机外部共用）：任一约束命中即禁止。见 <see cref="允许主动"/>。</summary>
     public static bool 主动闸门开放 => 允许主动();
+
+    /// <summary>演出闸门（音乐舞蹈等「响应型」主动表现用）：空闲 + 环境安静 + 入场完成 —— 与 允许主动 的区别是**不吃每小时预算**（对声音的反应不是打扰型行为）。</summary>
+    public static bool 演出闸门开放 =>
+        !_入场未完成 && CurrentState == Idle && !面板可见() && !鼠标悬停桌宠() && !EnvironmentSense.应当静默;
 
     /// <summary>占一次主动预算（其他模块冒泡也要记账，否则「每小时上限」会被绕过）。</summary>
     public static void 占一次主动预算() => 记一次主动();
@@ -1089,7 +1105,7 @@ public partial class StateMachine : Node
     }
 
     /// <summary>有 A/C 过渡段的池（包裹段机制）：挑主名从这里挑随机时要把段本身排除掉（别把 sleep-a 当主段）。</summary>
-    private static readonly string[] 包裹池 = { "think", "say", "sleep" };
+    private static readonly string[] 包裹池 = { "think", "say", "sleep", "music" };
 
     /// <summary>是不是 A/C 过渡段变体（`-a` / `-c` 结尾）。</summary>
     private static bool 是段名(string 名)
@@ -1101,6 +1117,8 @@ public partial class StateMachine : Node
         try
         {
             var 排除段 = Array.IndexOf(包裹池, 池) >= 0;
+            // music 池：`single-*` 是「嗨档」专用（MusicSense 显式指定），不进普通随机
+            bool 排除(string n) => (排除段 && 是段名(n)) || (池 == "music" && n.Contains("-single-"));
             var 变体 = 情绪变体(池);
             if (变体.Length > 0)
             {
@@ -1108,11 +1126,11 @@ public partial class StateMachine : Node
                 if (CharAnim.有动画(精确)) return 精确;
                 // 组变体（如 idle-happy-1/2/3）：该档位对应的是一组时，按 `{池}-{档}-` 前缀随机取一条
                 var 组 = Main.显示人物?.动画池字典.GetValueOrDefault(池)?
-                    .FindAll(x => x.name.StartsWith($"{精确}-", StringComparison.Ordinal) && !(排除段 && 是段名(x.name)));
+                    .FindAll(x => x.name.StartsWith($"{精确}-", StringComparison.Ordinal) && !排除(x.name));
                 if (组 is { Count: > 0 }) return 组.列表随机项().name;
             }
             var 列表 = Main.显示人物?.动画池字典.GetValueOrDefault(池);
-            if (排除段) 列表 = 列表?.FindAll(x => !是段名(x.name));
+            if (排除段 || 池 == "music") 列表 = 列表?.FindAll(x => !排除(x.name));
             return 列表 is { Count: > 0 } ? 列表.列表随机项().name : null;
         }
         catch (Exception)
@@ -1253,6 +1271,13 @@ public partial class StateMachine : Node
         public static int 脚底余量像素 = 6;
         public static float 爬边冷却秒 = 600f;
 
+        // —— 组③ 音乐反应（MusicSense.cs）：系统在放声音就跳舞，安静就收场 ——
+        public static bool 音乐检测启用 = true;
+        public static float 音乐音量阈值 = 0.02f;    // 峰值超过算「有声音」
+        public static float 音乐刺激阈值 = 0.25f;    // 识别期平均超过算「嗨」→ 换 Single 舞
+        public static float 音乐识别秒 = 3f;         // 连续有声多久才开跳
+        public static float 音乐静音秒 = 6f;         // 安静多久收场
+
         public static void 加载()
         {
             foreach (var 路径 in Util.ConfigFile.候选("behavior.json").Concat(Util.ConfigFile.候选("config/behavior.json")))
@@ -1322,6 +1347,11 @@ public partial class StateMachine : Node
                     顶挂偏移像素 = 取整数(根, "顶挂偏移像素", 顶挂偏移像素);
                     脚底余量像素 = 取整数(根, "脚底余量像素", 脚底余量像素);
                     爬边冷却秒 = 取浮点(根, "爬边冷却秒", 爬边冷却秒);
+                    音乐检测启用 = 取布尔(根, "音乐检测启用", 音乐检测启用);
+                    音乐音量阈值 = 取浮点(根, "音乐音量阈值", 音乐音量阈值);
+                    音乐刺激阈值 = 取浮点(根, "音乐刺激阈值", 音乐刺激阈值);
+                    音乐识别秒 = 取浮点(根, "音乐识别秒", 音乐识别秒);
+                    音乐静音秒 = 取浮点(根, "音乐静音秒", 音乐静音秒);
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
@@ -1363,6 +1393,12 @@ public partial class StateMachine : Node
             Climb.顶偏移像素 = Math.Clamp(顶挂偏移像素, -400, 400);
             Climb.脚底余量像素 = Math.Clamp(脚底余量像素, -40, 80);
             Climb.冷却秒 = Math.Max(10f, 爬边冷却秒);
+            // 把组③ 音乐反应参数交给 MusicSense（含夹取）
+            MusicSense.启用 = 音乐检测启用;
+            MusicSense.音量阈值 = Math.Clamp(音乐音量阈值, 0.001f, 0.5f);
+            MusicSense.刺激阈值 = Math.Clamp(音乐刺激阈值, 0.01f, 1f);
+            MusicSense.识别秒 = Math.Clamp(音乐识别秒, 0.5f, 30f);
+            MusicSense.静音秒 = Math.Clamp(音乐静音秒, 1f, 120f);
             // 捏脸（P7）：长按阈值 + 命中区（照 VPet 官方；命中区是窗口宽高的比例）
             FacePinch.长按秒 = Math.Clamp(捏脸长按秒, 0.1f, 3f);
             if (捏脸命中区 is { Length: 4 }) FacePinch.命中区 = 捏脸命中区;

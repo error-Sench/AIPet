@@ -32,6 +32,7 @@ public partial class EventProbe : Node
         // 隔离 Plan #11 的时间驱动行为：本探针只测事件池与久坐，磁盘提醒会往池子里插自己的事件
         StateMachine.设置.磁盘提醒启用 = false;
         DailyRoutine.磁盘提醒启用 = false;
+        MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会顶状态）
         GD.Print("=== EventProbe: 场景已实例化 ===");
     }
 

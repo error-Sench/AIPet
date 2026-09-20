@@ -23,6 +23,7 @@ public partial class ClimbProbe : Node
     public override void _Ready()
     {
         Main.探针_禁首启提示 = true;
+        MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会顶状态）
         StateMachine.设置.问候启用 = false;
         DailyRoutine.问候启用 = false;
         StateMachine.设置.磁盘提醒启用 = false;

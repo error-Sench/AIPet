@@ -400,6 +400,19 @@ StateMachine.EnqueueChain(
 
 **验证**：`tests/ClimbProbe`（纯函数 + 相位机全流程 + 让位拉回）+ `PoolProbe` 素材存在性 +20。
 
+### 2026-09-20 组③：音乐反应（系统在放声音就跳舞）
+
+素材 = VPet `Music/*`（A 起跳 1 帧 / B 三档舞蹈循环带音符特效 / C 收尾 / Single 轻快摇摆三表情版）；检测 = `script/Util/AudioMeter.cs`（Windows Core Audio `IAudioMeterInformation` 默认播放设备峰值，**纯 COM 无第三方库；只读峰值，不读音频内容、不落盘、不联网**）；行为 = `script/State/MusicSense.cs`。
+
+- **官方对照**（VPet `MainWindow.cs` Handle_Music / MusicTimer）：音量持续 3 秒 > MusicCatch → 起身跳舞；识别期平均 > MusicMax → 换「Single」嗨档；安静后 C_End 收场。我们同款参数化（`音乐音量阈值/刺激阈值/识别秒/静音秒`）。
+- **状态**：`music` = 包裹段（A → 主段 → C）；主段默认按三档组变体随机（`nomal-1..5` / `happy-1..4` / `poor-1..4`），**嗨档时 MusicSense 用 `包裹主名指定` 钉 `music-single-{档}`**；`single-*` 不进普通随机（挑主名特判）。
+- **闸门**：`StateMachine.演出闸门开放`（空闲 + 环境安静 + 入场完成）——**不吃每小时主动上限**（对声音的反应不是打扰型行为）；面板/悬停/拖拽时不抢。
+- **独有约定**：`_已请求收场` 防重（C 段退出期间状态仍是 music，别每帧重发 SetState——**实机抓到的刷屏 bug**，已修）；读不到音频设备 → AudioMeter 自动停用（不影响其它功能）。
+- **探针隔离**：时序敏感探针（State/Pool/Wrap/Climb/Bubble/Touch/Interact/Event/Walk）都置 `MusicSense.启用 = false`（真实播放会误触发）；MusicProbe 用 `探针_峰值覆写` 注入假音量。
+- **实机验收**：外部音源 → 峰值 0.61 → 嗨档起跳 → 音停收场 → C → idle（三段日志 + 截图）；此前排查的「无声」根因 = bash 双引号吃掉了 PS 变量（测试音根本没响）。
+
+**验证**：`tests/MusicProbe`（阈值 + 全流程 + 嗨档换曲）。
+
 ### 气泡说话（P8）
 
 - **气泡一出现就演「说话」动作**（`say` 池，`BubbleTalk` 状态）；接线在 `Dialogue.单例显示标题`（**主线程唯一出口**，跨线程调用会被 marshal 到这里）。气泡本体是独立窗 `BubbleWindow`（见 `script/UX/README.md`）。
