@@ -68,7 +68,7 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | 池 | 变体 | 帧数 | 说明 |
 |---|---|---|---|
 | `idle` | happy-1..3 / nomal-1..3 / poor-1..2 | 13×3 / 8×3 / 17×2 | 待机（VPet `Default` 三档；2026-09-20 组①补 Nomal/Poor 并对齐三档：变体名 = `{档}-{n}`，三档开启时按 `idle-{档}-` 前缀随机取一条）|
-| `walk` | left / right / left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | 走动（**循环**）。P10：**快/慢 = 心情档**（VPet `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition），位移速度同步变（×1.35 / ×0.72，否则会滑步）|
+| `walk` | left / right / left-fast / right-fast / left-slow / right-slow（+ 每档 `-a`/`-c` 起步/停步段） | 6+6 / 10+10 / 5+5 + 段共 80 | 走动（**循环**）。P10：**快/慢 = 心情档**（VPet `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition），位移速度同步变（×1.35 / ×0.72，否则会滑步）。**2026-09-20 打磨**：补 A/C 起步/停步段（`-a`/`-c` 结尾 → 自动非循环）、走链三段分播、位移只在循环段推进 |
 | `think` | nomal / happy / poor（+各档 a/c 过渡段） | 9×3 + 2 帧×6 | 三档状态（对接 P5 情绪变体）。2026-09-20 组①·过渡段：`think-{档}-a` 进入 / `think-{档}-c` 退出（包裹段，见 `script/State/README.md`）|
 | `say` | smile / self / serious / shy（+各感情 a/c 过渡段） | 7/15/4/5 + 段共 41 帧 | 说话（P10 补 VPet `Say/Shy` 害羞档；组①·过渡段：`say-{感情}-a/c` 与站姿衔接）|
 | `work` | pc / read / write / calligraphy / paint / study2 / sausage / clean / fixmenu / game / water / remove / rope（+ 每项 `-a`/`-c` 段）| 共 493 | 干活（VPet `WORK` 全部 13 种：书法/画画/研究/烤肠/清屏/修屏幕/玩游戏/玩水/删错误/跳绳）。**2026-09-20 打磨**：改为**包裹段结构**（主段 = B 干活循环、取环内最丰富变体；A/C 拆 `-a`/`-c` 段）——原先只导 A 段，实机上「反复做准备动作、永远不干活」。金钱/体力收益等玩法数值不抄）|

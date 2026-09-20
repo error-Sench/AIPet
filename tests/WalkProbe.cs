@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using desktop.script.State;
 using desktop.script.UX;
 using Godot;
@@ -17,7 +18,7 @@ public partial class WalkProbe : Node
     private int _帧;
     private int _起始X;
     private int _失败;
-    private string _走动中动画 = "";
+    private readonly List<string> _走动中动画集 = new();
 
     public override void _Ready()
     {
@@ -74,9 +75,12 @@ public partial class WalkProbe : Node
     public override void _Process(double delta)
     {
         _帧++;
-        // 走动期间抓一下正在播的动画名，用于断言「走的是 walk 资产而不是 drag 占位」
+        // 走动期间收集所有播过的动画名（起步 -a / 循环 / 停步 -c 三段都要露面），用于断言「走的是 walk 资产而不是 drag 占位」
         if (StateMachine.CurrentState.StartsWith("walk", System.StringComparison.Ordinal))
-            _走动中动画 = CharAnim.当前动画名_只读;
+        {
+            var 名 = CharAnim.当前动画名_只读;
+            if (!string.IsNullOrEmpty(名) && !_走动中动画集.Contains(名)) _走动中动画集.Add(名);
+        }
 
         if (_帧 == 4) 准备();
         else if (_帧 == 60)   // ≈1s：入场动画应已结束
@@ -88,10 +92,13 @@ public partial class WalkProbe : Node
             var 末X = DisplayServer.WindowGetPosition().X;
             GD.Print($"[WK] 走动次数={StateMachine.走动次数_只读} 主动次数={StateMachine.主动次数_只读} 空闲={StateMachine.空闲秒_只读:0.0}s 状态={StateMachine.CurrentState}");
             GD.Print($"[WK] 窗口 X: 起始={_起始X} 现在={末X}");
-            GD.Print($"[WK] 走动期间动画={_走动中动画}（walk-left 已载入={CharAnim.有动画("walk-left")}, walk-right 已载入={CharAnim.有动画("walk-right")}）");
+            GD.Print($"[WK] 走动期间动画集=[{string.Join(", ", _走动中动画集)}]");
             断言(StateMachine.走动次数_只读 >= 1, "发生了自主走动");
             断言(末X != _起始X, "桌宠窗口 X 真的移动了");
-            断言(_走动中动画 is "walk-left" or "walk-right", "走动用的是 walk 资产（不是 drag 占位）");
+            断言(_走动中动画集.Exists(n => n.StartsWith("walk-", System.StringComparison.Ordinal)), "走动用的是 walk 资产（不是 drag 占位）");
+            断言(_走动中动画集.Exists(n => n.EndsWith("-a", System.StringComparison.Ordinal)), "起步段 walk-*-a 出现过");
+            断言(_走动中动画集.Exists(n => !n.EndsWith("-a", System.StringComparison.Ordinal) && !n.EndsWith("-c", System.StringComparison.Ordinal)), "走路循环段出现过");
+            断言(_走动中动画集.Exists(n => n.EndsWith("-c", System.StringComparison.Ordinal)), "停步段 walk-*-c 出现过");
             GD.Print($"[WK] ===== 失败数 = {_失败} =====");
             清临时节律();
             GetTree().Quit(_失败 == 0 ? 0 : 1);

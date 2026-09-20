@@ -223,8 +223,8 @@ public partial class StateMachine : Node
             if (_stepRemaining <= 0f) 完成当前链节();
         }
 
-        // —— 走动位移 ——
-        if (_走动中) 推进走动((float)delta);
+        // —— 走动位移（只在循环段推进；起步/停步段原地演，起停更自然）——
+        if (_走动中 && CurrentState == WalkLoop) 推进走动((float)delta);
 
         // —— 计时器（每帧，精度足够） ——
         _运行秒 += delta;
@@ -858,6 +858,20 @@ public partial class StateMachine : Node
     /// <summary>走动位移倍率（与动画档位同步，避免滑步）。</summary>
     private static float 走动档倍率 => 走动档后缀 switch { "-fast" => 1.35f, "-slow" => 0.72f, _ => 1f };
 
+    /// <summary>走链起步阶段时长（2026-09-20 打磨）：起步 `-a` 素材帧数÷帧率 + 余量；缺素材回退。</summary>
+    private static float 走起步时长() => 走段时长("-a", 0.35f);
+
+    /// <summary>走链停步阶段时长：停步 `-c` 素材帧数÷帧率 + 余量；缺素材回退。</summary>
+    private static float 走停步时长() => 走段时长("-c", 0.25f);
+
+    private static float 走段时长(string 段, float 回退)
+    {
+        var 方向 = _走动目标X >= DisplayServer.WindowGetPosition().X ? "right" : "left";
+        var t = CharAnim.动画时长($"walk-{方向}{走动档后缀}{段}");
+        if (t <= 0f) t = CharAnim.动画时长($"crawl-{方向}{段}");
+        return t > 0f ? t + 0.05f : 回退;
+    }
+
     private static float 首次间隔() =>
         (float)GD.RandRange(设置.首次走动最小秒, 设置.首次走动最大秒);
 
@@ -892,9 +906,9 @@ public partial class StateMachine : Node
         GD.Print($"[StateMachine] 自主走动: {当前X} → {目标}（{时长:0.0}s）");
         _走动次数++;
         EnqueueChain(
-            new ChainStep(WalkStart, 0.35f),
-            new ChainStep(WalkLoop, 时长, () => { if (CurrentState == WalkLoop) SetState(Idle); }),
-            new ChainStep(WalkEnd, 0.25f));
+            new ChainStep(WalkStart, 走起步时长()),
+            new ChainStep(WalkLoop, 时长),
+            new ChainStep(WalkEnd, 走停步时长()));
         _走动中 = true;
     }
 
@@ -908,9 +922,9 @@ public partial class StateMachine : Node
         var 时长 = Math.Max(0.4f, Math.Abs(目标X - 当前X) / _走动速度);
         GD.Print($"[StateMachine] 爬边走向: {当前X} → {目标X}（{时长:0.0}s）");
         EnqueueChain(
-            new ChainStep(WalkStart, 0.35f),
+            new ChainStep(WalkStart, 走起步时长()),
             new ChainStep(WalkLoop, 时长),
-            new ChainStep(WalkEnd, 0.25f));
+            new ChainStep(WalkEnd, 走停步时长()));
         _走动中 = true;
     }
 
@@ -1155,14 +1169,17 @@ public partial class StateMachine : Node
     {
         if (state is WalkStart or WalkLoop or WalkEnd)
         {
-            // 走动：按方向播 walk-left / walk-right（VPet 资产、已设为循环）。
-            // 三个链节共用同一段动画 —— 已经是目标动画时不重播，否则会在链节边界重置相位、看起来一顿一顿。
+            // 走动：按方向播 walk 资产。2026-09-20 打磨：三段分播——WalkStart 起步（`-a`）、
+            // WalkLoop 循环、WalkEnd 停步（`-c`）；缺段素材时回退循环段（crawl / 老素材仍可用）。
+            // 链节边界换段时若已是目标动画则不重播，否则会在链节边界重置相位、看起来一顿一顿。
             var 方向 = _走动目标X >= DisplayServer.WindowGetPosition().X ? "right" : "left";
             // P10：**快/慢 = 心情档**（VPet 里 walk.*.faster 就是 Happy、walk.*.slow 就是 PoorCondition）
             //      —— 位移速度也跟着变（走动档倍率），否则快动作配慢位移会滑步。
             // 组②：趴行（crawl）是走动的慢速变体，素材方向直接对应
-            var 期望 = _本次爬行 && CharAnim.有动画($"crawl-{方向}") ? $"crawl-{方向}" : $"walk-{方向}{走动档后缀}";
-            if (!CharAnim.有动画(期望)) 期望 = $"walk-{方向}";
+            var 基础 = _本次爬行 && CharAnim.有动画($"crawl-{方向}") ? $"crawl-{方向}" : $"walk-{方向}{走动档后缀}";
+            if (!CharAnim.有动画(基础)) 基础 = $"walk-{方向}";
+            var 段 = state switch { WalkStart => "-a", WalkEnd => "-c", _ => "" };
+            var 期望 = 段 != "" && CharAnim.有动画(基础 + 段) ? 基础 + 段 : 基础;
             if (CharAnim.有动画(期望))
             {
                 if (CharAnim.当前动画名_只读 != 期望) CharAnim.PlayNamed(期望);

@@ -77,7 +77,7 @@ StateMachine.EnqueueChain(
 
 | 池 | 变体（源） | 帧数 | 说明 |
 |---|---|---|---|
-| `walk` | left / right + left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | VPet `MOVE/walk.*` 的 `B_Nomal`；**循环**。P10：快/慢 = 三档档位（`walk.*.faster`=Happy / `walk.*.slow`=PoorCondition；三档开关打开时生效），位移速度同步 |
+| `walk` | left / right + 快/慢档 + 每档 `-a`/`-c` 起步/停步段 | 6+6 / 10+10 / 5+5 + 段共 80 | VPet `MOVE/walk.*`；**循环**（段非循环）。P10：快/慢 = 三档档位（`walk.*.faster`=Happy / `walk.*.slow`=PoorCondition；三档开关打开时生效），位移速度同步。**2026-09-20**：走链三段分播（`-a` 起步 / 循环 / `-c` 停步），阶段时长按素材帧数算、位移只在循环段推进 |
 | `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
 | `say` | smile / self / serious / shy | 7/15/4/5 | VPet `Say/Shining·Self·Serious·Shy`（P10 补害羞档）|
 | `work` | 13 种 + 每项 `-a`/`-c` 段（包裹段）| 共 493 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`）|

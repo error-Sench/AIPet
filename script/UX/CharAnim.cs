@@ -155,6 +155,15 @@ public partial class CharAnim : AnimatedSprite2D
     public static bool 有动画(string 动画名) =>
         !string.IsNullOrEmpty(动画名) && _单例?.SpriteFrames?.HasAnimation(动画名) == true;
 
+    /// <summary>动画时长（秒）= 帧数 ÷ 帧率；未载入返回 0（状态机走链用它对齐起步/停步阶段时长）。</summary>
+    public static float 动画时长(string 动画名)
+    {
+        var sf = _单例?.SpriteFrames;
+        if (sf == null || !sf.HasAnimation(动画名)) return 0f;
+        var 帧率 = Math.Max(1.0, sf.GetAnimationSpeed(动画名));
+        return (float)(sf.GetFrameCount(动画名) / 帧率);
+    }
+
     /// <summary>当前正在播的动画名（只读，供状态机避免重复重播导致相位重置）。</summary>
     public static string 当前动画名_只读 => _单例?.Animation.ToString() ?? "";
 

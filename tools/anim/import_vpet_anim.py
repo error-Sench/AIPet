@@ -234,12 +234,27 @@ SPEC = {
     # 走路：**快/慢 = 心情档**（VPet 里 `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition 的走法）
     # —— 与我们「三档状态 / 心情择档」天然对齐，不要当成两个独立速度档。
     "walk": [
+        # 2026-09-20 细节打磨：补 A/C 起步/停步段（`-a`/`-c` 结尾 → CharAnim 自动非循环加载，
+        #   状态机走链按 WalkStart/WalkLoop/WalkEnd 三段播；正常/快/慢三档 src 段名不同：
+        #   Nomal / Happy / PoorCondition）。
         ("left",      [("MOVE/walk.left/B_Nomal", None, None)]),
         ("right",     [("MOVE/walk.right/B_Nomal", None, None)]),
         ("left-fast", [("MOVE/walk.left.faster/B_Happy", None, None)]),
         ("right-fast",[("MOVE/walk.right.faster/B_Happy", None, None)]),
         ("left-slow", [("MOVE/walk.left.slow/B_PoorCondition_1", None, None)]),
         ("right-slow",[("MOVE/walk.right.slow/B_PoorCondition_1", None, None)]),
+        ("left-a",       [("MOVE/walk.left/A_Nomal", None, None)]),
+        ("left-c",       [("MOVE/walk.left/C_Nomal", None, None)]),
+        ("right-a",      [("MOVE/walk.right/A_Nomal", None, None)]),
+        ("right-c",      [("MOVE/walk.right/C_Nomal", None, None)]),
+        ("left-fast-a",  [("MOVE/walk.left.faster/A_Happy", None, None)]),
+        ("left-fast-c",  [("MOVE/walk.left.faster/C_Happy", None, None)]),
+        ("right-fast-a", [("MOVE/walk.right.faster/A_Happy", None, None)]),
+        ("right-fast-c", [("MOVE/walk.right.faster/C_Happy", None, None)]),
+        ("left-slow-a",  [("MOVE/walk.left.slow/PoorCondition_A", None, None)]),
+        ("left-slow-c",  [("MOVE/walk.left.slow/PoorCondition_C", None, None)]),
+        ("right-slow-a", [("MOVE/walk.right.slow/PoorCondition_A", None, None)]),
+        ("right-slow-c", [("MOVE/walk.right.slow/PoorCondition_C", None, None)]),
     ],
     # 干活进出场：VPet `Switch_Up`（起身开工）/ `Switch_Down`（收工坐下）—— P10 小件三连之一。
     "switch": [
