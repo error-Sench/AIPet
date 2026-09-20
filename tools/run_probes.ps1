@@ -52,7 +52,8 @@ $DefaultGodot = 'D:/Games/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stab
 #   WalkProbe: tests/README.md marks it "must NOT be headless" - the walking code
 #     gives up when screen size is 0, so a headless run is a false green.
 #   ChatBoxShot: chat panel command bar visuals (red quit button, game-mode entry) - no rendering headless.
-$NonHeadless = @('DragProbe', 'SettingsProbe', 'StatsWindowProbe', 'EdgeHideBehaviorProbe', 'EnterProbe', 'WalkProbe', 'BubbleShot', 'AnimShot', 'ChatBoxShot')
+#   GameProbe: game mode mount/shell swap - real window geometry, physics and screenshots.
+$NonHeadless = @('DragProbe', 'SettingsProbe', 'StatsWindowProbe', 'EdgeHideBehaviorProbe', 'EnterProbe', 'WalkProbe', 'BubbleShot', 'AnimShot', 'ChatBoxShot', 'GameProbe')
 
 # Probes that need a live Agent (LLM). Skipped by default (flaky / env-dependent); run with -Agent.
 $AgentProbes = @('AcpTest', 'ChatFlowTest', 'CommandE2E', 'HistoryProbe', 'SessionProbe')

@@ -45,7 +45,7 @@ PROJECT_DEFAULT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 #   BubbleShot：气泡的**视觉 + 位置**实证（独立窗渲成 PNG + 头顶居中/翻下方断言），headless 里没有渲染。
 #   AnimShot：新导入动画的**实机渲图**（每个动画存一张 PNG 供眼睛复核），headless 里没有渲染。
 #   ChatBoxShot：聊天面板命令栏**视觉复核**（「退出桌宠」红底贴右 /「游戏模式」入口），headless 里没有渲染。
-NON_HEADLESS=(DragProbe SettingsProbe StatsWindowProbe EdgeHideBehaviorProbe EnterProbe WalkProbe BubbleShot AnimShot ChatBoxShot)
+NON_HEADLESS=(DragProbe SettingsProbe StatsWindowProbe EdgeHideBehaviorProbe EnterProbe WalkProbe BubbleShot AnimShot ChatBoxShot GameProbe)
 
 # 需要真实 Agent（LLM）的探针：**默认不跑** —— 真调模型受网络/环境延迟影响、不稳定，不适合当回归；
 # 要手动验证用 --agent（单跑也可 --only <名字>，--only 不受此默认影响）。
