@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using desktop.script.Agent;
+using desktop.script.Asset;
 using desktop.script.Loader;
+using desktop.script.Mode;
 using desktop.script.logic;
 using desktop.script.State;
 using Godot;
@@ -226,17 +228,29 @@ public partial class ChatBox : Window
             _命令栏.AddChild(b);
         }
 
-        // 「状态」：桌宠数值可视化（主人指定放菜单栏；数值与人格分离，见 AIPet-Agent.md §2）
-        var 状态 = 新命令按钮("状态", null);
-        状态.TooltipText = "看看它现在的心情 / 精力 / 亲密";
-        状态.Pressed += StatsWindow.显示;
-        _命令栏.AddChild(状态);
+        // 「游戏模式」：入口（原「状态」位。主人 2026-09-20：状态窗不再提供入口，组件保留为隐藏界面）
+        // 暂直接 SwitchMode；右键双击确认弹窗 + 场景挂载随 script/Game/ 第一批接上后改为共用入口
+        var 游戏模式 = 新命令按钮("游戏模式", null);
+        游戏模式.TooltipText = "进入横板游戏模式（随时切回办公，进度保留）";
+        游戏模式.Pressed += () => ModeManager.SwitchMode(ModeManager.Mode.Game);
+        _命令栏.AddChild(游戏模式);
 
         // 「网速」已移到工具栏「网速监控」小组件（mods/toolbar/netspeed；删目录或加 _ 前缀＝移除/禁用）
 
-        var 关闭 = 新命令按钮(Tr("close"), null);
-        关闭.Pressed += () => CharAnim.播放退出动画();
-        _命令栏.AddChild(关闭);
+        // 「退出桌宠」：终结动作的特别 UI —— 红底 + 关机图标，贴命令栏最右（不参与伸展；主人 2026-09-20 指定）
+        var 退出桌宠 = new Button
+        {
+            Text = "退出桌宠",
+            Icon = IconResource.默认.关机图标,
+            TooltipText = "退出桌宠",
+            CustomMinimumSize = new Vector2(0, 26),
+            SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd, // 不吃伸展 → 落在命令栏最右
+        };
+        MicaTheme.应用危险按钮(退出桌宠);
+        退出桌宠.AddThemeConstantOverride("icon_max_width", 15);
+        退出桌宠.AddThemeConstantOverride("h_separation", 5);
+        退出桌宠.Pressed += () => CharAnim.播放退出动画();
+        _命令栏.AddChild(退出桌宠);
     }
 
     /// <summary>切回命令模式。</summary>

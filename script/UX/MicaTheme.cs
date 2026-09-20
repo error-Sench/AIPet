@@ -15,6 +15,8 @@ public static class MicaTheme
     public static readonly Color 强调 = new(0.24f, 0.45f, 0.88f);
     public static readonly Color 你说色 = new(0.16f, 0.38f, 0.78f);
     public static readonly Color 桌宠说色 = new(0.62f, 0.31f, 0.67f);
+    /// <summary>危险色：只给「退出桌宠」这类终结动作（红底按钮 / 退出确认）。</summary>
+    public static readonly Color 危险 = new(0.84f, 0.28f, 0.28f);
 
     private static readonly Color 底 = new(0.94f, 0.96f, 1f, 0.94f);
     private static readonly Color 描边 = new(1f, 1f, 1f, 0.90f);
@@ -248,6 +250,23 @@ public static class MicaTheme
         b.AddThemeColorOverride("font_hover_color", Colors.White);
         b.AddThemeColorOverride("font_pressed_color", Colors.White);
         b.AddThemeFontSizeOverride("font_size", 字号);
+    }
+
+    /// <summary>危险按钮：红底白字白图标（只用于「退出桌宠」这类终结动作）。</summary>
+    public static void 应用危险按钮(Button b, int 字号 = 11)
+    {
+        if (b == null) return;
+        b.AddThemeStyleboxOverride("normal", 圆角按钮(危险));
+        b.AddThemeStyleboxOverride("hover", 圆角按钮(new Color(0.92f, 0.38f, 0.38f)));
+        b.AddThemeStyleboxOverride("pressed", 圆角按钮(new Color(0.70f, 0.20f, 0.20f)));
+        b.AddThemeColorOverride("font_color", Colors.White);
+        b.AddThemeColorOverride("font_hover_color", Colors.White);
+        b.AddThemeColorOverride("font_pressed_color", Colors.White);
+        b.AddThemeFontSizeOverride("font_size", 字号);
+        // 图标与文字同色（素材是白色 PNG，红底上保持白色；不许沿用「染成主文字色」的浅色底规则）
+        b.AddThemeColorOverride("icon_normal_color", Colors.White);
+        b.AddThemeColorOverride("icon_hover_color", Colors.White);
+        b.AddThemeColorOverride("icon_pressed_color", Colors.White);
     }
 
     /// <summary>命令按钮：图标 + 文字，统一尺寸与对齐。</summary>

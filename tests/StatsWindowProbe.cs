@@ -6,7 +6,8 @@ namespace desktop.tests;
 
 /// <summary>
 /// 状态窗探针（**非 headless**：要真实窗口几何与截图）：
-/// ① 命令栏里出现「状态」按钮；② 点它真的弹出状态窗；③ 窗口内容与数值一致（截图供视觉复核）。
+/// 状态窗已退为**隐藏界面**（主人 2026-09-20：命令栏「状态」位改成游戏模式入口）——
+/// ① 命令栏不再有「状态」按钮、「游戏模式」入口在位；② 组件保留，程序唤出仍可弹出；③ 窗口内容与数值一致（截图供视觉复核）。
 /// 用法：Godot_..._console.exe --path D:/Games/Github/AIPet res://tests/StatsWindowProbe.tscn
 /// </summary>
 public partial class StatsWindowProbe : Node
@@ -59,7 +60,7 @@ public partial class StatsWindowProbe : Node
         if (_帧 == 10)
         {
             断言(StatsWindow.存在, "状态窗节点已在场景里（game.tscn）");
-            断言(!StatsWindow.可见_探针, "默认不显示（要靠按钮唤出）");
+            断言(!StatsWindow.可见_探针, "默认不显示（无入口；只有程序能唤出）");
         }
         else if (_帧 == 20)
         {
@@ -71,13 +72,14 @@ public partial class StatsWindowProbe : Node
         else if (_帧 == 40)
         {
             摆位纯函数组();
-            var 有状态按钮 = ChatBox.探针_命令栏有按钮("状态");
-            断言(有状态按钮, "命令栏里找到「状态」按钮");
+            // 主人 2026-09-20：命令栏「状态」位改成游戏模式入口；状态窗不再对外提供入口（组件保留）
+            断言(!ChatBox.探针_命令栏有按钮("状态"), "命令栏不再有「状态」按钮（入口已撤）");
+            断言(ChatBox.探针_命令栏有按钮("游戏模式"), "命令栏出现「游戏模式」入口（原「状态」位）");
             StatsWindow.显示();
         }
         else if (_帧 == 55)
         {
-            断言(StatsWindow.可见_探针, "点「状态」后窗口真的弹出");
+            断言(StatsWindow.可见_探针, "程序唤出后窗口仍会弹出（隐藏界面：组件在、只是没入口）");
             var 位 = StatsWindow.探针_窗口位置;
             var 尺 = StatsWindow.探针_窗口尺寸;
             GD.Print($"[SW] 状态窗位置={位} 尺寸={尺}");
