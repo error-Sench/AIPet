@@ -126,6 +126,45 @@ SPEC = {
         ("b", [("Pinch/Nomal/B", None, None)]),
         ("c", [("Pinch/Nomal/C", None, None)]),
     ],
+    # ── 组②（2026-09-20）：爬边 / 顶爬 / 趴行 / 掉落（VPet `MOVE/*`，语义见 `vup.lps` move 行 + GraphHelper.Move）──
+    # 侧边爬：A=扑向墙上挂住 B=手脚交替爬（循环，方向由窗口位移决定：Y±10/125ms）C=脱手回站姿。
+    #   官方吸附：`LocateType Left/Right` → A 播完把窗口推出屏外 LocateLength（左 145 / 右 185 @Zoom1）。
+    # 顶边爬：A=抓住顶边 B=沿顶边横爬（循环，X±8/125ms）C=离开。官方 `LocateType Top`，推出屏顶 150。
+    #   注意素材里顶爬角色是横置构图的（挂在顶边、身体垂在屏内）。
+    # 趴行：A=趴下 B=贴地爬行（循环）C=起身——**当走动的慢速变体**用（SpeedX 10 vs walk 14），不进行为链。
+    # 掉落：A=脱手 B=横着下落（循环）C=落地起身（右版 21 帧长起身）。官方 fall 自带横向漂移（X±14）。
+    #   只导 Nomal（与 pinch/switch 同口径：官方按它自己的 Mode 选档，我们的心情定义不同 → 不映射）。
+    "climb": [
+        ("left-a",  [("MOVE/climb.left/A_Nomal", None, None)]),
+        ("left-b",  [("MOVE/climb.left/B_Nomal", None, None)]),
+        ("left-c",  [("MOVE/climb.left/C_Nomal", None, None)]),
+        ("right-a", [("MOVE/climb.right/A_Nomal", None, None)]),
+        ("right-b", [("MOVE/climb.right/B_Nomal", None, None)]),
+        ("right-c", [("MOVE/climb.right/C_Nomal", None, None)]),
+    ],
+    "climb_top": [
+        ("left-a",  [("MOVE/climb.top.left/A_Nomal", None, None)]),
+        ("left-b",  [("MOVE/climb.top.left/B/Nomal", None, None)]),
+        ("left-c",  [("MOVE/climb.top.left/C_Nomal", None, None)]),
+        ("right-a", [("MOVE/climb.top.right/A_Nomal", None, None)]),
+        ("right-b", [("MOVE/climb.top.right/B/Nomal", None, None)]),
+        ("right-c", [("MOVE/climb.top.right/C_Nomal", None, None)]),
+    ],
+    "crawl": [
+        ("left",  [("MOVE/crawl.left/B_Nomal", None, None)]),
+        ("right", [("MOVE/crawl.right/B_Nomal", None, None)]),
+    ],
+    "fall": [
+        ("left-a",  [("MOVE/fall.left/A_Nomal", None, None)]),
+        ("left-b",  [("MOVE/fall.left/B_Nomal", None, None)]),
+        # C_Nomal 里混了两条命名序列（FLA 触地 7 帧 + FLB 起身 14 帧，共享帧序号）→ 按前缀拆开顺序拼接
+        ("left-c",  [("MOVE/fall.left/C_Nomal", None, None, "FLA"),
+                     ("MOVE/fall.left/C_Nomal", None, None, "FLB")]),
+        ("right-a", [("MOVE/fall.right/A_Nomal", None, None)]),
+        ("right-b", [("MOVE/fall.right/B_Nomal", None, None)]),
+        ("right-c", [("MOVE/fall.right/C_Nomal", None, None, "FRA"),
+                     ("MOVE/fall.right/C_Nomal", None, None, "FRB")]),
+    ],
     # 贴边隐藏（VPet SideHide_*）。**官方用法**（VPet 源码 `Main.xaml.cs` / `MainLogic.cs`）：
     #   躲到边缘  → 播 `SideHide_<侧>_Main` 的 A_Start 然后循环 B
     #   鼠标进入  → 播 `SideHide_<侧>_Rise` 的 **A_Start 然后循环 B**（这就是「探出」）
@@ -251,14 +290,27 @@ def 基线():
 
 
 def 收集片段(片段列表, 报告):
-    """按片段收集 (绝对路径, 文件名) 列表：逐源排序 → 序号去重检查 → 灰度遮罩丢弃 → 帧区间切片。"""
+    """按片段收集 (绝对路径, 文件名) 列表：逐源排序 → 序号去重检查 → 灰度遮罩丢弃 → 帧区间切片。
+    片段 = (源, 起帧, 止帧) 或 (源, 起帧, 止帧, 文件名前缀)（含端点，None = 全段）。
+    前缀版用于「一个目录混了两条命名序列」：如 `fall*/C_Nomal` = FLA_000..006（触地）+ FLB_000..013（起身），
+    两条序列共享帧序号，序号去重挡下 → 只能按前缀先拆、再各自排序/切片（两个片段按顺序拼接）。"""
     结果 = []
-    for 源, 起, 止 in 片段列表:
+    for 片段 in 片段列表:
+        if len(片段) == 4:
+            源, 起, 止, 前缀 = 片段
+        else:
+            源, 起, 止 = 片段
+            前缀 = None
         源叶子 = os.path.join(VPET, 源.replace("\\", "/"))
         if not os.path.isdir(源叶子):
             报告.append(f"  [跳过] {源}: 源目录不存在")
             continue
         frames = sorted(f for f in os.listdir(源叶子) if f.lower().endswith(".png"))
+        if 前缀 is not None:
+            frames = [f for f in frames if f.startswith(前缀)]
+            if not frames:
+                报告.append(f"  [跳过] {源}: 前缀 {前缀} 没有帧")
+                continue
         # 规则 4：判据必须是**帧序号重复**，不能是「文件名前缀不同」——VPet 里有帧名拼写不一致的真实案例：
         #   SideHide_Right_Main/Nomal/A 里 A_000..A_013 少一个 A_011，而第 11 帧被命名成 A01_011。
         序号集 = [帧序(f) for f in frames]

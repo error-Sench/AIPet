@@ -50,6 +50,11 @@ public partial class PoolProbe : Node
         "say-smile-a", "say-smile-c", "say-self-a", "say-self-c",
         "say-serious-a", "say-serious-c", "say-shy-a", "say-shy-c",
         "sleep-a", "sleep-c", "sleep-happy-a", "sleep-happy-c",
+        // 2026-09-20 组②·爬边（Climb.cs 按名精确播；缺一段就断链）
+        "climb-left-a", "climb-left-b", "climb-left-c", "climb-right-a", "climb-right-b", "climb-right-c",
+        "climb_top-left-a", "climb_top-left-b", "climb_top-left-c", "climb_top-right-a", "climb_top-right-b", "climb_top-right-c",
+        "crawl-left", "crawl-right",
+        "fall-left-a", "fall-left-b", "fall-left-c", "fall-right-a", "fall-right-b", "fall-right-c",
     ];
 
     public override void _Ready()

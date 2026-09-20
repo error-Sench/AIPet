@@ -386,6 +386,20 @@ StateMachine.EnqueueChain(
 
 **验证**：`tests/PoolProbe`（新素材 12 个存在性）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle 全链路）+ `tests/WrapProbe`（包裹段机制专测）。
 
+### 2026-09-20 组②：爬边（走向屏幕边 → 挂墙上爬一圈）
+
+素材 = VPet `MOVE/climb.*` + `climb.top.*` + `crawl.*` + `fall.*`（语义判据 = 官方 `vup.lps` 的 move 行 + `GraphHelper.Move`），行为层 = `script/State/Climb.cs`（自管相位的锁定占位态 `climb`，模式同 EdgeHide / FacePinch）。
+
+- **流程**（自主行为，与走动同闸门：空闲达标 → `尝试走动` 有机会按 `爬边概率` 改成爬边）：
+  走向最近边（复用走动链，**到边由帧检查触发——不挂链回调**：回调路径会被链引擎空链分支的 `SetState(Idle)` 顶掉爬边状态）→ A 段播完**吸附**（窗口推出屏外，留 `挂边可见比例`）→ 垂直爬（方向由位移定）→ 到顶**转顶爬**（往对侧）→ 到端**转对侧下爬** → 近底（距地 240px）**转自由落体**（初速 + 加速度，屏外的 X 边落边拉回）→ 触地 **C 段落地** → idle + **冷却**（`爬边冷却秒`）。
+- **几何**：挂边/顶挂 = 把窗口推出屏外只留「可见比例」（对照官方 LocateLength：侧 145/185、顶 150 @Zoom1）；左右/顶偏移像素微调（正 = 往屏内推，语义同 EdgeHide）；落地 = 窗口底贴可用屏底 + `脚底余量像素`。
+- **趴行**：`crawl-left/right` 当**走动的慢速变体**（`爬行概率` 时替换动画、0.72 倍速），不进行为链。
+- **让位**：爬半路被拖拽/面板/Agent 抢状态 → 窗口拉回屏内、流程终止（`准备退出` 也会调）。
+- **探针隔离**：`Climb.探针_位置覆盖/屏幕覆盖/尺寸覆盖` 注入假窗口 → 相位机 headless 全流程可测（ClimbProbe）；`WalkProbe` 的临时节律把 `爬边概率/爬行概率` 设 0（它只验走动）。
+- 参数全在 `config/behavior.json`（见 `_comment_爬边`）；`爬边启用 false` 关整套（趴行不受影响）。
+
+**验证**：`tests/ClimbProbe`（纯函数 + 相位机全流程 + 让位拉回）+ `PoolProbe` 素材存在性 +20。
+
 ### 气泡说话（P8）
 
 - **气泡一出现就演「说话」动作**（`say` 池，`BubbleTalk` 状态）；接线在 `Dialogue.单例显示标题`（**主线程唯一出口**，跨线程调用会被 marshal 到这里）。气泡本体是独立窗 `BubbleWindow`（见 `script/UX/README.md`）。
