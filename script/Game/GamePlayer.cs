@@ -15,6 +15,10 @@ public partial class GamePlayer : CharacterBody2D
     public const float 跑速 = 260f;          // 像素/秒
     public const float 重力 = 1500f;         // 像素/秒²
     public const float 起跳速度 = 620f;      // 起跳初速（向上，像素/秒）→ 跳高 ≈ 128px
+    public const float 土狼时间秒 = 0.10f;   // 走离台缘后仍可起跳的宽限（coyote time）
+    public const float 跳跃缓冲秒 = 0.12f;   // 落地前按下 → 落地自动起跳（jump buffer）
+    public const float 松手保留系数 = 0.62f; // 可变跳高：上升中松手 → 升速截到这里（轻点=小跳 ≈68px）
+    public const float 下落重力倍率 = 1.3f;  // 下落段重力加成：落地更快、不飘（起跳段不受影响）
     public const float 掉落重生Y = 900f;     // 掉出世界 → 回出生点
     public const float 检查点间隔秒 = 5f;    // 游玩中每 N 秒静默记一次检查点
     public const int 掉落扣血 = 20;          // 掉出世界一次扣多少血（0 血 → 「玩累了」退场，见 GameHost）
@@ -25,15 +29,18 @@ public partial class GamePlayer : CharacterBody2D
     /// <summary>探针注入：跳跃按住状态（确定性测试用；边沿触发，按住不会连跳）。</summary>
     public bool 探针_跳;
 
-    private enum 姿态 { 站, 走, 空 }
+    // 空中拆两相（主人 2026-09-20）：升 = 上升期保持起跳前姿态；落 = 过最高点才播 fall 素材
+    private enum 姿态 { 站, 走, 升, 落 }
 
     private Vector2 _出生点;
     private Camera2D _相机;
     private float _检查点计时 = 检查点间隔秒;
     private bool _跳跃上次;
-    private 姿态 _姿态 = 姿态.空;
+    private 姿态 _姿态 = 姿态.升;
     private Polygon2D _影子;
     private float _朝向 = 1f;
+    private float _离地长 = 99f;     // 离地时长（土狼窗口用）
+    private float _跳跃缓冲 = 99f;   // 「跳」按下沿距今时长（缓冲窗口用）
 
     public override void _Ready()
     {
@@ -42,9 +49,9 @@ public partial class GamePlayer : CharacterBody2D
         for (var i = 0; i < 24; i++)
         {
             var a = i / 24f * Mathf.Tau;
-            点集[i] = new Vector2(Mathf.Cos(a) * 46f, Mathf.Sin(a) * 12f);
+            点集[i] = new Vector2(Mathf.Cos(a) * 50f, Mathf.Sin(a) * 13f);
         }
-        _影子 = new Polygon2D { Color = new Color(0.08f, 0.12f, 0.25f, 0.20f), Polygon = 点集 };
+        _影子 = new Polygon2D { Color = new Color(0.08f, 0.12f, 0.25f, 0.32f), Polygon = 点集 };
         var 世界 = GetParent();
         if (世界 != null)
         {
@@ -71,11 +78,25 @@ public partial class GamePlayer : CharacterBody2D
             ? Mathf.Sign(探针_水平输入)
             : (Input.IsPhysicalKeyPressed(Key.A) ? -1f : 0f) + (Input.IsPhysicalKeyPressed(Key.D) ? 1f : 0f);
 
-        // —— 重力 + 跳跃（边沿触发，按住不连跳） ——
-        Velocity = new Vector2(水平 * 跑速, Velocity.Y + 重力 * dt);
+        // —— 跳跃输入：按下沿记缓冲；离地计时供土狼窗口 ——
         var 按跳 = 探针_跳 || Input.IsPhysicalKeyPressed(Key.Space);
-        if (按跳 && !_跳跃上次 && IsOnFloor()) Velocity = new Vector2(Velocity.X, -起跳速度);
+        if (按跳 && !_跳跃上次) _跳跃缓冲 = 0f; else _跳跃缓冲 += dt;
         _跳跃上次 = 按跳;
+        if (IsOnFloor()) _离地长 = 0f; else _离地长 += dt;
+
+        // —— 重力（下落段加成）+ 起跳（土狼时间 + 跳跃缓冲：经典三件套） ——
+        var 重力系数 = Velocity.Y > 0f ? 下落重力倍率 : 1f;
+        Velocity = new Vector2(水平 * 跑速, Velocity.Y + 重力 * 重力系数 * dt);
+        if (_跳跃缓冲 <= 跳跃缓冲秒 && _离地长 <= 土狼时间秒)
+        {
+            Velocity = new Vector2(Velocity.X, -起跳速度);
+            _跳跃缓冲 = 99f;   // 用掉：同一次按键不二连跳
+            _离地长 = 99f;     // 用掉：土狼窗口关闸
+        }
+
+        // —— 可变跳高：上升途中松手 → 升速截到保留系数（轻点 = 小跳，按住 = 满跳） ——
+        if (!按跳 && Velocity.Y < -起跳速度 * 松手保留系数)
+            Velocity = new Vector2(Velocity.X, -起跳速度 * 松手保留系数);
 
         MoveAndSlide();
 
@@ -104,7 +125,7 @@ public partial class GamePlayer : CharacterBody2D
     private void 更新动画(float 水平)
     {
         var 有输入 = Mathf.Abs(水平) > 0.1f;
-        var 新姿态 = !IsOnFloor() ? 姿态.空
+        var 新姿态 = !IsOnFloor() ? (Velocity.Y < 0f ? 姿态.升 : 姿态.落)
             : 有输入 ? 姿态.走
             : 姿态.站;
         var 姿态变了 = 新姿态 != _姿态;
@@ -120,9 +141,18 @@ public partial class GamePlayer : CharacterBody2D
             case 姿态.站:
                 CharAnim.PlayState("idle");   // idle 池随机取一个姿势
                 break;
-            case 姿态.空:
-                // 空中 = VPet `fall-B`（横着下落，循环；组②素材引入后接入，升/降统一用同一个失重姿态）：
-                // 转身就地把下落姿态切到新方向；落地由 站/走 分支接管
+            case 姿态.升:
+            {
+                // 上升期：优先播起跳素材（主人 2026-09-20 点名——素材未到、逻辑先接：
+                // `jump-left/right` 缺则回退 `jump`，再缺保持起跳前姿态；下坠素材只在过最高点后才播）
+                var 起跳名 = _朝向 < 0f ? "jump-left" : "jump-right";
+                if (CharAnim.有动画(起跳名)) CharAnim.PlayNamed(起跳名);
+                else if (CharAnim.有动画("jump")) CharAnim.PlayNamed("jump");
+                else if (朝向变了) CharAnim.PlayNamed(_朝向 < 0f ? "walk-left" : "walk-right");
+                break;
+            }
+            case 姿态.落:
+                // 过最高点 = 下落：VPet `fall-B`（横着下落，循环）；转身换向、落地由 站/走 接管
                 CharAnim.PlayNamed(_朝向 < 0f ? "fall-left-b" : "fall-right-b");
                 break;
         }
@@ -154,7 +184,7 @@ public partial class GamePlayer : CharacterBody2D
         _影子.Visible = true;
         _影子.GlobalPosition = new Vector2(GlobalPosition.X, 落点.Y - 3f);
         _影子.Scale = new Vector2(t, t);
-        _影子.Color = new Color(0.08f, 0.12f, 0.25f, 0.20f * t);
+        _影子.Color = new Color(0.08f, 0.12f, 0.25f, 0.32f * t);   // 0.32 起：压在平台高光带上也看得清
     }
 
     /// <summary>探针：影子节点（只读）。</summary>

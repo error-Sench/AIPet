@@ -30,7 +30,7 @@ public partial class GameHost : Node
     /// <summary>收集品（玩法切片一）：每颗星 = id + 世界坐标（摆在各平台上方一点，跳上去够得到）。</summary>
     private static readonly (string Id, Vector2 位)[] 星星表 =
     [
-        ("star-1", new Vector2(535f, 470f)),    // 台1 上方（台面 y=520）
+        ("star-1", new Vector2(670f, 200f)),    // 台1 上方（台心 670、台面 250；星心 = 台面-50，与 star-2/3 同规矩）
         ("star-2", new Vector2(970f, 90f)),     // 台2 上方（台面 y=140）
         ("star-3", new Vector2(-670f, 200f)),   // 台3 上方（台面 y=250）
     ];
@@ -44,6 +44,9 @@ public partial class GameHost : Node
     private static readonly Color 背板色 = new(0.87f, 0.92f, 1.0f, 背板不透明度);
     private static readonly Color 地面色 = new(0.40f, 0.47f, 0.62f);
     private static readonly Color 平台色 = new(0.44f, 0.57f, 0.84f);
+    // 平台可读性（2026-09-20 视觉复核后调）：顶面高光带 + 深色描边 —— 半透明底上边界要立得住
+    private static readonly Color 顶面色 = new(0.72f, 0.82f, 0.98f);
+    private static readonly Color 描边色 = new(0.14f, 0.19f, 0.30f);
 
     public static GameHost 单例 { get; private set; }
 
@@ -263,6 +266,15 @@ public partial class GameHost : Node
             Shape = new RectangleShape2D { Size = new Vector2(右X - 左X, 厚) },
             Position = new Vector2((左X + 右X) / 2f, 顶Y + 厚 / 2f),
         });
+        体.AddChild(new Polygon2D   // 描边（外扩 2.5px 深色底，先画 → 压在体下）
+        {
+            Color = 描边色,
+            Polygon =
+            [
+                new Vector2(左X - 2.5f, 顶Y - 2.5f), new Vector2(右X + 2.5f, 顶Y - 2.5f),
+                new Vector2(右X + 2.5f, 顶Y + 厚 + 2.5f), new Vector2(左X - 2.5f, 顶Y + 厚 + 2.5f),
+            ],
+        });
         体.AddChild(new Polygon2D
         {
             Color = 色,
@@ -270,6 +282,15 @@ public partial class GameHost : Node
             [
                 new Vector2(左X, 顶Y), new Vector2(右X, 顶Y),
                 new Vector2(右X, 顶Y + 厚), new Vector2(左X, 顶Y + 厚),
+            ],
+        });
+        体.AddChild(new Polygon2D   // 顶面高光带（可站面提示，9px）
+        {
+            Color = 顶面色,
+            Polygon =
+            [
+                new Vector2(左X, 顶Y), new Vector2(右X, 顶Y),
+                new Vector2(右X, 顶Y + 9f), new Vector2(左X, 顶Y + 9f),
             ],
         });
         _世界.AddChild(体);
@@ -289,16 +310,26 @@ public partial class GameHost : Node
         容器.AddChild(退出);
 
         var 提示 = new Label { Name = "Hint", Text = "WASD 移动 · 空格 跳跃 · Esc 退出游戏" };
-        MicaTheme.应用(提示, 13);   // 主文字色 + 13px：浅背景上够醒目（视觉复核后调过一次）
+        MicaTheme.应用(提示, 13);
+        提示.AddThemeColorOverride("font_color", new Color(0.93f, 0.96f, 1.0f));   // 浅字
+        提示.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.55f));
+        提示.AddThemeConstantOverride("outline_size", 5);   // 深描边：砖面/天空都读得清
         提示.AnchorTop = 1f; 提示.AnchorBottom = 1f;
         提示.OffsetLeft = 16f; 提示.OffsetTop = -40f; 提示.OffsetBottom = -14f;
         容器.AddChild(提示);
 
-        // 状态行（左上）：血量 / 收集进度 / 办公星
+        // 状态行（左上）：血量 / 收集进度 / 办公星 —— 深色药丸底 + 浅字（半透明背景下也读得清）
+        var 状态底 = new PanelContainer { Name = "StatusChip", MouseFilter = Control.MouseFilterEnum.Ignore };
+        var 底样式 = new StyleBoxFlat { BgColor = new Color(0.08f, 0.12f, 0.20f, 0.55f) };
+        底样式.SetCornerRadiusAll(12);
+        底样式.SetContentMarginAll(11f);
+        状态底.AddThemeStyleboxOverride("panel", 底样式);
+        状态底.OffsetLeft = 16f; 状态底.OffsetTop = 14f;
         _状态标签 = new Label { Name = "Status", Text = "" };
-        MicaTheme.应用(_状态标签, 14);
-        _状态标签.OffsetLeft = 16f; _状态标签.OffsetTop = 14f; _状态标签.OffsetBottom = 48f;
-        容器.AddChild(_状态标签);
+        MicaTheme.应用(_状态标签, 15);
+        _状态标签.AddThemeColorOverride("font_color", new Color(0.93f, 0.96f, 1.0f));
+        状态底.AddChild(_状态标签);
+        容器.AddChild(状态底);
     }
 
     // ================= 玩法（切片一：hp / 收集品 / 玩累了） =================

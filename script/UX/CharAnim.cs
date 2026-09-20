@@ -30,6 +30,9 @@ public partial class CharAnim : AnimatedSprite2D
          "bday",
          // 爬边（2026-09-20 组②：VPet MOVE/*；表现由 Climb 自管）——crawl 是走动的慢速变体
          "climb", "climb_top", "crawl", "fall",
+         // 起跳（2026-09-20 主人点名：素材未到、逻辑先接）——GamePlayer.上升期播 `jump-left/right`，
+         // 缺素材自动回退（`jump` → 起跳前姿态）；素材导入后随池自动生效
+         "jump",
          // 音乐反应（2026-09-20 组③：VPet Music；包裹段 + MusicSense）
          "music"];
 
