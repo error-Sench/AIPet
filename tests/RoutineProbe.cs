@@ -91,8 +91,20 @@ public partial class RoutineProbe : Node
     {
         GD.Print("--- A 组：配置读取 + 纯函数（时段 / 磁盘判定）---");
         StateMachine.设置.加载();                                   // 显式走一遍配置加载（顺带验证注入 DailyRoutine）
-        断言(StateMachine.设置.问候启用, "config/behavior.json 的 问候启用 读到了");
-        断言(StateMachine.设置.磁盘剩余下限GB == 10, $"磁盘剩余下限GB = {StateMachine.设置.磁盘剩余下限GB}（配置值）");
+        // 前提：没有 user:// 覆盖（覆盖优先级最高；主人实机联调时会临时放一份同名 JSON，如 user://behavior.json）——
+        // 有覆盖时「读到了 config/ 的值」这两条不适用：打印 SKIP 说明原因，不判 FAIL（见 tests/README 踩坑 #27）
+        var 覆盖1 = ProjectSettings.GlobalizePath("user://behavior.json");
+        var 覆盖2 = ProjectSettings.GlobalizePath("user://config/behavior.json");
+        var 有覆盖 = System.IO.File.Exists(覆盖1) || System.IO.File.Exists(覆盖2);
+        if (有覆盖)
+        {
+            GD.Print($"[RT] SKIP 配置值断言（存在 user:// 覆盖：{(System.IO.File.Exists(覆盖1) ? 覆盖1 : 覆盖2)} —— 覆盖优先属预期，不是配置读取故障）");
+        }
+        else
+        {
+            断言(StateMachine.设置.问候启用, "config/behavior.json 的 问候启用 读到了");
+            断言(StateMachine.设置.磁盘剩余下限GB == 10, $"磁盘剩余下限GB = {StateMachine.设置.磁盘剩余下限GB}（配置值）");
+        }
         // 设计回归守卫：管家式提醒（喝水/吃饭/该睡了）是**明确不做**的 —— 只提醒主人自己不容易察觉的事
         GD.Print("[RT] 设计原则：只提醒「主人自己不容易察觉的事」（磁盘/久坐）；喝水这类生活管家提醒不做");
         断言(DailyRoutine.问候启用 == StateMachine.设置.问候启用, "配置已注入行为层（DailyRoutine）");
