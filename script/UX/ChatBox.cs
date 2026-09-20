@@ -229,10 +229,10 @@ public partial class ChatBox : Window
         }
 
         // 「游戏模式」：入口（原「状态」位。主人 2026-09-20：状态窗不再提供入口，组件保留为隐藏界面）
-        // 暂直接 SwitchMode；右键双击确认弹窗 + 场景挂载随 script/Game/ 第一批接上后改为共用入口
+        // 与右键双击共用同一入口：确认弹窗（空格确认）→ 确认后才 SwitchMode(Game) → GameHost 挂载
         var 游戏模式 = 新命令按钮("游戏模式", null);
         游戏模式.TooltipText = "进入横板游戏模式（随时切回办公，进度保留）";
-        游戏模式.Pressed += () => ModeManager.SwitchMode(ModeManager.Mode.Game);
+        游戏模式.Pressed += () => { 隐藏(); Game.GameEntryDialog.请求进入(); };
         _命令栏.AddChild(游戏模式);
 
         // 「网速」已移到工具栏「网速监控」小组件（mods/toolbar/netspeed；删目录或加 _ 前缀＝移除/禁用）

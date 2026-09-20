@@ -34,6 +34,14 @@ public partial class Context : Node
             switch (mouseEvent.ButtonIndex)
             {
                 case MouseButton.Right:
+                    if (Mode.ModeManager.CurrentMode == Mode.ModeManager.Mode.Game) break;   // 游戏模式：右键不开面板（游戏内菜单后续接）
+                    if (mouseEvent.DoubleClick)
+                    {
+                        // 主人 2026-09-20：右键双击 = 游戏模式入口（弹窗确认；空格确认）
+                        Game.GameEntryDialog.请求进入();
+                        GetViewport().SetInputAsHandled();
+                        break;
+                    }
                     StateMachine.NotifyInteraction("right_click");
                     ChatBox.显示();
                     GetViewport().SetInputAsHandled();

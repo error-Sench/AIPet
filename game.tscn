@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=3 uid="uid://bijuvf6qjvh7l"]
+[gd_scene load_steps=20 format=3 uid="uid://bijuvf6qjvh7l"]
 
 [ext_resource type="Script" uid="uid://cf0h0dtbopy88" path="res://script/UX/Context.cs" id="4_7jktm"]
 [ext_resource type="Script" path="res://script/UX/ChatBox.cs" id="11_chatbox"]
@@ -16,6 +16,7 @@
 [ext_resource type="Script" uid="uid://d3uhavew72r2p" path="res://script/Audio/Kws.cs" id="11_iotsf"]
 [ext_resource type="Script" uid="uid://bdk38gs7ie3jt" path="res://script/Logic/Main.cs" id="11_mfdv2"]
 [ext_resource type="Script" uid="uid://be34u7vjgk822" path="res://script/UX/CharAnim.cs" id="17_e8heu"]
+[ext_resource type="Script" path="res://script/Game/GameHost.cs" id="18_gamehost"]
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_bnpwn"]
 
@@ -83,6 +84,9 @@ script = ExtResource("13_state")
 
 [node name="ModeManager" type="Node" parent="."]
 script = ExtResource("14_mode")
+
+[node name="GameHost" type="Node" parent="."]
+script = ExtResource("18_gamehost")
 
 [node name="ChatBox" type="Window" parent="."]
 visible = false

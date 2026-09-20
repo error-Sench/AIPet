@@ -84,6 +84,9 @@ public partial class CharAnim : AnimatedSprite2D
     }
     private void OnAnimationFinished()
     {
+        // 游戏模式：办公播完逻辑全关（动画由游戏侧接管；见 script/Game/GamePlayer）
+        if (Mode.ModeManager.CurrentMode == Mode.ModeManager.Mode.Game) return;
+
         // 状态机接管中（think/speak/working/listen/sleep 等持续态）：不回 idle，
         // 由状态机决定是否重播当前状态。这是新旧两套状态逻辑的唯一交汇点（见 AIPet-Agent.md §3）。
         // 「包裹中」：非锁定态的包裹会话（气泡说话）段推进也归状态机管（见 StateMachine 包裹段）。

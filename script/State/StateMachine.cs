@@ -205,6 +205,14 @@ public partial class StateMachine : Node
 
     public override void _Process(double delta)
     {
+        // —— 游戏模式：办公表现全暂停（模式层接管，StateMachine 不驱动任何办公行为）——
+        // 数值心跳例外：它记的是「主人情绪读数」，与桌宠表演无关。
+        if (游戏模式中)
+        {
+            Soul.StatsTable.心跳((float)delta);
+            return;
+        }
+
         // —— 行为链推进（原有逻辑） ——
         if (_chainRunning)
         {
@@ -657,11 +665,15 @@ public partial class StateMachine : Node
         SetState(Sleep);
     }
 
+    /// <summary>游戏模式中（模式层接管表现）：办公自主行为全暂停。见 script/Game/。</summary>
+    public static bool 游戏模式中 => Mode.ModeManager.CurrentMode == Mode.ModeManager.Mode.Game;
+
     /// <summary>主动行为闸门：任一约束命中即禁止（「不打扰」是设计红线，见 idea.md §7）。</summary>
     private static bool 允许主动()
     {
         if (!设置.启用) return false;
         if (_入场未完成) return false;
+        if (游戏模式中) return false;   // 游戏模式：模式层接管，办公不主动
         if (面板可见()) return false;
         if (鼠标悬停桌宠()) return false;
         if (CurrentState != Idle) return false;

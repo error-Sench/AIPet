@@ -87,6 +87,9 @@ public partial class WindowDrag : Node
     /// <summary>独立面板在鼠标下方时，它们是最上层交互目标，桌宠必须完全让出本次指针。</summary>
     private static bool 面板接管指针() => ChatBox.正在接管指针 || ToolBar.正在接管指针 || SettingsWindow.正在接管指针 || StatsWindow.正在接管指针;
 
+    /// <summary>游戏模式中：指针全交给游戏（拖拽 / 摸摸 / 捏脸都不响应；见 script/Game/）。</summary>
+    private static bool 游戏模式中 => Mode.ModeManager.CurrentMode == Mode.ModeManager.Mode.Game;
+
     /// <summary>清除桌宠拖拽的残留状态；若已经开始拖动，补播原有的落下动画。</summary>
     private void 取消桌宠拖拽()
     {
@@ -114,10 +117,10 @@ public partial class WindowDrag : Node
     {
         // 对话框/工具栏的拖动使用原生 Window.StartDrag。主桌宠绝不能并行接管同一根指针，
         // 否则会隐藏聊天框，或让桌宠窗口错误地黏在鼠标上。
-        if (面板接管指针())
+        if (面板接管指针() || 游戏模式中)
         {
             取消桌宠拖拽();
-            FacePinch.取消();       // 面板接管 → 长按候选作废
+            FacePinch.取消();       // 面板接管 / 游戏模式 → 长按候选作废
             探针_准备中 = false;
             探针_拖拽中 = false;
             return;
