@@ -71,7 +71,7 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `walk` | left / right / left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | 走动（**循环**）。P10：**快/慢 = 心情档**（VPet `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition），位移速度同步变（×1.35 / ×0.72，否则会滑步）|
 | `think` | nomal / happy / poor（+各档 a/c 过渡段） | 9×3 + 2 帧×6 | 三档状态（对接 P5 情绪变体）。2026-09-20 组①·过渡段：`think-{档}-a` 进入 / `think-{档}-c` 退出（包裹段，见 `script/State/README.md`）|
 | `say` | smile / self / serious / shy（+各感情 a/c 过渡段） | 7/15/4/5 + 段共 41 帧 | 说话（P10 补 VPet `Say/Shy` 害羞档；组①·过渡段：`say-{感情}-a/c` 与站姿衔接）|
-| `work` | pc / read / write / calligraphy / paint / study2 / sausage / clean / fixmenu / game / water / remove / rope | 5~31 | 干活（P10 补齐 VPet `WORK` 全部 13 种：书法/画画/研究/烤肠/清屏/修屏幕/玩游戏/玩水/删错误/跳绳）。**只导 Nomal 段**，金钱/体力收益等玩法数值不抄）|
+| `work` | pc / read / write / calligraphy / paint / study2 / sausage / clean / fixmenu / game / water / remove / rope（+ 每项 `-a`/`-c` 段）| 共 493 | 干活（VPet `WORK` 全部 13 种：书法/画画/研究/烤肠/清屏/修屏幕/玩游戏/玩水/删错误/跳绳）。**2026-09-20 打磨**：改为**包裹段结构**（主段 = B 干活循环、取环内最丰富变体；A/C 拆 `-a`/`-c` 段）——原先只导 A 段，实机上「反复做准备动作、永远不干活」。金钱/体力收益等玩法数值不抄）|
 | `sleep` | loop / happy（+ a/c 与 happy-a/c 过渡段） | 6+6 + 4/7/4/7 | 睡觉（循环）。2026-09-20 组①·过渡段：A=躺下入睡、C=醒来起身（首尾与站姿衔接）；主段 `sleep-loop` 的段用池级回退名 `sleep-a`/`sleep-c` |
 | `greet` | amuse / meow | 11/20 | 打招呼（VPet 无专用动作，用开心姿势） |
 | `interact` | a / b / c | 2/11/2 | 摸头反应**三段序列**（进入→保持→退出）|

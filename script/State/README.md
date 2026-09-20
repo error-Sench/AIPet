@@ -80,7 +80,7 @@ StateMachine.EnqueueChain(
 | `walk` | left / right + left-fast / right-fast / left-slow / right-slow | 6+6 / 10+10 / 5+5 | VPet `MOVE/walk.*` 的 `B_Nomal`；**循环**。P10：快/慢 = 三档档位（`walk.*.faster`=Happy / `walk.*.slow`=PoorCondition；三档开关打开时生效），位移速度同步 |
 | `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
 | `say` | smile / self / serious / shy | 7/15/4/5 | VPet `Say/Shining·Self·Serious·Shy`（P10 补害羞档）|
-| `work` | 13 种（pc/read/write/calligraphy/paint/study2/sausage/clean/fixmenu/game/water/remove/rope）| 5~31 | VPet `WORK/*/Nomal/A`（P10 补齐余下 10 种，池内随机 → 干活不再千篇一律）|
+| `work` | 13 种 + 每项 `-a`/`-c` 段（包裹段）| 共 493 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`）|
 | `sleep` | loop / happy | 6+6 | VPet `Sleep/B_Nomal·B_Happy`；**循环** |
 | `greet` | amuse / meow | 11/20 | VPet `IDEL/amusement_B·Meow/Happy/1`（VPet 无专门打招呼动作，取开心姿势） |
 | `interact` | a / b / c + happy-a / happy-b / happy-c | 2/11/2 + 3/12/2 | VPet `Touch_Head/{Nomal,Happy}/{A,B,C}`（**三段序列**；P10 补高兴档）|
@@ -377,10 +377,10 @@ StateMachine.EnqueueChain(
 
 **包裹段机制**（`script/State/StateMachine.cs`，组①新增）：
 
-- 状态效果加 `包裹 = true`（现标：`think` / `speak` / `sleep` / `bubble_talk`）。进入时 `挑主名(池)` 挑一条主段**钉住整段会话**；有 A 段就先播 A，播完经 `重播当前状态()` 接主段；主段循环走「钉死主段」分支。
+- 状态效果加 `包裹 = true`（现标：`think` / `speak` / `sleep` / `work` / `music` / `bubble_talk`）。进入时 `挑主名(池)` 挑一条主段**钉住整段会话**；有 A 段就先播 A，播完经 `重播当前状态()` 接主段；主段循环走「钉死主段」分支。
 - **退出是延迟的**：切别的状态先播 C，播完才落地（`_退出目标`）；C 期间逻辑状态仍是原状态。**硬接管例外**（拖拽 / 捏脸 / 贴边）跳过 C —— 用户上手要立刻响应。
 - 段名解析 `段名(主名, "a"/"c")`：优先 `{主名}-{段}`（`think-happy-a`），退回池级 `{池}-{段}`（`sleep-loop` → `sleep-a`）。
-- `挑主名()` 对包裹池（think/say/sleep）随机时**排除段本身**（`-a`/`-c` 结尾），否则 `sleep-a` 会被当主段抽到。
+- `挑主名()` 对包裹池（think/say/sleep/music/work）随机时**排除段本身**（`-a`/`-c` 结尾），否则 `sleep-a` 会被当主段抽到。
 - 重播门：`CharAnim.OnAnimationFinished` 派发条件加 `|| StateMachine.包裹中`（非锁定态如 bubble_talk 的段推进也归状态机管）；`标记状态`（拖拽）/ 链节 / `准备退出` 清包裹会话。
 - **探针要「即时切换」语义时置 `StateMachine.探针_禁用包裹`**（StateProbe / PoolProbe 已置；包裹段专测 = WrapProbe）。
 

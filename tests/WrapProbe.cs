@@ -7,7 +7,7 @@ using Godot;
 namespace desktop.tests;
 
 /// <summary>
-/// 包裹段探针（headless，组①）：验证 think / sleep / 说话类的「进入 A → 循环 B → 退出 C」会话机制——
+/// 包裹段探针（headless，组①）：验证 think / sleep / 说话 / 干活类的「进入 A → 循环 B → 退出 C」会话机制——
 /// ① 进入播 A 段；② 播完接主段且变体钉死（循环不换）；③ 退出先播 C、状态延迟落地；④ 硬接管（拖拽）跳过 C 立刻生效。
 /// 用 重播当前状态() 模拟「动画播完」（不靠实时）。用法：
 /// Godot_v4.7.2-stable_mono_win64_console.exe --headless --path D:/Games/Github/AIPet res://tests/WrapProbe.tscn
@@ -19,6 +19,7 @@ public partial class WrapProbe : Node
     private string _think主名 = "";
     private string _sleep主名 = "";
     private string _say主名 = "";
+    private string _work主名 = "";
 
     private static bool 结束段(string 名) => 名.EndsWith("-a", StringComparison.Ordinal) || 名.EndsWith("-c", StringComparison.Ordinal);
 
@@ -167,8 +168,39 @@ public partial class WrapProbe : Node
                 StateMachine.SetState(StateMachine.Idle);
                 break;
 
+            // ── work：干活 = 包裹段（主段 = B 干活循环；A/C = `-a`/`-c` 段）──
+            case 68:
+                StateMachine.SetState(StateMachine.Working);
+                break;
             case 70:
-                GD.Print($"[WRAP] ===== 失败数 = {_失败} =====（think 主段 {_think主名} / sleep 主段 {_sleep主名} / say 主段 {_say主名}）");
+                断言(StateMachine.包裹中, "干活进入开包裹会话");
+                断言(动画.StartsWith("work-") && 结束段(动画), $"干活进入播 -a 段（实际 {动画}）");
+                StateMachine.重播当前状态();   // 模拟 A 播完
+                break;
+            case 72:
+                _work主名 = 动画;
+                断言(动画.StartsWith("work-") && !结束段(动画), $"干活主段 = B 循环（实际 {动画}）");
+                StateMachine.重播当前状态();   // 模拟主段播完（循环）
+                break;
+            case 74:
+                断言(动画 == _work主名, $"干活主段钉死不换（{_work主名} → {动画}）");
+                StateMachine.SetState(StateMachine.WorkOut);   // 模拟收工 → 应播 -c、延迟落地
+                break;
+            case 76:
+                断言(StateMachine.CurrentState == StateMachine.Working, $"收工先播 -c、状态延迟落地（当前 {StateMachine.CurrentState}）");
+                断言(动画 == _work主名 + "-c", $"-c 段名 = 主名 + c（实际 {动画}）");
+                StateMachine.重播当前状态();   // 模拟 C 播完 → 落地
+                break;
+            case 78:
+                断言(StateMachine.CurrentState == StateMachine.WorkOut, $"干活退出段落点 WorkOut（当前 {StateMachine.CurrentState}）");
+                断言(!StateMachine.包裹中, "落地后包裹会话结束");
+                break;
+            case 80:
+                StateMachine.SetState(StateMachine.Idle);
+                break;
+
+            case 90:
+                GD.Print($"[WRAP] ===== 失败数 = {_失败} =====（think 主段 {_think主名} / sleep 主段 {_sleep主名} / say 主段 {_say主名} / work 主段 {_work主名}）");
                 GD.Print(_失败 == 0 ? "[WRAP] PASS" : "[WRAP] FAIL");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
                 break;

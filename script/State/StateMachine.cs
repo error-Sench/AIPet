@@ -107,7 +107,7 @@ public partial class StateMachine : Node
         [Think] = new 状态效果 { 目标池 = "think", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Speak] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Listen] = new 状态效果 { 目标池 = "listen", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },  // 秒值不生效，见字段注释
-        [Working] = new 状态效果 { 目标池 = "work", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
+        [Working] = new 状态效果 { 目标池 = "work", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Sleep] = new 状态效果 { 目标池 = "sleep", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Greet] = new 状态效果 { 目标池 = "greet", 兼容池 = "celerate", 持续 = false, 锁定 = false, 秒 = 2.5f },
         // 贴边隐藏：持续 + 锁定；表现不走「池内随机」，由 EdgeHide.应用表现() 按阶段精确播（见应用表现）
@@ -1105,7 +1105,7 @@ public partial class StateMachine : Node
     }
 
     /// <summary>有 A/C 过渡段的池（包裹段机制）：挑主名从这里挑随机时要把段本身排除掉（别把 sleep-a 当主段）。</summary>
-    private static readonly string[] 包裹池 = { "think", "say", "sleep", "music" };
+    private static readonly string[] 包裹池 = { "think", "say", "sleep", "music", "work" };
 
     /// <summary>是不是 A/C 过渡段变体（`-a` / `-c` 结尾）。</summary>
     private static bool 是段名(string 名)
