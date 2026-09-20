@@ -33,8 +33,9 @@ public partial class CharAnim : AnimatedSprite2D
          // 音乐反应（2026-09-20 组③：VPet Music；包裹段 + MusicSense）
          "music"];
 
-    /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。</summary>
-    private static readonly List<string> 循环动画组 = ["walk", "sleep"];
+    /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。
+    /// fall 同理：`-b`（横着下落）在爬边与游戏模式的空中段都当持续姿态用（`-a`/`-c` 段仍被排除，见加载处）。</summary>
+    private static readonly List<string> 循环动画组 = ["walk", "sleep", "fall"];
     public override void _Ready()
     {
         // 直接给自己的 AnimationFinished 信号绑定方法

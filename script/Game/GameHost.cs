@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using desktop.script.State;
 using desktop.script.UX;
@@ -26,8 +27,21 @@ public partial class GameHost : Node
     /// <summary>默认出生点（地面顶 360 - 脚线 121 = 脚贴地；脚线按素材实测 +120.5）。</summary>
     private static readonly Vector2 默认出生 = new(0, 239);
 
-    // —— 关卡配色（想微调就改这三个；视觉验收标准见 tests/GameProbe） ——
-    private static readonly Color 背板色 = new(0.87f, 0.92f, 1.0f);
+    /// <summary>收集品（玩法切片一）：每颗星 = id + 世界坐标（摆在各平台上方一点，跳上去够得到）。</summary>
+    private static readonly (string Id, Vector2 位)[] 星星表 =
+    [
+        ("star-1", new Vector2(535f, 470f)),    // 台1 上方（台面 y=520）
+        ("star-2", new Vector2(970f, 90f)),     // 台2 上方（台面 y=140）
+        ("star-3", new Vector2(-670f, 200f)),   // 台3 上方（台面 y=250）
+    ];
+
+    /// <summary>每颗星回多少血。</summary>
+    public const int 星星回血 = 15;
+
+    // —— 关卡配色（想微调就改这几个；视觉验收标准见 tests/GameProbe） ——
+    // 背板半透明（主人 2026-09-20 要的）：游戏浮在桌面上、透出底下的桌面；地面/平台仍不透明（可读性）
+    private const float 背板不透明度 = 0.55f;
+    private static readonly Color 背板色 = new(0.87f, 0.92f, 1.0f, 背板不透明度);
     private static readonly Color 地面色 = new(0.40f, 0.47f, 0.62f);
     private static readonly Color 平台色 = new(0.44f, 0.57f, 0.84f);
 
@@ -47,12 +61,22 @@ public partial class GameHost : Node
     private CanvasLayer _界面层;
     private Node2D _精灵;
 
+    // —— 玩法状态（玩法切片一） ——
+    private readonly List<(string Id, Vector2 位, Node2D 节点)> _星星 = new();
+    private Label _状态标签;
+    private float _时间;
+    private bool _累了;
+
     // —— 探针访问器（只读） ——
     public Node2D 探针_世界 => _世界;
     public GamePlayer 探针_玩家 => _玩家;
     public Camera2D 探针_相机 => _相机;
     public Node2D 探针_精灵 => _精灵;
     public Node 探针_主场景根 => 主场景根();
+    public bool 探针_累了 => _累了;
+    public IReadOnlyList<(string Id, Vector2 位, Node2D 节点)> 探针_星星 => _星星;
+    public string 探针_状态文本 => _状态标签?.Text ?? "";
+    public static IReadOnlyList<(string Id, Vector2 位)> 探针_星星表 => 星星表;
 
     public override void _Ready()
     {
@@ -73,6 +97,7 @@ public partial class GameHost : Node
         if (挂载中) return;
         try
         {
+            _累了 = false;
             // 1) 收起办公面板（游戏时不见；退出后不自动重开）
             ChatBox.隐藏();
             ToolBar.隐藏();
@@ -148,7 +173,8 @@ public partial class GameHost : Node
 
     private void 建世界()
     {
-        // 背板：整个屏幕一块浅色底（窗口是透明的，得自己铺不透明背景）
+        GameSession.载入();   // 懒载入先手：星星/血量/办公星都要按存档状态摆
+        // 背板：整个屏幕一块浅色底（半透明 —— 游戏浮在桌面上；窗口本身是透明的）
         _背板层 = new CanvasLayer { Name = "GameBackdrop", Layer = -1 };
         AddChild(_背板层);
         var 底 = new ColorRect { Name = "Backdrop", Color = 背板色, MouseFilter = Control.MouseFilterEnum.Ignore };
@@ -159,10 +185,12 @@ public partial class GameHost : Node
         AddChild(_世界);
 
         // 关卡拓扑（最小可玩：地面 + 三块浮台；后续要换场景文件从这里搬）
-        建平台(360f, -1000f, 1000f, 300f, 地面色);   // 地面
-        建平台(240f, 120f, 430f, 22f, 平台色);
-        建平台(140f, -430f, -120f, 22f, 平台色);
-        建平台(250f, -880f, -620f, 22f, 平台色);
+        // 布局约束（跳高 ≈128px、角色高 ≈240px）：①台面离可站面 100~128（跳得上去）；
+        // ②一档档爬（台1→台2 再升 110）；③出生区两侧留空走廊 —— 台侧壁会拦人，别贴着出生点摆
+        建平台(360f, -1000f, 1400f, 300f, 地面色);   // 地面
+        建平台(250f, 520f, 820f, 22f, 平台色);       // 台1（右；地面→台1 升 110）
+        建平台(140f, 820f, 1120f, 22f, 平台色);      // 台2（右高层；台1→台2 升 110）
+        建平台(250f, -820f, -520f, 22f, 平台色);     // 台3（左；地面→台3 升 110）
 
         // 玩家：桌宠精灵**不销毁**，Reparent 进物理体（无缝切换的关键）
         _精灵 = 主场景根()?.GetNodeOrNull<Node2D>("AnimatedSprite2D");
@@ -182,7 +210,7 @@ public partial class GameHost : Node
         else GD.PrintErr("[Game] 找不到 AnimatedSprite2D —— 玩家没有外观");
 
         // 相机：世界子节点，由玩家每帧平滑跟随
-        _相机 = new Camera2D { Name = "GameCamera", Zoom = new Vector2(1.3f, 1.3f) };
+        _相机 = new Camera2D { Name = "GameCamera", Zoom = new Vector2(1.1f, 1.1f) };
         _世界.AddChild(_相机);
         _相机.MakeCurrent();
 
@@ -196,6 +224,8 @@ public partial class GameHost : Node
         _玩家.Position = 出生;
         _相机.GlobalPosition = 出生;
         _玩家.装配(出生, _相机);
+        建星星();            // 收集品（已收集过的不再出现）
+        刷新状态UI();
         GD.Print($"[Game] 世界就绪：出生 {出生}");
     }
 
@@ -211,6 +241,7 @@ public partial class GameHost : Node
         if (_世界 != null) { _世界.QueueFree(); _世界 = null; }
         if (_背板层 != null) { _背板层.QueueFree(); _背板层 = null; }
         if (_界面层 != null) { _界面层.QueueFree(); _界面层 = null; }
+        _星星.Clear();
         _相机 = null;
         _玩家 = null;
         _精灵 = null;
@@ -262,6 +293,111 @@ public partial class GameHost : Node
         提示.AnchorTop = 1f; 提示.AnchorBottom = 1f;
         提示.OffsetLeft = 16f; 提示.OffsetTop = -40f; 提示.OffsetBottom = -14f;
         容器.AddChild(提示);
+
+        // 状态行（左上）：血量 / 收集进度 / 办公星
+        _状态标签 = new Label { Name = "Status", Text = "" };
+        MicaTheme.应用(_状态标签, 14);
+        _状态标签.OffsetLeft = 16f; _状态标签.OffsetTop = 14f; _状态标签.OffsetBottom = 48f;
+        容器.AddChild(_状态标签);
+    }
+
+    // ================= 玩法（切片一：hp / 收集品 / 玩累了） =================
+
+    /// <summary>收集品落位：已收集过的不再出现（存档去重）。</summary>
+    private void 建星星()
+    {
+        foreach (var (id, 位) in 星星表)
+        {
+            if (GameSession.有道具(id)) continue;
+            var 星 = 造星星(位, $"星_{id}");
+            _世界.AddChild(星);
+            _星星.Add((id, 位, 星));
+        }
+    }
+
+    /// <summary>五角星（纯多边形，不依赖素材）：金色本体 + 浅色内芯。</summary>
+    private static Polygon2D 造星星(Vector2 位, string 名)
+    {
+        var 点 = new Vector2[10];
+        for (var i = 0; i < 10; i++)
+        {
+            var 半径 = i % 2 == 0 ? 22f : 9f;
+            var a = -Mathf.Pi / 2f + i * Mathf.Pi / 5f;
+            点[i] = new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 半径;
+        }
+        var 星 = new Polygon2D { Name = 名, Color = new Color(1f, 0.84f, 0.30f), Polygon = 点, Position = 位 };
+        var 芯点 = new Vector2[10];
+        for (var i = 0; i < 10; i++) 芯点[i] = 点[i] * 0.45f;
+        星.AddChild(new Polygon2D { Name = "芯", Color = new Color(1f, 0.95f, 0.75f), Polygon = 芯点 });
+        return 星;
+    }
+
+    /// <summary>刷新左上状态行（血量 / 收集进度 / 办公星）。</summary>
+    public void 刷新状态UI()
+    {
+        if (_状态标签 == null) return;
+        var 收 = 0;
+        foreach (var (id, _) in 星星表)
+            if (GameSession.有道具(id)) 收++;
+        _状态标签.Text = $"❤ {GameSession.血量}　⭐ {收}/{星星表.Length}　办公星 ×{GameSession.办公星}";
+    }
+
+    /// <summary>「玩累了」：血量见底 → 回满 + 屏幕提示 + 延时自动退出（只动游戏容器，办公侧无副作用）。</summary>
+    public void 玩累了()
+    {
+        if (!挂载中 || _累了) return;
+        _累了 = true;
+        GameSession.设血量(GameSession.血量上限);
+        刷新状态UI();
+        GD.Print("[Game] 玩累了 → 血量回满，稍候自动退出");
+        显示提示("玩累了，休息一下～");
+        GetTree().CreateTimer(1.6).Timeout += () => { if (挂载中) 请求退出(); };
+    }
+
+    /// <summary>居中大号提示（停留到世界卸载为止）。</summary>
+    private void 显示提示(string 文案)
+    {
+        if (_界面层 == null) return;
+        var 标签 = new Label
+        {
+            Name = "CenterToast",
+            Text = 文案,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+        };
+        MicaTheme.应用(标签, 22);
+        标签.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        _界面层.AddChild(标签);
+    }
+
+    public override void _Process(double delta)
+    {
+        if (!挂载中) return;
+        _时间 += (float)delta;
+
+        // 星星呼吸浮动（视觉提示）
+        for (var i = 0; i < _星星.Count; i++)
+        {
+            var s = _星星[i];
+            if (IsInstanceValid(s.节点))
+                s.节点.Position = s.位 + new Vector2(0, Mathf.Sin(_时间 * 2.2f + i * 1.7f) * 5f);
+        }
+
+        // 收集判定（AABB 近似：玩家碰撞 88×240，星星半径 ~22；站着走过/跳过去都能碰到）
+        if (_玩家 == null || !IsInstanceValid(_玩家)) return;
+        for (var i = _星星.Count - 1; i >= 0; i--)
+        {
+            var s = _星星[i];
+            var d = _玩家.GlobalPosition - s.位;
+            if (Mathf.Abs(d.X) >= 64f || Mathf.Abs(d.Y) >= 140f) continue;
+            GameSession.加道具(s.Id);
+            GameSession.设血量(GameSession.血量 + 星星回血);
+            if (IsInstanceValid(s.节点)) s.节点.QueueFree();
+            _星星.RemoveAt(i);
+            刷新状态UI();
+            GD.Print($"[Game] 收集 {s.Id} → 血量 {GameSession.血量}");
+        }
     }
 
     /// <summary>出生点：优先检查点（夹进关卡范围），否则默认出生。</summary>

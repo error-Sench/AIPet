@@ -7,6 +7,7 @@ using System.Text.Json;
 using desktop.script.logic;
 using desktop.script.Agent;
 using desktop.script.UX;
+using desktop.script.Game;
 using Godot;
 
 namespace desktop.script.State;
@@ -590,6 +591,10 @@ public partial class StateMachine : Node
     public static void 结束干活()
     {
         if (CurrentState is not (Working or WorkIn)) return;
+        // 「办公即游戏」钩子（最小切片）：干完一次活 → 游戏侧记一颗办公星。
+        // 只写游戏容器（GameSession），不改办公表现 —— 符合「办公表现不受游戏影响」的不变式。
+        GameSession.办公星加一();
+        GD.Print($"[Game] 干完一次活 → 办公星 +1（共 {GameSession.办公星}）");
         SetState(CharAnim.有动画("switch-down") ? WorkOut : Idle);
     }
 

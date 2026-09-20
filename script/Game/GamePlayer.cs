@@ -17,6 +17,7 @@ public partial class GamePlayer : CharacterBody2D
     public const float 起跳速度 = 620f;      // 起跳初速（向上，像素/秒）→ 跳高 ≈ 128px
     public const float 掉落重生Y = 900f;     // 掉出世界 → 回出生点
     public const float 检查点间隔秒 = 5f;    // 游玩中每 N 秒静默记一次检查点
+    public const int 掉落扣血 = 20;          // 掉出世界一次扣多少血（0 血 → 「玩累了」退场，见 GameHost）
 
     /// <summary>探针注入：非 0 时优先于真实键盘（确定性测试用；±1 = 左/右）。</summary>
     public float 探针_水平输入;
@@ -32,6 +33,7 @@ public partial class GamePlayer : CharacterBody2D
     private bool _跳跃上次;
     private 姿态 _姿态 = 姿态.空;
     private Polygon2D _影子;
+    private float _朝向 = 1f;
 
     public override void _Ready()
     {
@@ -77,7 +79,7 @@ public partial class GamePlayer : CharacterBody2D
 
         MoveAndSlide();
 
-        // —— 动画（姿态切换才重播，避免每帧重播乱相位） ——
+        // —— 动画（姿态/朝向变化才重播，避免每帧重播乱相位） ——
         更新动画(水平);
 
         // —— 影子跟随（射线找落点） ——
@@ -101,31 +103,41 @@ public partial class GamePlayer : CharacterBody2D
 
     private void 更新动画(float 水平)
     {
+        var 有输入 = Mathf.Abs(水平) > 0.1f;
         var 新姿态 = !IsOnFloor() ? 姿态.空
-            : Mathf.Abs(水平) > 0.1f ? 姿态.走
+            : 有输入 ? 姿态.走
             : 姿态.站;
-        if (新姿态 == _姿态) return;
+        var 姿态变了 = 新姿态 != _姿态;
+        var 朝向变了 = 有输入 && Mathf.Sign(水平) != _朝向;
+        if (!姿态变了 && !朝向变了) return;   // 反向输入 = 立刻转身（主人 2026-09-20：地面走中 / 空中都要及时）
         _姿态 = 新姿态;
+        if (有输入) _朝向 = Mathf.Sign(水平);
         switch (新姿态)
         {
             case 姿态.走:
-                CharAnim.PlayNamed(水平 < 0f ? "walk-left" : "walk-right");
+                CharAnim.PlayNamed(_朝向 < 0f ? "walk-left" : "walk-right");
                 break;
             case 姿态.站:
                 CharAnim.PlayState("idle");   // idle 池随机取一个姿势
                 break;
             case 姿态.空:
-                // 空中暂无专用素材（VPet MOVE 组：爬边/掉落/爬行 引入后再接）——保持当前帧
+                // 空中 = VPet `fall-B`（横着下落，循环；组②素材引入后接入，升/降统一用同一个失重姿态）：
+                // 转身就地把下落姿态切到新方向；落地由 站/走 分支接管
+                CharAnim.PlayNamed(_朝向 < 0f ? "fall-left-b" : "fall-right-b");
                 break;
         }
     }
 
-    /// <summary>回出生点（掉出世界用）。</summary>
+    /// <summary>回出生点（掉出世界用）。相机瞬移吸附 —— 别从原地慢慢平移过去。扣血、血空 → 「玩累了」。</summary>
     public void 重生()
     {
         GlobalPosition = _出生点;
         Velocity = Vector2.Zero;
-        GD.Print("[Game] 掉出世界 → 回出生点");
+        if (_相机 != null && IsInstanceValid(_相机)) _相机.GlobalPosition = _出生点;
+        GameSession.设血量(GameSession.血量 - 掉落扣血);
+        GD.Print($"[Game] 掉出世界 → 回出生点（血量 {GameSession.血量}）");
+        GameHost.单例?.刷新状态UI();
+        if (GameSession.血量 <= 0) GameHost.单例?.玩累了();
     }
 
     /// <summary>影子落点：从脚下往下打一条射线，贴到最近的可站面（越远越大越淡）。</summary>
@@ -150,4 +162,7 @@ public partial class GamePlayer : CharacterBody2D
 
     /// <summary>探针：当前姿态（只读）。</summary>
     public string 探针_姿态_只读 => _姿态.ToString();
+
+    /// <summary>探针：当前朝向（只读；±1）。</summary>
+    public float 探针_朝向_只读 => _朝向;
 }

@@ -55,6 +55,9 @@ public static class GameSession
     private static readonly List<string> _道具 = new();
     public static IReadOnlyList<string> 道具 => _道具;
 
+    /// <summary>办公奖励计数（「办公即游戏」钩子：干完一次活 +1；用途待主人定，先记账）。</summary>
+    public static int 办公星 { get; private set; }
+
     private static bool _已载入;
 
     // ================= 载入 / 存盘 =================
@@ -88,6 +91,7 @@ public static class GameSession
             if (r.TryGetProperty("hp", out var hp)) 血量 = Math.Clamp(hp.GetInt32(), 0, 血量上限);
             if (r.TryGetProperty("checkpointX", out var cx)) 检查点X = cx.GetSingle();
             if (r.TryGetProperty("checkpointY", out var cy)) 检查点Y = cy.GetSingle();
+            if (r.TryGetProperty("officeStars", out var os)) 办公星 = Math.Max(0, os.GetInt32());
             _道具.Clear();
             if (r.TryGetProperty("items", out var items) && items.ValueKind == JsonValueKind.Array)
             {
@@ -120,6 +124,7 @@ public static class GameSession
                 ["items"] = _道具,
                 ["checkpointX"] = MathF.Round(检查点X, 2),
                 ["checkpointY"] = MathF.Round(检查点Y, 2),
+                ["officeStars"] = 办公星,
                 ["_comment"] = "游戏模式进度（横板玩法）。独立容器，不进灵魂层数据；见 script/Game/README.md。",
             };
             var 全路径 = ProjectSettings.GlobalizePath(存盘路径);
@@ -152,6 +157,9 @@ public static class GameSession
         if (!string.IsNullOrEmpty(id) && !_道具.Contains(id)) _道具.Add(id);
     }
 
+    /// <summary>「办公即游戏」钩子：干完一次活 → 办公星 +1（见 `script/Game/README.md` ④）。</summary>
+    public static void 办公星加一() => 办公星++;
+
     /// <summary>是否已有某道具。</summary>
     public static bool 有道具(string id) => _道具.Contains(id);
 
@@ -163,6 +171,7 @@ public static class GameSession
         血量 = 血量上限;
         检查点X = 0f;
         检查点Y = 0f;
+        办公星 = 0;
         _道具.Clear();
     }
 

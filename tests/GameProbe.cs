@@ -10,9 +10,12 @@ namespace desktop.tests;
 /// 游戏模式探针（**非 headless**：要真实窗口几何、真实物理与渲染截图）：
 /// ① 确认弹窗：Esc 取消（留在办公）/ 空格确认（进入游戏；主人指定空格确认）；
 /// ② 挂载：窗口铺满屏幕、世界/玩家/相机就位、桌宠精灵 Reparent 进物理体、办公面板收起；
-/// ③ 最小可玩：着地 / WSAD 位移（含走动画）/ 空格跳跃（起跳-落地）/ 相机跟随；
+/// ③ 最小可玩：着地 / WSAD 位移（含走动画）/ 空格跳跃（起跳-落地，空中播 `fall-B`）/
+///    相机跟随 / 走中与空中即时转身 / 背板半透明采样（天空带 alpha、地面不透明）；
 /// ④ 退出：**窗口几何原样还原**、精灵回主场景居中、世界清理、回到 idle、检查点已写进存档；
-/// ⑤ 截两帧 PNG（站立 / 空中）供视觉复核。
+/// ⑤ 「办公即游戏」钩子：干完一次活 → 办公星 +1；
+/// ⑥ 二进宫（玩法切片一）：收集星星（回血 + 存档去重）/ 掉落扣血 / 血空「玩累了」回满血并自动退场；
+/// ⑦ 截两帧 PNG（站立 / 空中）供视觉复核。
 /// 隔离：游戏存档走临时档（GameSession.探针_覆盖存盘路径），收尾只删临时档。
 /// 用法：Godot_..._console.exe --path &lt;项目&gt; res://tests/GameProbe.tscn
 /// </summary>
@@ -26,6 +29,7 @@ public partial class GameProbe : Node
     private float _跳前Y;
     private float _最高Y;
     private float _退出前X;
+    private float _转身前X;
 
     public override void _Ready()
     {
@@ -118,7 +122,9 @@ public partial class GameProbe : Node
                 break;
             case 92:
                 玩家.探针_水平输入 = 0f;
-                断言(玩家.Position.X - _走前X > 60f, $"C3 D 键方向行走（{_走前X:0.0} → {玩家.Position.X:0.0}）");
+                // 阈值 120：出生区走廊要畅通（右侧崖壁在 x≈476）。旧布局台1 贴脸，走到 76 就被侧壁挡，
+                // 阈值 60 没揪住 —— 布局重排后按 120 锁死
+                断言(玩家.Position.X - _走前X > 120f, $"C3 D 键方向行走 + 走廊畅通（{_走前X:0.0} → {玩家.Position.X:0.0}）");
                 断言(CharAnim.当前动画名_只读 == "walk-right", $"C4 行走动画 = walk-right（实际 {CharAnim.当前动画名_只读}）");
                 break;
             case 100:
@@ -135,6 +141,7 @@ public partial class GameProbe : Node
                 断言(玩家.探针_影子?.Visible == true, "C5b 空中时影子仍可见（落点提示）");
                 断言(玩家.探针_影子 != null && Mathf.Abs(玩家.探针_影子.GlobalPosition.Y - 360f) < 8f,
                     $"C5c 影子落在地面高度（{玩家.探针_影子?.GlobalPosition.Y:0.0} ≈ 360）");
+                断言(CharAnim.当前动画名_只读 == "fall-right-b", $"C5d 空中播 fall-B 下落素材（实际 {CharAnim.当前动画名_只读}）");
                 break;
             case 100 + 90:
                 _最高Y = Mathf.Min(_最高Y, 玩家.Position.Y);
@@ -145,23 +152,55 @@ public partial class GameProbe : Node
                     "C9 相机跟随（与玩家距离 < 80px）");
                 截图("game_stand.png");
                 break;
-            case 210:
-                // 空中截图：再跳一次，半程截
-                玩家.探针_跳 = true;
+            case 194:
+            {
+                // 背板半透明（主人 2026-09-20 要的）：天空区带 alpha、地面区不透明 —— 从窗口画面采样
+                var 图 = GetWindow().GetTexture()?.GetImage();
+                if (图 == null) { 断言(false, "C10 取窗口画面失败"); break; }
+                var 天 = 图.GetPixel(960, 120);
+                var 地 = 图.GetPixel(960, 900);   // 别贴地面底缘（倍率变化时容易采样到虚空）
+                断言(天.A is > 0.3f and < 0.8f, $"C10 背板半透明（天空 alpha={天.A:0.00}）");
+                断言(地.A > 0.95f, $"C11 地面不透明（alpha={地.A:0.00}）");
                 break;
-            case 214:
+            }
+            case 198:
+                玩家.探针_水平输入 = 1f;    // 先往右走
+                break;
+            case 210:
+                _转身前X = 玩家.Position.X;
+                玩家.探针_水平输入 = -1f;   // 走中反向 → 应立刻转身
+                break;
+            case 222:
+                断言(CharAnim.当前动画名_只读 == "walk-left", $"C12 走中即时转身（实际 {CharAnim.当前动画名_只读}）");
+                断言(玩家.Position.X < _转身前X - 20f, $"C12b 确实在往左走（{_转身前X:0.0} → {玩家.Position.X:0.0}）");
+                break;
+            case 226:
+                玩家.探针_跳 = true;        // 带方向起跳（往左）
+                break;
+            case 230:
                 玩家.探针_跳 = false;
                 break;
-            case 232:
-                截图("game_jump.png");
+            case 238:
+                断言(!玩家.IsOnFloor(), "C13 空中（即将转身）");
+                玩家.探针_水平输入 = 1f;    // 空中反向 → 应立刻转身
+                break;
+            case 248:
+                断言(!玩家.IsOnFloor(), "C13b 仍在空中");
+                断言(CharAnim.当前动画名_只读 == "fall-right-b", $"C13c 空中即时转身（fall 素材换向；实际 {CharAnim.当前动画名_只读}）");
+                break;
+            case 252:
+                截图("game_jump.png");      // 空中 + 转身后的画面
                 break;
 
             // ===== ④ 退出：窗口还原 / 精灵回位 / 存档检查点 =====
-            case 250:
+            case 290:
+                断言(玩家.IsOnFloor(), "C14 空中转身后正常落回地面");
+                断言(CharAnim.当前动画名_只读 == "walk-right", $"C14b 落地后回常规姿态（实际 {CharAnim.当前动画名_只读}）");
+                玩家.探针_水平输入 = 0f;
                 _退出前X = 玩家.Position.X;
                 GameHost.请求退出();
                 break;
-            case 258:
+            case 298:
             {
                 断言(ModeManager.CurrentMode == ModeManager.Mode.Office, "D1 已切回办公模式");
                 断言(!GameHost.挂载中, "D2 世界已卸载");
@@ -184,7 +223,65 @@ public partial class GameProbe : Node
                 break;
             }
 
-            case 270:
+            // ===== ⑤ 「办公即游戏」钩子：干完一次活 → 办公星 +1（在办公 idle 时做，避开入场动画） =====
+            case 300:
+                StateMachine.开始干活();
+                break;
+            case 302:
+                断言(GameSession.办公星 == 0, $"H1 开工不记账（办公星 {GameSession.办公星}）");
+                StateMachine.结束干活();
+                break;
+            case 304:
+                断言(GameSession.办公星 == 1, $"H2 干完一次活 → 办公星 +1（实际 {GameSession.办公星}）");
+                break;
+
+            // ===== ⑥ 二进宫（玩法切片一）：收集 / 扣血 / 玩累了 =====
+            case 310:
+                GameEntryDialog.请求进入();
+                break;
+            case 318:
+                敲键(Key.Space, true);
+                break;
+            case 322:
+                敲键(Key.Space, false);
+                break;
+            case 326:
+                断言(GameHost.挂载中, "E1 再次进入游戏（二进宫）");
+                断言(GameHost.单例.探针_状态文本.Contains("办公星 ×1"), $"E2 状态行带办公星计数（实际「{GameHost.单例.探针_状态文本}」）");
+                断言(GameHost.单例.探针_状态文本.Contains("⭐ 0/3"), $"E3 初始收集 0/3（实际「{GameHost.单例.探针_状态文本}」）");
+                GameSession.设血量(50);
+                GameHost.单例.刷新状态UI();
+                玩家.GlobalPosition = new Vector2(535f, 400f);   // 站上台1（星星正下方）
+                break;
+            case 332:
+                断言(GameSession.有道具("star-1"), "E4 走上台1 → 收集到 star-1");
+                断言(GameSession.血量 == 65, $"E5 收集回血 +15（50 → {GameSession.血量}）");
+                断言(GameHost.单例.探针_星星.Count == 2, $"E6 星点从世界移除（剩 {GameHost.单例.探针_星星.Count}）");
+                断言(GameHost.单例.探针_状态文本.Contains("⭐ 1/3"), $"E7 状态行更新（实际「{GameHost.单例.探针_状态文本}」）");
+                break;
+            case 340:
+                玩家.GlobalPosition = new Vector2(0f, 950f);   // 掉出世界 → 扣血重生
+                break;
+            case 346:
+                断言(GameSession.血量 == 45, $"E8 掉落扣 20 血（65 → {GameSession.血量}）");
+                断言(玩家.GlobalPosition.Y < 500f, $"E9 已回出生点（Y={玩家.GlobalPosition.Y:0}）");
+                break;
+            case 354:
+                GameSession.设血量(10);
+                玩家.GlobalPosition = new Vector2(0f, 950f);   // 血见底 → 玩累了
+                break;
+            case 360:
+                断言(GameHost.单例.探针_累了, "E10 血空 → 触发「玩累了」");
+                断言(GameSession.血量 == 100, $"E11 玩累了回满血（实际 {GameSession.血量}）");
+                断言(GameHost.单例.探针_状态文本.Contains("❤ 100"), $"E12 状态行刷新（实际「{GameHost.单例.探针_状态文本}」）");
+                break;
+            case 470:
+                断言(ModeManager.CurrentMode == ModeManager.Mode.Office, "E13 玩累了 → 延时自动退出游戏");
+                断言(!GameHost.挂载中, "E14 世界已卸载");
+                断言(DisplayServer.WindowGetSize() == _原尺寸, $"E15 窗口还原（{DisplayServer.WindowGetSize()} vs {_原尺寸}）");
+                break;
+
+            case 480:
             {
                 try { System.IO.File.Delete(GameSession.探针_存盘路径); } catch { /* 忽略 */ }
                 GameSession.探针_覆盖存盘路径 = null;

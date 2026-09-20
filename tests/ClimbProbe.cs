@@ -72,6 +72,11 @@ public partial class ClimbProbe : Node
                     "走到位 X：左 76 / 右 1588");
                 断言(Climb.最近侧(屏幕, 200) == Climb.侧.左 && Climb.最近侧(屏幕, 1700) == Climb.侧.右 && Climb.最近侧(屏幕, 960) == Climb.侧.左,
                     "最近侧（含正中对半：960 → 左）");
+                // —— 循环模式（组②素材；游戏模式空中段共用 fall-B） ——
+                断言(CharAnim.动画循环_只读("fall-left-b") && CharAnim.动画循环_只读("fall-right-b"),
+                    "fall 的 -b（下落）按循环加载");
+                断言(!CharAnim.动画循环_只读("fall-left-a") && !CharAnim.动画循环_只读("fall-left-c"),
+                    "fall 的 -a/-c 段不循环（段推进靠播完信号）");
                 // —— 覆盖 + 触发 ——
                 Climb.探针_位置覆盖 = new Vector2I(80, 500);   // 近左边（走到位 76，差 4 ≤ 8 → 直接上墙）
                 Climb.探针_屏幕覆盖 = 屏幕;
