@@ -237,11 +237,22 @@ SPEC = {
     ],
     # 待机小动作扩充：VPet IDEL 的 蹲 / 网球 / 泡泡 / 打呼噜 / 侧看（我们原有 bubble/doze/meow/meowlook/spin/yawning）
     "fidget+": [
-        ("squat",   [("IDEL/Squat/B_Nomal/1", None, None)]),
-        ("tennis",  [("IDEL/Tennis/Nomal/B", None, None)]),
-        ("bubbles", [("IDEL/Bubbles/B", None, None)]),
-        ("boring",  [("IDEL/Boring/B_Nomal", None, None)]),
-        ("aside",   [("IDEL/aside/Nomal/B", None, None)]),
+        # 2026-09-20 细节打磨：这五个原先**只导了单个 B 段**——A 进入段 / C 退出段全丢，
+        # 表现为「演到一半突然切回待机、尾巴卡顿」。按 VPet 语义（MainDisplay.cs
+        # DisplayBLoopingToNomal：A → B_Loop×n → C_End）补全为**一次过**：A + B + C 顺序拼一条。
+        # 近重复变体只收一次（逐帧实测）：squat 的 B1/B2/B3 互差 0.06、aside 的 B/B_2/B_3/B_4
+        # 互差 0.3~1.0（近重复）；tennis 的 B/B_2 是 B_3 的抽样副本（B 的每一帧都能在 B_3 里
+        # 找到完全匹配）→ 只收 B_3（24 帧完整挥拍循环）。
+        ("squat",   [("IDEL/Squat/A_Nomal", None, None), ("IDEL/Squat/B_Nomal/1", None, None),
+                     ("IDEL/Squat/C_Nomal", None, None)]),
+        ("tennis",  [("IDEL/Tennis/Nomal/A", None, None), ("IDEL/Tennis/Nomal/B_3", None, None),
+                     ("IDEL/Tennis/Nomal/C", None, None)]),
+        ("bubbles", [("IDEL/Bubbles/A", None, None), ("IDEL/Bubbles/B", None, None),
+                     ("IDEL/Bubbles/C", None, None)]),
+        ("boring",  [("IDEL/Boring/A_Nomal", None, None), ("IDEL/Boring/B_Nomal", None, None),
+                     ("IDEL/Boring/C_Nomal", None, None)]),
+        ("aside",   [("IDEL/aside/Nomal/A", None, None), ("IDEL/aside/Nomal/B", None, None),
+                     ("IDEL/aside/Nomal/C", None, None)]),
         # 2026-09-20 组①：
         # State 待机变体 —— VPet StateONE=坐下待机 / StateTWO=躺下休息（逐帧看图核对过：
         # A=进入过渡、B=循环微动、C=退出过渡）。VPet 原件是加权待机链（MainDisplay.cs：B 循环到
