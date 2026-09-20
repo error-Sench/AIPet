@@ -1,4 +1,5 @@
 using desktop.script.Agent;
+using desktop.script.Game;
 using desktop.script.Mode;
 using desktop.script.State;
 using desktop.script.UX;
@@ -21,6 +22,10 @@ public partial class CommandProbe : Node
 
     public override void _Ready()
     {
+        // 隔离（2026-09-20）：B7 set_mode=game 会让 ModeManager 兑现「切换前存盘」—— 切临时档，
+        // 别把探针的切换写进主人的真实游戏存档（同 StatsTable 的隔离约定）。
+        GameSession.探针_覆盖存盘路径 = "user://probe_command_tmp_game_save.json";
+        try { System.IO.File.Delete(GameSession.探针_存盘路径); } catch { /* 忽略 */ }
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
@@ -222,6 +227,9 @@ public partial class CommandProbe : Node
         else if (_帧 == 32)
         {
             StateMachine.SetState(StateMachine.Idle);
+            // 清理临时游戏存档（真实档从未被碰过；见 _Ready 的隔离）
+            try { System.IO.File.Delete(GameSession.探针_存盘路径); } catch { /* 忽略 */ }
+            GameSession.探针_覆盖存盘路径 = null;
             GD.Print($"[CP] ===== 失败数 = {_失败} =====");
             GD.Print(_失败 == 0 ? "[CP] PASS" : "[CP] FAIL");
             GetTree().Quit(_失败 == 0 ? 0 : 1);

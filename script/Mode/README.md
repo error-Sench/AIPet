@@ -19,10 +19,10 @@
 | `Mode { Office, Game }` | 枚举 |
 | `CurrentMode` | 静态只读访问 |
 | `SwitchMode(Mode)` | 切换入口；切换前自动 `SaveProgress()`，切换时发 `ModeChanged` 事件 |
-| `SaveProgress() / LoadProgress()` | `user://game/save.json`（GameSession 占位，仅存游戏模式相关状态） |
+| `SaveProgress() / LoadProgress()` | 转发 `GameSession`（`user://game/save.json`；仅存游戏模式相关状态） |
 | 事件 `ModeChanged` | 场景/UI 监听，做表现接管（隐藏/显示桌宠 UI、加载游戏场景） |
 
 **无缝切换锚点（待扩展）**：点击桌宠（或快捷键）→ `SwitchMode(Game)`；游戏内 ESC/手势 → 切回办公。切换前后桌宠本体（位置/动画）不销毁，只换表现壳。
-**约束**：游戏进度**不入灵魂表**（GameSession 独立容器），办公模式表现不受游戏影响（但玩法可调用办公动作作为游戏内容）。
+**约束**：游戏进度归 **GameSession 独立容器**（`user://game/save.json`），办公模式表现不受游戏影响（但玩法可调用办公动作作为游戏内容）。
 
 ---

@@ -22,7 +22,7 @@
 
 ## 待做（第一批）
 
-1. **`GameSession`**：游戏模式专用数据容器（关卡 / 血量 / 道具…）→ `user://game/save.json`（`ModeManager.SaveProgress/LoadProgress` 桩已留好）
+1. **`GameSession`**：游戏模式专用数据容器（关卡 / 血量 / 道具…）→ `user://game/save.json`（`ModeManager.SaveProgress/LoadProgress` 桩已留好）—— ✅ **已落地（2026-09-20）**：`script/Game/GameSession.cs`（schema v1：level / hp / items / checkpoint；坏档·高版本档退回默认；探针 `GameSessionProbe`）
 2. **游戏场景挂载**：监听 `ModeChanged` 挂载/卸载游戏场景；桌宠本体（位置/动画）**不销毁**，只换表现壳（无缝切换的关键）
 3. **最小可玩**：横板第一版——平台、着地、相机跟随、WSAD + 空格
 4. **「办公即游戏」钩子**：办公事件（完成待办等）→ 游戏内奖励

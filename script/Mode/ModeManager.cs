@@ -1,12 +1,13 @@
 using System;
+using desktop.script.Game;
 using Godot;
 
 namespace desktop.script.Mode;
 
 /// <summary>
-/// 模式层（接口期）：办公模式 ↔ 游戏模式 无缝切换，各自保留进度。
+/// 模式层：办公模式 ↔ 游戏模式 无缝切换，各自保留进度。
 /// 桌宠本体即游戏的一部分：办公与游戏不严格隔离，办公行为可作游戏内容。
-/// 未来横板动作游戏玩法挂在 Game 分支下；至今只实现接口，不实现玩法。
+/// 横板动作玩法本体在 `script/Game/` 开发区；本类保持轻量接口（切换 + 进度存取）。
 /// 切换锚点(待扩展): 点击桌宠 -> SwitchMode(Game); ESC/手势 -> 切回办公。
 /// 约定：标识符英文，注释中文（见 AIPet-Agent.md §8）。
 /// </summary>
@@ -37,17 +38,17 @@ public partial class ModeManager : Node
 
     public static void SaveProgress()
     {
-        // TODO(骨架): 写 user://game/save.json，仅存游戏模式相关状态
-        // (当前为接口期, 游戏无状态, 仅建目录/占位)
+        // 游戏进度存盘（GameSession 独立容器 → user://game/save.json；切换前自动调）
+        GameSession.存盘();
     }
 
     public static void LoadProgress()
     {
-        // TODO(骨架): 读 user://game/save.json -> 应用到游戏场景
+        // 读档进 GameSession（把进度铺到游戏场景是挂载侧的事，见 script/Game/）
+        GameSession.载入();
     }
 
     // TODO(骨架):
-    // - GameSession: 游戏模式专用数据容器(关卡/血量/道具...), 不入灵魂表
     // - 无缝切换实现: ModeChanged 事件 -> 场景树挂载/卸载, 渐变过渡
     // - 办公即游戏: 办公动作(如完成待办)可产生游戏内奖励, 挂 Game 分支
 }
