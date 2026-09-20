@@ -38,6 +38,15 @@
     → 规则：断言"配置值"的探针先判 `user://` 覆盖是否存在，**存在就打印 SKIP 说明原因、不判 FAIL**（覆盖优先是设计行为，不是故障）；
     全量回归若只有这类配置断言挂掉，先查 `user://`，再查代码。
 
+### 踩坑 #28
+
+28. **探针喂键盘：「PushInput」和「ParseInputEvent」不是一回事**。实测（临时场景 A/B 对照，`InputEventKey` 空格按下）：
+    `get_viewport().push_input(ev)` 与 `window.push_input(ev)` 之后，`Input.is_physical_key_pressed(SPACE)` **都是 false**——
+    push_input 只把事件塞进"那一条视口"的事件管线（喂 `_input` / GUI 回调），**不更新全局输入状态**；
+    `Input.parse_input_event(ev)` 之后才是 true（再注释放事件回 false）。
+    → 规则：**被测方用轮询（`Input.IsPhysicalKeyPressed` / `IsActionPressed`）判定时，探针必须用 `Input.ParseInputEvent` 喂**；
+    只用 PushInput 会出现"探针以为按了、程序纹丝不动"（`GameEntryDialog` 的空格确认靠 ParseInputEvent 跑通全链路）。
+
 **视觉复核通道**：本机 `auxiliary.vision` 可用（模型已支持图片输入）。截图 + 视觉复核是 UI 改动的一等验证手段，不要只靠 headless 断言。
 ---
 
@@ -78,6 +87,7 @@
 | `BubbleProbe` | headless | 气泡：说话动作（可打断 + 忙态/流式不偷）/ 时长到点自动收 / **按内容自适应尺寸** / 字号 / 鼠标穿透 / BBCode 转义 |
 | `BubbleShot` | **非 headless** | 气泡实机：把气泡窗渲成 PNG（供视觉复核）+ 位置数值断言（头顶居中 / 上方放不下自动翻下方）|
 | `ChatBoxShot` | **非 headless** | 聊天面板命令栏：「游戏模式」入口在位 / 无「状态」「关闭」；「退出桌宠」红底 + 关机图标 + 贴最右（面板渲 PNG 供视觉复核）|
+| `GameProbe` | **非 headless** | 游戏模式全链路：弹窗（Esc 取消 / 空格确认）→ 挂载（全屏换壳 / 面板收起 / 精灵 Reparent / 相机接管）→ 最小可玩（着地 / 行走 / 跳跃 / 相机跟随 / 影子留地面）→ 退出还原（窗口几何 / 精灵 / 状态机）→ 两帧 PNG 供视觉复核 |
 | `AnimShot` | **非 headless** | 新导入动画实机渲图：逐个播并各存一张 PNG（缩放/落地线只靠数值不够，得看得见）|
 | `AudioProbe` | headless | 音频输入设备诊断（列出 Godot 能看到的麦克风）|
 | `TouchProbe` | headless | P10：命中区纯函数（脸/身体不重叠）/ 摸摸部位分流（**排队**等反应，不能定帧断言）/ 三档状态四种情形 / 干活进出场四步（`switch-up` → working → `switch-down` → idle）|
@@ -108,7 +118,7 @@
 **headless 与非 headless 的区别**（清单由脚本扫 `tests/*.tscn` 得到，新增探针不用改脚本；`--list` 里的清单是权威版，10.1 表里还没登记的探针也会列出来）：
 
 - **默认只跑 headless 的**：不弹窗、可以后台/连着跑，适合每次改完代码的快检。
-- **非 headless 白名单默认跳过**：`DragProbe` / `SettingsProbe` / `StatsWindowProbe` / `EdgeHideBehaviorProbe` / `EnterProbe` / `BubbleShot`，外加 `WalkProbe`——它们要**真实窗口 / 真实光标**，会真弹窗、真动光标，只有 `--all` 或 `--only <名字>` 才跑。`WalkProbe` 是被踩坑赶进来的：headless 下屏幕与窗口尺寸为 0，`尝试走动` 会直接放弃（跑了也是**假绿**）。
+- **非 headless 白名单默认跳过**（当前 10 个）：`DragProbe` / `SettingsProbe` / `StatsWindowProbe` / `EdgeHideBehaviorProbe` / `EnterProbe` / `WalkProbe` / `BubbleShot` / `AnimShot` / `ChatBoxShot` / `GameProbe`——它们要**真实窗口 / 真实光标 / 真实渲染**，会真弹窗、真动光标，只有 `--all` 或 `--only <名字>` 才跑。`WalkProbe` 是被踩坑赶进来的：headless 下屏幕与窗口尺寸为 0，`尝试走动` 会直接放弃（跑了也是**假绿**）。
 - 名单在脚本顶部可改：`.sh` 的 `NON_HEADLESS`、`.ps1` 的 `$NonHeadless`（加进去的名字 = 默认不跑）。
 - **必须串行**：探针共用 `user://` 存档（行为节律、数值…），脚本不并行跑。
 

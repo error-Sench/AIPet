@@ -98,7 +98,7 @@ D:/Games/Github/AIPet/
 │   ├── Mode/              #   模式层：办公/游戏接口
 │   ├── Game/              #   ★ 游戏模式：横板动作玩法（开发区，见 script/Game/README.md）
 │   └── Audio/ UX/ Steam/ Util/ Asset/    # 语音 / 界面与动画 / Steam / 工具 / 图标
-├── tests/                 #   回归探针（40 个场景；跑法与清单见 tests/README.md）
+├── tests/                 #   回归探针（41 个场景；跑法与清单见 tests/README.md）
 ├── tools/                 # ★ 开发工具（不参与运行、不随包发布）
 │   ├── anim/              #   动画资产导入（VPet → mods/main_anim）
 │   ├── package.sh         #   打包（构建→导出→组装→打 zip）
@@ -188,6 +188,7 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 16. **两个「与 BCL 同名」的坑，一律写全限定名**：
     - `Environment`：`Godot.Environment` vs `System.Environment`（用 `TickCount` 必炸）→ `System.Environment.TickCount`。
     - `FileAccess`：`Godot.FileAccess` vs `System.IO.FileAccess`。
+    - `Mode`（成员遮蔽命名空间，比 BCL 同名更隐蔽）：`Window.Mode` 成员 vs `desktop.script.Mode` 命名空间——**继承 `Window` 的类里裸写 `Mode.ModeManager` 会被成员抢走解析**（`GameEntryDialog` 撞过；报错信息完全不指向真因）→ 全限定 `desktop.script.Mode.ModeManager`。
     规律：Godot 的 C# 命名空间里有一批与 BCL 同名的类型，凡是用「名字很通用」的 BCL 类型，一律全限定。
 
 25. **启动窗口期不要直接往 root `add_child`**（`Main._ready` 及其向下链路里）：引擎会**静默拒绝**（只打一行 `Parent node is busy setting up children`，`AddChild` 既不抛异常也不生效——曾让「网速气泡启动恢复」一直没生效，且日志还谎报成功）。→ 规则：**延迟一帧**（`root.CallDeferred(Node.MethodName.AddChild, 节点)`，或 `Callable.From(方法).CallDeferred()`）；探针在 `_Ready` 里实例化 `game.tscn` 时同理。
