@@ -9,7 +9,7 @@
 |---|---|
 | `anim/import_vpet_anim.py` | **动画资产导入（通用）**：VPet → `mods/main_anim/anim/loris/<池>/` |
 | `anim/import_vpet_walk.py` | 走动专用导入器（历史原因保留：它要按角色包围盒对齐基线） |
-| `package.sh` | 打包：构建 → 导出 → 组装 `dist/AIPet-<版本>/` → 打 zip |
+| `package.sh` | 打包：构建 → 导出 → 组装 `dist/AIPet-<版本>/` → 打 zip（**导出前先关掉在跑的 Godot 编辑器**——挂起态编辑器会锁构建产物，导致 .NET 构建失败、包变砖） |
 | `run_probes.sh` / `run_probes.ps1` | 一键跑全部回归探针（`--list` / `--all` / `--only`） |
 | `aipet_mcp_smoke.py` | MCP 服务冒烟（不依赖 Hermes）：`pet_context` 读盘 + `pet_command` 收件箱/回执（含「无桌宠超时」「假桌宠回执」两态）；改过 `dist/aipet-mcp/` 后跑一次 |
 | `install_edge_tts.ps1` | 装 Edge 语音（TTS 可选依赖；装到 `%LOCALAPPDATA%\AIPet\tts-venv`，不碰系统 Python） |
