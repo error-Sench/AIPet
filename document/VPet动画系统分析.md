@@ -46,7 +46,17 @@ GraphInfo {
 > **同一 Name 的所有 A/B/C/档位聚成一个会话族**：`GraphsList[Name][AnimatType] → List<IGraph>`（GraphCore.cs:67）。
 > 这就是为什么 tennis 的 B/B_2/B_3/B_4 会互相随机——它们解析出来 Name 全是 "tennis"、Animat 全是 B_Loop，进同一个 List。
 
-### 1.2 检索与降级（GraphCore.cs:112-168）
+### 1.2 目录命名五种风格（609 叶子实测，2026-09-22 子代理盘点 + 抽查校正）
+
+1. **纯字母段**（183 叶子）：`A` / `B` / `C`，常再套数字变体 `B/1`、`B/2`（Music/B/Happy/3 等）
+2. **字母_状态**（137 叶子）：`A_Nomal` / `B_Happy` / `C_PoorCondition`，多变体 `B_PoorCondition_1/2/3`、`B_Happy/1..9`
+3. **状态_字母**（反序！）：`PoorCondition_A` / `PoorCondition_C`（walk.*.slow 用这种）——解析靠消词，顺序无关
+4. **状态作父目录**（341 叶子处于状态名下）：`WORK/Calligraphy/Happy/A`、`IDEL/aside/Nomal/B_2`、`Default/Happy/1`
+5. **纯状态名叶子**（45 个，无段字母 = Single）：`LevelUP/Happy`、`Switch/Down/Happy`
+- ⚠ 官方拼写就是 `Nomal`（非 Normal）；`Ill` 大小写不统一（Ill/ill/A_Ill/B_ill）——解析走 ToLowerInvariant 所以无所谓，**但我们写匹配逻辑时别区分大小写**。
+- ⚠ 子代理报告中「不完整组仅 10 个（Squat/climb.top 无 B 等）」**抽查 3 处全错，不采信**；判断某动画段结构一律以 `find` 实查为准。
+
+### 1.3 检索与降级（GraphCore.cs:112-168）
 
 ```
 FindName(Type)          → GraphsName[Type] 里随机一个 Name        （类型级随机入口）
@@ -85,6 +95,9 @@ FindGraphs(...) 同逻辑但返回整个 List（调用方自己再随机/过滤 
 
 （* = 注释里标「必须有的动画」。`BDay/Eat/Drink/Gift/LevelUP/Music/Shutdown/StartUP` 等目录 → Common，按名字点播。）
 
+**未导入的类**（我们 26 池之外）：`Eat/Drink/Gift`（**front_lay/back_lay 前后双层拆分**——角色在食物前/后两层叠加渲染，重构吃喝系统时要处理双图层合成）、`LevelUP`、`State`（StateONE/TWO 嵌套场素材）、`Raise` 的档位细分。
+**多外观机制**：一个 `pet/<name>/` 目录 + 同名 `.lps` = 一套皮（mod 平级并列）；vup 内**只有单角色**（petname#萝莉斯）。`StartUP/Happy_newyear` 是节日皮肤变体。我们的 mods/ 结构天然兼容这个模型。
+
 ## 3. 播放引擎（PNGAnimation.cs）
 
 ### 3.1 每帧独立时长 ★我们没抄的关键细节
@@ -96,8 +109,11 @@ time = int.Parse(文件名最后一个'_'后的数字)
 播放: 显示帧 → Thread.Sleep(time) → 下一帧          （PNGAnimation.cs:272-285）
 ```
 
-实测分布（6181 帧）：**125ms 占 93%**（=8fps），其余 250/375/500/625/750/1000/1250/2000/2875ms
-——慢帧用在「定格/眨眼/持有」上（如 squat 的 B_4 定格 500ms、boring 的长停顿）。
+实测分布（6181 帧）：**125ms 占 92.6%**（=8fps），其余**全部是 125 的整数倍**（逐帧时长而非固定帧率）：
+- 250ms（212 帧）：MOVE/climb.* 的 B 循环（爬墙慢动作）+ Music/B 乐器循环
+- 375/500ms（70/82 帧）：Eat/Drink/Gift 的 front_lay 咀嚼停顿、IDEL/Boring 打呼噜、State/StateTWO 长停顿
+- 625~2875ms（36 帧）：单帧长定格（StudyTWO 思考 1250ms、Gift 收礼呆滞 2875ms）
+- ⚠ WORK 有 1 帧写成 **124ms（原版笔误）**；Touch_Head 用 `_0_250` 单位序号不补零——导入器解析要容错
 **我们导入时把 rate 统一写死 8fps，丢掉了这些节奏变化** → 这是「细节没打磨好」的另一个根因。
 
 ### 3.2 加载与缓存
