@@ -155,13 +155,16 @@ public partial class CharAnim : AnimatedSprite2D
     public static bool 有动画(string 动画名) =>
         !string.IsNullOrEmpty(动画名) && _单例?.SpriteFrames?.HasAnimation(动画名) == true;
 
-    /// <summary>动画时长（秒）= 帧数 ÷ 帧率；未载入返回 0（状态机走链用它对齐起步/停步阶段时长）。</summary>
+    /// <summary>动画时长（秒）= Σ每帧相对时长 ÷ 帧率；未载入返回 0（状态机走链用它对齐起步/停步阶段时长）。
+    /// 2026-09-22：按逐帧 duration 求和（有定格帧的动画时长不再被低估）。</summary>
     public static float 动画时长(string 动画名)
     {
         var sf = _单例?.SpriteFrames;
         if (sf == null || !sf.HasAnimation(动画名)) return 0f;
         var 帧率 = Math.Max(1.0, sf.GetAnimationSpeed(动画名));
-        return (float)(sf.GetFrameCount(动画名) / 帧率);
+        double 总时长 = 0;
+        for (var i = 0; i < sf.GetFrameCount(动画名); i++) 总时长 += sf.GetFrameDuration(动画名, i);
+        return (float)(总时长 / 帧率);
     }
 
     /// <summary>当前正在播的动画名（只读，供状态机避免重复重播导致相位重置）。</summary>
@@ -170,6 +173,11 @@ public partial class CharAnim : AnimatedSprite2D
     /// <summary>探针用：查询某动画是否按循环模式加载（包裹段 A/C 必须非循环——循环动画不回「播完」信号）。</summary>
     public static bool 动画循环_只读(string 名)
         => _单例 != null && _单例.SpriteFrames.HasAnimation(名) && _单例.SpriteFrames.GetAnimationLoop(名);
+
+    /// <summary>探针用：某动画第 i 帧的相对时长（单位 1/帧率 秒；未载入/越界返回 -1）。验证 durations 逐帧时长生效。</summary>
+    public static float 帧时长_只读(string 名, int i)
+        => _单例 != null && _单例.SpriteFrames.HasAnimation(名) && i < _单例.SpriteFrames.GetFrameCount(名)
+            ? _单例.SpriteFrames.GetFrameDuration(名, i) : -1f;
 
     /// <summary>按动画名精确播放（区别于 PlayState 的「按池随机取一项」）。可跨线程调用。</summary>
     public static void PlayNamed(string 动画名)
@@ -238,8 +246,8 @@ public partial class CharAnim : AnimatedSprite2D
             }
         }
     }
-    private static void 加载动画(SpriteFrames 状态机, 动画信息 动画信息) => 加载动画(状态机,动画信息.name,动画信息.Path,动画信息.rate,动画信息.Type);
-    private static void 加载动画(SpriteFrames 状态机, string 动画名, string 目录, int 帧率, string 池 = null)
+    private static void 加载动画(SpriteFrames 状态机, 动画信息 动画信息) => 加载动画(状态机,动画信息.name,动画信息.Path,动画信息.rate,动画信息.Type,动画信息.durations);
+    private static void 加载动画(SpriteFrames 状态机, string 动画名, string 目录, int 帧率, string 池 = null, List<int> 帧时长 = null)
     {
         // 1. 检查目录是否存在 (使用绝对路径)
         if (!DirAccess.DirExistsAbsolute(目录))
@@ -280,11 +288,15 @@ public partial class CharAnim : AnimatedSprite2D
         filePaths.Sort();
 
         // 5. 循环加载外部文件并转为 Texture
+        //    2026-09-22 逐帧时长：info.json 的 durations（相对时长，单位 1/帧率 秒）逐帧带上——
+        //    还原原版「定格/慢动作」节奏（VPet 每帧自带 ms：250=爬墙、500=咀嚼、1000+=长定格）。
+        //    无 durations（旧素材/手写 mod）= 每帧 1，行为与从前一致。
+        var 帧序 = 0;
         foreach (var path in filePaths)
         {
             // 从磁盘读取字节数据
             var buffer = FileAccess.GetFileAsBytes(path);
-            if (buffer == null || buffer.Length == 0) continue;
+            if (buffer == null || buffer.Length == 0) { 帧序++; continue; }
 
             // 创建 Image 并加载数据
             var img = new Image();
@@ -294,12 +306,14 @@ public partial class CharAnim : AnimatedSprite2D
             {
                 // 将 Image 转为 Godot 渲染可用的 ImageTexture
                 var texture = ImageTexture.CreateFromImage(img);
-                状态机.AddFrame(动画名, texture);
+                var 时长 = 帧时长 != null && 帧序 < 帧时长.Count && 帧时长[帧序] > 0 ? 帧时长[帧序] : 1f;
+                状态机.AddFrame(动画名, texture, 时长);
             }
             else
             {
                 GD.PrintErr($"[解析失败] 无法加载图片: {path}, 错误代码: {err}");
             }
+            帧序++;
         }
     }
 }

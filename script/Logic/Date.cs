@@ -88,6 +88,9 @@ public class 抬头信息
 public class 动画信息
 {
     public int rate;
+    /// <summary>每帧相对时长（单位 = 1/rate 秒；导入器按源文件名 ms÷基准帧时长写入）。
+    /// null/缺省 = 每帧 1（旧 info.json 兼容）。</summary>
+    public List<int> durations;
     public string name;
     public List<string> nextClip;
     public string Type;

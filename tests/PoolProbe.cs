@@ -78,6 +78,20 @@ public partial class PoolProbe : Node
             foreach (var 名 in 必存在动画) if (!CharAnim.有动画(名)) 缺.Add(名);
             if (缺.Count == 0) GD.Print($"[PL] PASS  P10 新素材齐全（{必存在动画.Length} 个动画）");
             else { _失败++; GD.PrintErr($"[PL] FAIL  缺素材：{string.Join(", ", 缺)}"); }
+
+            // 2026-09-22 逐帧时长：info.json 的 durations 必须真的进了 SpriteFrames——
+            // fidget-squat 源带 1000ms/875ms 长定格（相对时长 8/7），Σ=36 → 动画时长 4.5s；
+            // 若 durations 没生效（全按 1）只有 19/8=2.375s。idle-nomal-1 同验（首帧 250ms → 相对 2）。
+            var 蹲6 = CharAnim.帧时长_只读("fidget-squat", 6);
+            var 蹲11 = CharAnim.帧时长_只读("fidget-squat", 11);
+            if (蹲6 == 8 && 蹲11 == 7) GD.Print("[PL] PASS  fidget-squat 定格帧时长生效（1000ms/875ms）");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  fidget-squat 定格帧时长：第6帧={蹲6}（期望8） 第11帧={蹲11}（期望7）"); }
+            var 蹲总 = CharAnim.动画时长("fidget-squat");
+            if (蹲总 > 4.0f && 蹲总 < 5.0f) GD.Print($"[PL] PASS  fidget-squat 动画时长按逐帧求和 = {蹲总:0.00}s");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  fidget-squat 动画时长 = {蹲总:0.00}s（期望 ≈4.5s）"); }
+            var 呼0 = CharAnim.帧时长_只读("idle-nomal-1", 0);
+            if (呼0 == 2) GD.Print("[PL] PASS  idle-nomal-1 呼吸停顿帧时长生效（250ms）");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  idle-nomal-1 首帧时长 = {呼0}（期望 2）"); }
             return;
         }
         if (_帧 < 20) return;

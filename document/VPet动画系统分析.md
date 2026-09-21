@@ -307,9 +307,9 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 
 子代理摘录版：`%TEMP%/vpet_lps_anim_lines.txt`。
 
-## 7. 重构待办清单（按性价比排序，先记着不动手）
+## 7. 重构进度与待办（按性价比排序）
 
-1. **每帧时长**：导入器读文件名尾数 ms → info.json 存 per-frame 时长（Godot SpriteFrames 支持 `set_frame_duration`）——找回 250/500ms 的定格节奏。★影响最大、改动最小
+1. ✅ **每帧时长**（2026-09-22 完成）：导入器解析文件名尾数 ms → info.json 写 `durations`（相对时长 = ms÷基准取整；缺失/笔误容错为 1）；`CharAnim.加载动画` 用 `AddFrame(名, 纹理, 时长)` 逐帧带上；`动画时长()` 改 Σduration÷rate（定格帧不再被低估）。全量重导 1777 帧（fidget/interact 追加模式不动原项目素材）。验证：PoolProbe 加 4 断言——fidget-squat 定格帧（1000ms→8 / 875ms→7）+ 总时长 4.50s（旧算法只有 2.375s）+ idle-nomal-1 呼吸停顿（250ms→2）全 PASS。
 2. **B 循环概率退出**（`Rnd.Next(++n) > L`）替换现在的固定时长/播完即切——观感「活」的关键。lps duration 表抄进 behavior.json。
 3. **EventTimer 概率爬坡**：`rnddisplay = max(20, 200 - CountNomal)` 的骰子调度替换固定倒计时——闲置越久越活跃、互动后安静。
 4. **Move 接力**：走→爬→顶→掉用「兼容 Move 40% 接力」模型重写（现在是自写相位机，行为对但扩展性差；加新移动方式要改代码，VPet 只要加一行 lps）。

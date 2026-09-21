@@ -10,7 +10,8 @@
   4. 单目录多序列必须拆开：一个叶子目录里若出现**多于一个文件名前缀**就跳过并告警
      （VPet 常在单目录塞两条序列，如 `1毛笔开心_*` + `2…退出通用_*`、`FLA_*` + `FLB_*`）
   5. 丢弃 1bit/灰度遮罩层（`*_lay` / `front` / `back` 这类不是帧序列）
-  6. info.json 只写 rate（由文件名里的 `_<ms>` 后缀折算，取众数）
+  6. info.json 写 rate（文件名 `_<ms>` 后缀的众数折算基准帧率）+ durations（每帧相对时长，
+     ms÷基准取整——原版定格/慢动作节奏靠它还原；缺字段时加载端全按 1 处理，向后兼容）
   7. **帧切片**：VPet 有的目录里混了不属于该段的帧（实测 `SideHide_Right_Main/Nomal/A` 多粘了
      2 帧「迸出」开头 + 3 帧收尾）。片段写法 `(源, 起帧序号, 止帧序号)`（含端点，None = 全段），
      一个变体可以由**多个片段拼接**（顺序即拼接顺序）。
@@ -445,12 +446,20 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
         canvas.alpha_composite(im, (round(off_x), round(off_y)))
         canvas.save(os.path.join(out, f"{i:03d}.png"))
 
-    # 规则 6：rate 取文件名时长档的众数
+    # 规则 6（2026-09-22 逐帧时长版）：rate = 文件名时长档众数的基准帧率；
+    # durations = 每帧相对时长（ms ÷ 基准帧时长，取整；缺失/笔误容错为 1）。
+    # 原版 6181 帧里 125ms 占 92.6%，其余全是 125 的整数倍（250=爬墙慢动作、500=咀嚼停顿、
+    # 1000+=长定格）——统一 rate 会把这些节奏全压平（见 document/VPet动画系统分析.md §3.1）。
     档 = Counter(时长秒(f) for _, f in frames)
     ms = 档.most_common(1)[0][0] or 125
     rate = max(1, round(1000 / ms))
+    基准 = 1000.0 / rate
+    durations = []
+    for _, f in frames:
+        d = 时长秒(f)
+        durations.append(max(1, round(d / 基准)) if d else 1)
     with open(os.path.join(out, "info.json"), "w", encoding="utf-8") as fp:
-        fp.write('{\n    "rate": %d\n}\n' % rate)
+        fp.write('{\n    "rate": %d,\n    "durations": [%s]\n}\n' % (rate, ", ".join(map(str, durations))))
 
     bb = Image.open(os.path.join(out, "000.png")).convert("RGBA").getchannel("A").getbbox()
     报告.append(f"  [完成] {池}/{变体}: {len(frames)}帧 源包围盒={ub[2]-ub[0]}x{ub[3]-ub[1]} scale={scale:.4f} rate={rate} "
