@@ -283,32 +283,40 @@ SPEC = {
     ],
     # 待机小动作扩充：VPet IDEL 的 蹲 / 网球 / 泡泡 / 打呼噜 / 侧看（我们原有 bubble/doze/meow/meowlook/spin/yawning）
     "fidget+": [
-        # 2026-09-20 细节打磨：这五个原先**只导了单个 B 段**——A 进入段 / C 退出段全丢，
-        # 表现为「演到一半突然切回待机、尾巴卡顿」。按 VPet 语义（MainDisplay.cs
-        # DisplayBLoopingToNomal：A → B_Loop×n → C_End）补全为**一次过**：A + B + C 顺序拼一条。
+        # 2026-09-22 重构#2（B 循环概率退出）：七个 A/B/C 结构变体**拆回三段**（`-a`/主段/`-c`，
+        # 与包裹段同一命名约定）——运行时 fidget 会话 = A → B 循环 × 骰子 → C → idle，
+        # 骰子对齐 VPet MainDisplay.cs:314-320 DisplayBLoopingToNomal：
+        #   每播完第 n 圈掷 Rnd.Next(n+1) > L（L 来自 lps duration 表；我们默认 2 = 最少 3 圈、平均 ~4.6 圈）。
+        # 此前是「A+B+C 拼一条一次过」（B 只播一遍 ~5s 就完）——VPet 原味是 B 循环到骰子命中才退
+        #（squat 蹲一下平均十几秒、间歇性发作），观感「活」的关键。
+        # 单段变体（spin/bubble/doze/meow/meowlook/yawning/happy520 = VPet Single 型，
+        # MainDisplay.cs:291-296 播完直接 DisplayToNomal）**保持一次过**，不上骰子。
         # 近重复变体只收一次（逐帧实测）：squat 的 B1/B2/B3 互差 0.06、aside 的 B/B_2/B_3/B_4
-        # 互差 0.3~1.0（近重复）；tennis 的 B/B_2 是 B_3 的抽样副本（B 的每一帧都能在 B_3 里
-        # 找到完全匹配）→ 只收 B_3（24 帧完整挥拍循环）。
-        ("squat",   [("IDEL/Squat/A_Nomal", None, None), ("IDEL/Squat/B_Nomal/1", None, None),
-                     ("IDEL/Squat/C_Nomal", None, None)]),
-        ("tennis",  [("IDEL/Tennis/Nomal/A", None, None), ("IDEL/Tennis/Nomal/B_3", None, None),
-                     ("IDEL/Tennis/Nomal/C", None, None)]),
-        ("bubbles", [("IDEL/Bubbles/A", None, None), ("IDEL/Bubbles/B", None, None),
-                     ("IDEL/Bubbles/C", None, None)]),
-        ("boring",  [("IDEL/Boring/A_Nomal", None, None), ("IDEL/Boring/B_Nomal", None, None),
-                     ("IDEL/Boring/C_Nomal", None, None)]),
-        ("aside",   [("IDEL/aside/Nomal/A", None, None), ("IDEL/aside/Nomal/B", None, None),
-                     ("IDEL/aside/Nomal/C", None, None)]),
-        # 2026-09-20 组①：
+        # 互差 0.3~1.0（近重复）；tennis 的 B/B_2 是 B_3 的抽样副本 → 只收 B_3（24 帧完整挥拍循环）。
+        ("squat-a",   [("IDEL/Squat/A_Nomal", None, None)]),
+        ("squat",     [("IDEL/Squat/B_Nomal/1", None, None)]),
+        ("squat-c",   [("IDEL/Squat/C_Nomal", None, None)]),
+        ("tennis-a",  [("IDEL/Tennis/Nomal/A", None, None)]),
+        ("tennis",    [("IDEL/Tennis/Nomal/B_3", None, None)]),
+        ("tennis-c",  [("IDEL/Tennis/Nomal/C", None, None)]),
+        ("bubbles-a", [("IDEL/Bubbles/A", None, None)]),
+        ("bubbles",   [("IDEL/Bubbles/B", None, None)]),
+        ("bubbles-c", [("IDEL/Bubbles/C", None, None)]),
+        ("boring-a",  [("IDEL/Boring/A_Nomal", None, None)]),
+        ("boring",    [("IDEL/Boring/B_Nomal", None, None)]),
+        ("boring-c",  [("IDEL/Boring/C_Nomal", None, None)]),
+        ("aside-a",   [("IDEL/aside/Nomal/A", None, None)]),
+        ("aside",     [("IDEL/aside/Nomal/B", None, None)]),
+        ("aside-c",   [("IDEL/aside/Nomal/C", None, None)]),
         # State 待机变体 —— VPet StateONE=坐下待机 / StateTWO=躺下休息（逐帧看图核对过：
-        # A=进入过渡、B=循环微动、C=退出过渡）。VPet 原件是加权待机链（MainDisplay.cs：B 循环到
-        # looptimes>GetDuration 才退出，还能 ONE↔TWO 互转）——我们简化为**一次过**：
-        # A + B_1 + B_2 + C 顺序拼成一条（B 只走一遍），当 fidget 小动作随机冒一下。
-        ("state-one", [("State/StateONE/A_Nomal", None, None), ("State/StateONE/B_Nomal/1", None, None),
-                       ("State/StateONE/B_Nomal/2", None, None), ("State/StateONE/C_Nomal", None, None)]),
-        ("state-two", [("State/StateTWO/A_Nomal", None, None), ("State/StateTWO/B_Nomal", None, None),
-                       ("State/StateTWO/C_Nomal", None, None)]),
-        # IDEL 彩蛋：一连串比心/爱心（VPet happy_like520）。
+        # A=进入过渡、B=循环微动、C=退出过渡）。state-one 主段 = B/1+B/2 两变体拼一圈（~4.25s）。
+        ("state-one-a", [("State/StateONE/A_Nomal", None, None)]),
+        ("state-one",   [("State/StateONE/B_Nomal/1", None, None), ("State/StateONE/B_Nomal/2", None, None)]),
+        ("state-one-c", [("State/StateONE/C_Nomal", None, None)]),
+        ("state-two-a", [("State/StateTWO/A_Nomal", None, None)]),
+        ("state-two",   [("State/StateTWO/B_Nomal", None, None)]),
+        ("state-two-c", [("State/StateTWO/C_Nomal", None, None)]),
+        # IDEL 彩蛋：一连串比心/爱心（VPet happy_like520，Single 型一次过）。
         ("happy520", [("IDEL/happy_like520", None, None)]),
     ],
     "edge_hide": [

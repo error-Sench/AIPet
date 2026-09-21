@@ -310,7 +310,7 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 ## 7. 重构进度与待办（按性价比排序）
 
 1. ✅ **每帧时长**（2026-09-22 完成）：导入器解析文件名尾数 ms → info.json 写 `durations`（相对时长 = ms÷基准取整；缺失/笔误容错为 1）；`CharAnim.加载动画` 用 `AddFrame(名, 纹理, 时长)` 逐帧带上；`动画时长()` 改 Σduration÷rate（定格帧不再被低估）。全量重导 1777 帧（fidget/interact 追加模式不动原项目素材）。验证：PoolProbe 加 4 断言——fidget-squat 定格帧（1000ms→8 / 875ms→7）+ 总时长 4.50s（旧算法只有 2.375s）+ idle-nomal-1 呼吸停顿（250ms→2）全 PASS。
-2. **B 循环概率退出**（`Rnd.Next(++n) > L`）替换现在的固定时长/播完即切——观感「活」的关键。lps duration 表抄进 behavior.json。
+2. ✅ **B 循环概率退出**（2026-09-22 完成）：fidget 待机小动作七个三段变体（squat/tennis/bubbles/boring/aside/state-one/state-two）拆回 `-a`/主段/`-c` 三段（导入器 SPEC 重写，与包裹段同命名约定）；CharAnim 加 fidget 会话——A 播完 → B 每圈掷 `Next(圈数) > L`（VPet `DisplayBLoopingToNomal` 原样，首圈恒不过线）→ 命中播 C → idle。单段变体（spin/bubble/doze 等 = VPet Single 型）保持一次过。L 进 `behavior.json`（`fidget循环L`，默认 2 = 平均 5.6 圈 ≈ 8~16s 会话；VPet 原版 10~20 = 分钟级，**机制照抄、数值按观感重定标**）。think/say/work/sleep/music 不上骰子（定时气泡 / 持续态强制循环 = VPet `DisplayBLoopingForce` 语义）。验证：FidgetProbe 14 断言（段推进/首圈保底/单段直通/L=2 大样本平均 5.57 圈）+ PoolProbe durations 断言随拆段更新，全 PASS。
 3. **EventTimer 概率爬坡**：`rnddisplay = max(20, 200 - CountNomal)` 的骰子调度替换固定倒计时——闲置越久越活跃、互动后安静。
 4. **Move 接力**：走→爬→顶→掉用「兼容 Move 40% 接力」模型重写（现在是自写相位机，行为对但扩展性差；加新移动方式要改代码，VPet 只要加一行 lps）。
 5. **Touch B 循环续命**（SetContinue）：连续摸头不重播 A，循环续命——手感细节。

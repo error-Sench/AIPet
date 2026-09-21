@@ -1229,6 +1229,11 @@ public partial class StateMachine : Node
         public static int 每小时主动上限 = 8;
         public static float 持续态兜底秒 = 120f;
         public static float 排队兜底秒 = 3f;
+        /// <summary>重构#2：fidget 待机小动作 B 循环的骰子阈值 L（VPet DisplayBLoopingToNomal 的 loopLength）。
+        /// 每播完第 n 圈掷 Rnd.Next(n) > L 决定退场（首圈恒不过线）：L=1 平均 ~4.2 圈、L=2 平均 ~5.6 圈、L=5 平均 ~9.5 圈。
+        /// VPet lps 的 duration 表是 10~20（平均 15~27 圈 ≈ 分钟级蹲坐）——我们的 fidget 是几十秒一冒的小动作，
+        /// 按观感重定标为 2（一次会话 ≈ 8~16s），**不抄数值只抄机制**。</summary>
+        public static int fidget循环L = 2;
 
         // —— P6 环境感知（**默认关**：主人不开，它就一次也不查） ——
         public static bool 环境感知启用 = false;
@@ -1322,6 +1327,7 @@ public partial class StateMachine : Node
                     走动速度像素每秒 = Math.Max(1f, 取浮点(根, "走动速度像素每秒", 走动速度像素每秒));
                     每小时主动上限 = 取整数(根, "每小时主动上限", 每小时主动上限);
                     持续态兜底秒 = 取浮点(根, "持续态兜底秒", 持续态兜底秒);
+                    fidget循环L = Math.Clamp(取整数(根, "fidget循环L", fidget循环L), 0, 20);
                     环境感知启用 = 取布尔(根, "环境感知启用", 环境感知启用);
                     离开阈值秒 = 取浮点(根, "离开阈值秒", 离开阈值秒);
                     全屏静默 = 取布尔(根, "全屏静默", 全屏静默);
