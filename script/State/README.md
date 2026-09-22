@@ -22,20 +22,21 @@
 | `speak` 说话 | 输出回复 | `Say` |
 | `working` 执行 | 任务执行中 | `WORK` |
 | `sleep` 休眠 | 空闲/深夜 | `Sleep` |
-| `walk` 行走 | 行为链移动 | `MOVE`（14 变体，横板移动可用） |
+| `move` 智能移动 | MoveRunner 移动表（走 / 趴行 / 爬墙 / 顶爬 / 掉落；VPet Move 模型，定义在 `config/moves.json`） | `MOVE`（walk / crawl / climb / climb.top / fall 全 16 条定义可用） |
 | `edge_hide` 贴边 | 贴屏幕边缘隐藏 | `SideHide_Left_*`、`SideHide_Right_*` |
 | `startup` / `shutdown` | 启动 / 退出 | `StartUP`、`Shutdown` |
 | 节日/成长（被动） | 庆祝等 | `BDay`、`LevelUP`、`Gift`、`Music`、`Drink`、`Eat`、`Switch` |
 
 **行为链（状态序列编排）—— v1 设计**：
-> 单状态是原子，行为链是「从 A 到 B」的完整过程。例如宠物从桌面左走到右，不是一个 `move` 状态，而是一串：`WalkStart → WalkLoop → WalkEnd`，每个链节可带时长、条件、回调。
+> 单状态是原子，行为链是「从 A 到 B」的完整过程，每个链节可带时长、条件、回调。
+> （历史：走动曾用 `WalkStart → WalkLoop → WalkEnd` 三链节实现；**重构#4 起移动已改为 VPet Move 模型**——移动表 + 圈推进 + 兼容接力，见下方「智能移动」节；链引擎仍服务于 Agent `queue_chain` 等序列。）
 
 ```csharp
-// 伪代码约定
+// 伪代码约定（当前使用者：Agent queue_chain，≤5 步）
 StateMachine.EnqueueChain(
-    new ChainStep("walk_start", 0.4f),
-    new ChainStep("walk_loop", 2.0f, () => 移动到(x2)),
-    new ChainStep("walk_end", 0.3f, 到达回调)
+    new ChainStep("greet-a", 0.6f),
+    new ChainStep("greet", 1.6f),
+    new ChainStep("greet-c", 0.5f, 完成回调)
 );
 // 顺序执行: 前一个链节结束(动画播完/计时到/条件满足) -> 下一链节
 // 支持: 打断(用户输入 -> SetState 抢断)、链完成事件(chain_done)、回调
@@ -64,7 +65,7 @@ StateMachine.EnqueueChain(
 | `working` | work | fidget | ✔ | ✔ | 120 | 显式结束 / 兜底超时 |
 | `sleep` | sleep | idle | ✔ | ✔ | — | 任何交互唤醒（→ greet） |
 | `greet` | greet | celerate | — | — | 2.5 | 保持期满 → idle |
-| `walk_start/loop/end` | `walk-left` / `walk-right`（按方向，**循环播放**；P10 起带上快/慢档后缀） | drag（占位） | 行为链 | — | 链节时长 | 链结束 → idle |
+| `move` | MoveRunner 移动表（walk / crawl / climb / climb_top / fall；config/moves.json） | drag（占位） | 自管（锁定 + 免兜底） | ✔ | 圈推进 + 兼容接力 | 收势 C 段播完 → idle |
 | `interact_body` | interact_body-a/b/c（**三段序列**） | interact | — | — | 序列驱动 | 末段播完 → idle |
 | `turn` | turn-a/b/c（**三段序列**） | interact_body | — | — | 序列驱动 | 末段播完 → idle |
 | `work_in` / `work_out` | `switch`（`具体动画` 钉死 switch-up / -down） | work | — | ✔ | 1.7 / 1.8 | **回落** = working / idle |
@@ -140,9 +141,11 @@ StateMachine.EnqueueChain(
 | `睡眠空闲秒` / `深夜睡眠秒` | 600 / 180 | 空闲超阈值 → sleep；深夜（`深夜起`~`深夜止`，默认 23:00–07:00）用短阈值 |
 | `走动空闲秒` | 30 | 空闲达到后开始考虑自主走动 |
 | `首次走动最小秒` / `最大秒` | 10 / 25 | 启动后第一次自主走动的等待窗口 |
-| `爬坡秒` / `爬坡周期` / `爬坡下限` / `爬坡移动槽` | 15 / 200 / 20 / 3 | 重构#3：首次之后的走动用概率爬坡骰子（每爬坡秒掷一次，窗口=max(下限, 周期-连续待机秒)，命中前移动槽个值就走）——闲置越久越走得勤、互动后清零重新爬坡。想更活跃调小周期/调大移动槽 |
-| `走动距离最小/最大像素` | 60 / 500 | 单次位移范围；方向朝屏幕中心，目标位置 clamp 进可用屏幕区 |
-| `走动速度像素每秒` | 90 | 窗口位移速度 |
+| `爬坡秒` / `爬坡周期` / `爬坡下限` / `爬坡移动槽` | 15 / 200 / 20 / 3 | 重构#3：首次之后的移动用概率爬坡骰子（每爬坡秒掷一次，窗口=max(下限, 周期-连续待机秒)，命中前移动槽个值就动）——闲置越久动得越勤、互动后清零重新爬坡。想更活跃调小周期/调大移动槽 |
+| `移动启用` | true | 重构#4：false = 关掉全部自主移动（走/趴行/爬/掉落） |
+| `接力概率` | 0.8 | 检查/距离骰不过时换一条兼容移动接下去的概率（VPet 原版 40%） |
+| `移动冷却秒` | 600 | **落地**后的爬边族冷却（走照常；防重复观感的保留项） |
+| —— | —— | 逐条移动的触发/检查/速度/距离骰在 **`config/moves.json`**（加新移动 = 加一条数据，不用改代码） |
 | `每小时主动上限` | 8 | 主动行为（walk/greet）滑动 1 小时窗口预算；设 0 只关主动行为 |
 | `持续态兜底秒` | 120 | Agent 不回 `end_turn` 时防止永远卡在 think/speak |
 | `环境感知启用` | **false** | **P6 开关**：不开就完全不感知（一次也不查、不读任何环境数据） |
@@ -387,19 +390,20 @@ StateMachine.EnqueueChain(
 
 **验证**：`tests/PoolProbe`（新素材 12 个存在性）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle 全链路）+ `tests/WrapProbe`（包裹段机制专测）。
 
-### 2026-09-20 组②：爬边（走向屏幕边 → 挂墙上爬一圈）
+### 2026-09-22 重构#4：智能移动（**抄 VPet 原库的移动方式**：Move 表 + 兼容接力）
 
-素材 = VPet `MOVE/climb.*` + `climb.top.*` + `crawl.*` + `fall.*`（语义判据 = 官方 `vup.lps` 的 move 行 + `GraphHelper.Move`），行为层 = `script/State/Climb.cs`（自管相位的锁定占位态 `climb`，模式同 EdgeHide / FacePinch）。
+原「组② 爬边（自写相位机）」被整体替换：素材不变 = VPet `MOVE/walk.* + crawl.* + climb.* + climb.top.* + fall.*`；实现改为 VPet Move 模型 —— `script/State/MoveRunner.cs`（段自管：A 起步 → 吸附 → B 循环 → 接力/收势 C），状态 = 锁定占位态 `move`（免兜底，模式同 EdgeHide / FacePinch）。
 
-- **流程**（自主行为，与走动同闸门：空闲达标 → `尝试走动` 有机会按 `爬边概率` 改成爬边）：
-  走向最近边（复用走动链，**到边由帧检查触发——不挂链回调**：回调路径会被链引擎空链分支的 `SetState(Idle)` 顶掉爬边状态）→ A 段播完**吸附**（窗口推出屏外，留 `挂边可见比例`）→ 垂直爬（方向由位移定）→ 到顶**转顶爬**（往对侧）→ 到端**转对侧下爬** → 近底（距地 240px）**转自由落体**（初速 + 加速度，屏外的 X 边落边拉回）→ 触地 **C 段落地** → idle + **冷却**（`爬边冷却秒`）。
-- **几何**：挂边/顶挂 = 把窗口推出屏外只留「可见比例」（对照官方 LocateLength：侧 145/185、顶 150 @Zoom1）；左右/顶偏移像素微调（正 = 往屏内推，语义同 EdgeHide）；落地 = 窗口底贴可用屏底 + `脚底余量像素`。
-- **趴行**：`crawl-left/right` 当**走动的慢速变体**（`爬行概率` 时替换动画、0.72 倍速），不进行为链。
-- **让位**：爬半路被拖拽/面板/Agent 抢状态 → 窗口拉回屏内、流程终止（`准备退出` 也会调）。
-- **探针隔离**：`Climb.探针_位置覆盖/屏幕覆盖/尺寸覆盖` 注入假窗口 → 相位机 headless 全流程可测（ClimbProbe）；`WalkProbe` 的临时节律把 `爬边概率/爬行概率` 设 0（它只验走动）。
-- 参数全在 `config/behavior.json`（见 `_comment_爬边`）；`爬边启用 false` 关整套（趴行不受影响）。
+- **数据驱动（对照官方）**：官方 `vup.lps` 的 16 条 `move:` 行 → `config/moves.json` 16 条「移动定义」（名 / 动画 / 档位 / 触发近远 / 检查近远 / 速度 / 距离骰 / 吸附 / 重力；文件缺失用内置默认表）。**加新移动方式 = 加一条数据，不用改代码**。
+- **调度**（官方 `DisplayToMove`）：空闲达标 → 在「触发通过」的移动里随机挑一条开跑（触发 = 档位合适 + 素材在 + 位置门：近边 ≤ 值 / 远边 ≥ 值 —— 阈值 ≈ VPet×0.5，如 walk 触发 200→100、检查 100→50）。
+- **圈推进**（官方 `Move.Length` 距离骰）：A 段播完做吸附（挂边/顶挂几何同前：推出屏外留可见比例 + 偏移）；B 循环段每播完一圈 → 先查「检查」（不满足 → 停/接力）→ 再掷「距离骰」（`Rnd.Next(圈数) < 距离`，VPet 原式）→ 不过 → 停/接力。循环加载段（walk/fall）由段时长计时驱动，非循环段（crawl/climb/climb_top）由播完信号驱动。
+- **兼容接力**（官方 `GetCompatibilityMove`）：方向评分（速度同向 +1 / 反向 −1；某轴任一方为 0 不参与）≥0 且触发通过的候选里随机接一条 —— **「走 → 爬 → 顶爬 → 角上掉落 → 落地」整条路线是概率接力自然涌现的**，不是写死的相位机。概率可调（`接力概率` 默认 0.8；VPet 原版 40%）。
+- **收势**：接力不成 → 窗口回位（任一轴推出屏外 >25% → 贴回该边，官方 `ResetPosition`）→ C 段（有的话）→ idle。**落地**（重力移动触地）即完成整条路线 → 进「移动冷却秒」冷却（冷却期不触发爬边族、走照常；我们保留的防重复观感，VPet 无此概念）。
+- **趴行/快慢档**：crawl 是表里独立的移动条目（VPet 同款）；walk-left-fast/-slow 按三档过滤（happy/poor），三档关闭时恒用 nomal 档。
+- **让位**：移动半路被拖拽/面板/Agent 抢状态 → 窗口拉回屏内、流程终止（`准备退出` 也会调）。
+- **探针隔离**：`MoveRunner.探针_位置覆盖/屏幕覆盖/尺寸覆盖/接力目标` 注入假窗口与接力目标 → 全流程 headless 可测（MoveProbe）；`WalkProbe` 临时把节律调快（原文件末尾还原，不再无脑覆盖用户配置）。
 
-**验证**：`tests/ClimbProbe`（纯函数 + 相位机全流程 + 让位拉回）+ `PoolProbe` 素材存在性 +20。
+**验证**：`tests/MoveProbe`（纯函数几何/骰子 + 触发/检查/冷却/方向评分 + 全流程：上墙→吸附→爬→顶爬→角上接力→下落→落地→收势→idle + 下爬 junction + 让位拉回；48 断言）+ `PoolProbe` 素材存在性 +20。
 
 ### 2026-09-20 组③：音乐反应（系统在放声音就跳舞）
 
@@ -409,7 +413,7 @@ StateMachine.EnqueueChain(
 - **状态**：`music` = 包裹段（A → 主段 → C）；主段默认按三档组变体随机（`nomal-1..5` / `happy-1..4` / `poor-1..4`），**嗨档时 MusicSense 用 `包裹主名指定` 钉 `music-single-{档}`**；`single-*` 不进普通随机（挑主名特判）。
 - **闸门**：`StateMachine.演出闸门开放`（空闲 + 环境安静 + 入场完成）——**不吃每小时主动上限**（对声音的反应不是打扰型行为）；面板/悬停/拖拽时不抢。
 - **独有约定**：`_已请求收场` 防重（C 段退出期间状态仍是 music，别每帧重发 SetState——**实机抓到的刷屏 bug**，已修）；读不到音频设备 → AudioMeter 自动停用（不影响其它功能）。
-- **探针隔离**：时序敏感探针（State/Pool/Wrap/Climb/Bubble/Touch/Interact/Event/Walk）都置 `MusicSense.启用 = false`（真实播放会误触发）；MusicProbe 用 `探针_峰值覆写` 注入假音量。
+- **探针隔离**：时序敏感探针（State/Pool/Wrap/Move/Bubble/Touch/Interact/Event/Walk）都置 `MusicSense.启用 = false`（真实播放会误触发）；MusicProbe 用 `探针_峰值覆写` 注入假音量。
 - **实机验收**：外部音源 → 峰值 0.61 → 嗨档起跳 → 音停收场 → C → idle（三段日志 + 截图）；此前排查的「无声」根因 = bash 双引号吃掉了 PS 变量（测试音根本没响）。
 
 **验证**：`tests/MusicProbe`（阈值 + 全流程 + 嗨档换曲）。

@@ -69,7 +69,7 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | 池 | 变体 | 帧数 | 说明 |
 |---|---|---|---|
 | `idle` | happy-1..3 / nomal-1..3 / poor-1..2 | 13×3 / 8×3 / 17×2 | 待机（VPet `Default` 三档；2026-09-20 组①补 Nomal/Poor 并对齐三档：变体名 = `{档}-{n}`，三档开启时按 `idle-{档}-` 前缀随机取一条）|
-| `walk` | left / right / left-fast / right-fast / left-slow / right-slow（+ 每档 `-a`/`-c` 起步/停步段） | 6+6 / 10+10 / 5+5 + 段共 80 | 走动（**循环**）。P10：**快/慢 = 心情档**（VPet `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition），位移速度同步变（×1.35 / ×0.72，否则会滑步）。**2026-09-20 打磨**：补 A/C 起步/停步段（`-a`/`-c` 结尾 → 自动非循环）、走链三段分播、位移只在循环段推进 |
+| `walk` | left / right / left-fast / right-fast / left-slow / right-slow（+ 每档 `-a`/`-c` 起步/停步段） | 6+6 / 10+10 / 5+5 + 段共 80 | 走动（**循环**）。P10：**快/慢 = 心情档**（VPet `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition）。**2026-09-20 打磨**：补 A/C 起步/停步段（`-a`/`-c` 结尾 → 自动非循环）、走链三段分播、位移只在循环段推进。**2026-09-22 重构#4**：走链删除——walk 成为移动表条目，由 MoveRunner 按 VPet Move 模型推进（快慢档 = 表中独立条目按档位过滤）|
 | `think` | nomal / happy / poor（+各档 a/c 过渡段） | 9×3 + 2 帧×6 | 三档状态（对接 P5 情绪变体）。2026-09-20 组①·过渡段：`think-{档}-a` 进入 / `think-{档}-c` 退出（包裹段，见 `script/State/README.md`）|
 | `say` | smile / self / serious / shy（+各感情 a/c 过渡段） | 7/15/4/5 + 段共 41 帧 | 说话（P10 补 VPet `Say/Shy` 害羞档；组①·过渡段：`say-{感情}-a/c` 与站姿衔接）|
 | `work` | pc / read / write / calligraphy / paint / study2 / sausage / clean / fixmenu / game / water / remove / rope（Nomal）＋ happy-\* / poor-\*{同类型}（Happy/PoorCondition 档）| 共 1369 | 干活（VPet `WORK` 全部 13 种：书法/画画/研究/烤肠/清屏/修屏幕/玩游戏/玩水/删错误/跳绳）。**2026-09-20 打磨**：改为**包裹段结构**（主段 = B 干活循环、取环内最丰富变体；A/C 拆 `-a`/`-c` 段）——原先只导 A 段，实机上「反复做准备动作、永远不干活」。**2026-09-22 重构#7**：补 Happy/PoorCondition 档（`{档}-{类型}` 命名，12/13 种有源；WorkTWO 无 Happy、Study 无档位 → 降级链兜底）。金钱/体力收益等玩法数值不抄）|
@@ -83,11 +83,11 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `fidget` | 原项目 6（bubble/doze/meow/meowlook/spin/yawning）+ VPet 5（squat/tennis/bubbles/boring/aside）+ 组① 3（state-one/state-two/happy520）| 共 340 | 待机小动作（P10 加 VPet 的 蹲/网球/泡泡/打呼噜/侧看；组①加 State 坐下/躺下待机与比心彩蛋；**2026-09-20 打磨**：五个 VPet 变体补全 A（进入）/C（退出）段——原先只导单个 B 段、尾巴卡顿；tennis 8→44 帧（含「收拍放下站直」收尾）；`+` 追加模式导入，不清空原有变体）|
 | `edge_hide` | {left,right}-{in,keep,hold,out,peek,rise,unpeek} | 共 76 | 贴边隐藏：`Main`=隐藏姿态序列（in/keep/hold/out），`Rise`=探出（A 弹出 → **B 探出后微动循环** → C 缩回）。左右**逐段一一对应**（每侧 in9/keep4/hold1/out7/peek4/rise10/unpeek3） |
 | `pinch` | a / b / c | 1 / 6 / 21 | 捏脸（照 VPet 官方「**长按脸**」抄）：A 进入 → B **循环**（按住时连续播）→ C 松手退出。**只导 Nomal**——官方按它自己的 Mode 选 Happy/PoorCondition，我们的心情定义与官方不同 → 不做映射；官方的体力-2/心情+1 也不抄（捏脸只做动作） |
-| `climb` | left-a/b/c / right-a/b/c | 3/4/3 ×2 | **组② 爬边**（VPet `MOVE/climb.*`）：A 扑向墙挂住 / B 手脚交替爬（循环，方向由窗口位移决定）/ C 脱手回站姿。官方吸附 = 窗口推出屏外（左 145 / 右 185 @Zoom1）→ 我们用「挂边可见比例」参数换算 |
-| `climb_top` | left-a/b/c / right-a/b/c | 1/4/2 ×2 | **组② 顶边横爬**（`MOVE/climb.top.*`）：A 抓住顶边 / B 沿顶边爬（循环）/ C 离开。素材是横置构图（挂在顶边、身体垂在屏内） |
-| `crawl` | left / right | 9 / 9 | **组② 趴行**（`MOVE/crawl.*` 的 B 段）：贴地慢爬，当**走动的慢速变体**用（0.72 倍速）——不进行为链 |
-| `fall` | left-a/b/c / right-a/b/c | 4/8/21 ×2 | **组② 掉落**（`MOVE/fall.*`）：A 脱手 / B 横着下落（循环）/ C 落地起身（右版 21 帧长起身）。C_Nomal 混了两条命名序列（FLA 触地 + FLB 起身）→ 按前缀拆开拼接 |
+| `climb` | left-a/b/c / right-a/b/c | 3/4/3 ×2 | **智能移动·爬墙**（VPet `MOVE/climb.*`，重构#4 起由 MoveRunner 按移动表驱动）：A 扑向墙挂住 / B 手脚交替爬（循环，方向由窗口位移决定）/ C 脱手回站姿。官方吸附 = 窗口推出屏外（左 145 / 右 185 @Zoom1）→ 我们用「挂边可见比例」参数换算 |
+| `climb_top` | left-a/b/c / right-a/b/c | 1/4/2 ×2 | **智能移动·顶边横爬**（`MOVE/climb.top.*`）：A 抓住顶边 / B 沿顶边爬（循环）/ C 离开。素材是横置构图（挂在顶边、身体垂在屏内） |
+| `crawl` | left / right | 9 / 9 | **智能移动·趴行**（`MOVE/crawl.*`）：贴地慢爬；重构#4 起是移动表里的独立条目（VPet 同款，不再做「走动慢速变体」的随机替换）|
+| `fall` | left-a/b/c / right-a/b/c | 4/8/21 ×2 | **智能移动·掉落**（`MOVE/fall.*`）：A 脱手 / B 横着下落（循环）/ C 落地起身（右版 21 帧长起身）。C_Nomal 混了两条命名序列（FLA 触地 + FLB 起身）→ 按前缀拆开拼接。重构#4：重力移动——触地即收尾进冷却 |
 | `bday` | a / b / c | 4 / 45 / 4 | **生日彩蛋**（2026-09-20 组①）：A 惊喜 → B 开心摇摆（~5.6s）→ C 比心。触发 = `config/config.json` 的「生日」MM-dd 命中当天 → 入场完成后播一遍 |
 | `music` | a / c / {nomal,happy,poor}-1..n / single-{档} | 1 / 6 / 16~30 / 14 | **组③ 音乐反应**（VPet `Music/*`）：A 起跳 → 舞蹈循环（三档，Happy>Nomal>Poor 欢快度，带音符特效）→ C 收尾；`single-*` = 嗨档（音量超刺激阈值时 MusicSense 显式指定，不进普通随机）。运行时 = 包裹段（music 已入包裹池）|
 
-**验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle）+ `tests/WrapProbe` / `ClimbProbe` / `MusicProbe`（组①~③ 机制专测）。
+**验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle）+ `tests/WrapProbe` / `MoveProbe` / `MusicProbe`（组①~③ 机制专测，其中组② 智能移动 = MoveProbe）。

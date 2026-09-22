@@ -35,7 +35,7 @@ public partial class CharAnim : AnimatedSprite2D
          "interact_body", "turn", "switch",
          // 生日彩蛋（2026-09-20 组①：VPet BDay 三段；触发在 Main）
          "bday",
-         // 爬边（2026-09-20 组②：VPet MOVE/*；表现由 Climb 自管）——crawl 是走动的慢速变体
+         // 智能移动（2026-09-20 组② → 2026-09-22 重构#4：VPet MOVE/*；表现由 MoveRunner 按移动表自管，走=walk 池 / 趴行=crawl（慢速变体））
          "climb", "climb_top", "crawl", "fall",
          // 起跳（2026-09-20 主人点名：素材未到、逻辑先接）——GamePlayer.上升期播 `jump-left/right`，
          // 缺素材自动回退（`jump` → 起跳前姿态）；素材导入后随池自动生效
@@ -44,7 +44,7 @@ public partial class CharAnim : AnimatedSprite2D
          "music"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。
-    /// fall 同理：`-b`（横着下落）在爬边与游戏模式的空中段都当持续姿态用（`-a`/`-c` 段仍被排除，见加载处）。</summary>
+    /// fall 同理：`-b`（横着下落）在智能移动与游戏模式的空中段都当持续姿态用（`-a`/`-c` 段仍被排除，见加载处）。</summary>
     private static readonly List<string> 循环动画组 = ["walk", "sleep", "fall"];
     public override void _Ready()
     {

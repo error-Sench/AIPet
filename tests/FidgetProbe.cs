@@ -25,10 +25,8 @@ public partial class FidgetProbe : Node
     {
         Main.探针_禁首启提示 = true;
         MusicSense.启用 = false;
-        StateMachine.设置.问候启用 = false;
-        DailyRoutine.问候启用 = false;
-        StateMachine.设置.磁盘提醒启用 = false;
-        DailyRoutine.磁盘提醒启用 = false;
+        // 探针隔离：冻结时间驱动（问候/磁盘/音乐）——否则共享存档下被每日问候抢状态（全量回归顺序相关抖动，实测）
+        StateMachine.设置.探针_冻结时间驱动开关 = true;
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
@@ -94,16 +92,16 @@ public partial class FidgetProbe : Node
                 断言(CharAnim.当前动画名_只读.StartsWith("idle"), $"单段播完直接回 idle（实际 {CharAnim.当前动画名_只读}）");
                 break;
 
-            // ── ③ 素材结构核对：7 个三段变体的 A/C 都在 ──
+            // ── ③ 素材结构核对：三段变体的 A/C 都在（重构#9：state-one/two 已升级为 sit/lie 嵌套会话池，不再在 fidget）──
             case 36:
-                string[] 三段 = ["squat", "tennis", "bubbles", "boring", "aside", "state-one", "state-two"];
+                string[] 三段 = ["squat", "tennis", "bubbles", "boring", "aside"];
                 var 缺 = new System.Collections.Generic.List<string>();
                 foreach (var 名 in 三段)
                 {
                     if (!CharAnim.有动画($"fidget-{名}-a") || !CharAnim.有动画($"fidget-{名}") || !CharAnim.有动画($"fidget-{名}-c"))
                         缺.Add(名);
                 }
-                断言(缺.Count == 0, $"7 个三段变体 A/B/C 齐全{(缺.Count > 0 ? "，缺：" + string.Join(",", 缺) : "")}");
+                断言(缺.Count == 0, $"5 个三段变体 A/B/C 齐全{(缺.Count > 0 ? "，缺：" + string.Join(",", 缺) : "")}");
                 // A/C 段必须非循环加载（循环动画不回「播完」→ 会话卡死）
                 断言(!CharAnim.动画循环_只读("fidget-squat-a") && !CharAnim.动画循环_只读("fidget-squat-c"),
                     "fidget A/C 段非循环加载");

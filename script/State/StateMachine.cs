@@ -59,13 +59,10 @@ public partial class StateMachine : Node
     public enum TouchPart { Head, Body }
 
     // —— 行为链状态（不映射固定动画，语义化） ——
-    /// <summary>爬边（组②，行为层 Climb.cs 自管相位：走向边→侧爬→顶爬→下落→落地）。</summary>
-    public const string ClimbState = "climb";
+    /// <summary>智能移动（组②，重构#4：抄 VPet 原库的移动方式）：表现由 MoveRunner 自管（A 起步 → B 循环 → 接力/收势；定义表 config/moves.json）。</summary>
+    public const string MoveState = "move";
     /// <summary>音乐反应（组③）：包裹段自管（A 起跳 → 主段舞蹈循环 → C 收尾），检测在 MusicSense.cs。</summary>
     public const string Music = "music";
-    public const string WalkStart = "walk_start";
-    public const string WalkLoop = "walk_loop";
-    public const string WalkEnd = "walk_end";
 
     public static StateMachine Instance { get; private set; }
     public static string CurrentState { get; private set; } = Idle;
@@ -116,8 +113,8 @@ public partial class StateMachine : Node
         [EdgeHideState] = new 状态效果 { 目标池 = "edge_hide", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
         // 捏脸：同上 —— 表现由 FacePinch 三段自管（A 进入 → B 循环 → 松手 C），锁定 + 免兜底（按住多久都行）
         [PinchState] = new 状态效果 { 目标池 = "pinch", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 秒 = 0 },
-        // 爬边（组②）：表现由 Climb.cs 自管（A/B/C 段按相位精确播），锁定 + 免兜底（爬多久都行）
-        [ClimbState] = new 状态效果 { 目标池 = "climb", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true },
+        // 智能移动（组② 重构#4）：表现由 MoveRunner 自管（VPet Move 模型：数据驱动 + 兼容接力），锁定 + 免兜底（走/爬多久都行）
+        [MoveState] = new 状态效果 { 目标池 = "move", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true },
         // 音乐反应（组③）：包裹段（A 起跳 → 主段舞蹈 → C 收尾）；退出由 MusicSense 在静音够了时 SetState(Idle) 触发
         [Music] = new 状态效果 { 目标池 = "music", 兼容池 = "idle", 持续 = true, 锁定 = true, 免兜底 = true, 包裹 = true },
         // 气泡说话（P8）：**不锁定**（动作可被打断；重播由「包裹中」兜住，见 CharAnim 播完回调）+ 定时回 idle；
@@ -189,11 +186,7 @@ public partial class StateMachine : Node
     private static readonly List<double> _主动时间戳 = new();
     private static double _运行秒;
 
-    // 走动执行状态
-    private static bool _走动中;
-    private static bool _本次爬行;      // 组②：本次走动用爬行素材（慢速趴行）
-    private static int _走动目标X;
-    private static float _走动速度;
+    // （旧「走动执行状态」字段 _走动中/_本次爬行/_走动目标X/_走动速度 已删——重构#4：位移与圈推进归 MoveRunner）
 
     // ================= 生命周期 =================
 
@@ -201,8 +194,9 @@ public partial class StateMachine : Node
     {
         Instance = this;
         设置.加载();
+        MoveRunner.加载();   // 重构#4：移动定义表（config/moves.json；缺失用内置默认）
         CurrentState = Idle;
-        _走动倒计时 = 首次间隔(); // 首次走动用短间隔，否则要等「走动空闲秒 + 120~300s」才看得到
+        _走动倒计时 = 首次间隔(); // 首次移动用短间隔，否则要等「走动空闲秒 + 爬坡骰子」才看得到
         // 注意：这里**不播放表现**。入场动画由 CharAnim.载入人物动画() 负责，
         // 本节点是 game.tscn 里 Main 的兄弟且顺序在后，若在此 PlayState("idle")（deferred）
         // 会抢掉入场动画，导致 case "enter" 永不触发。入场门由 CharAnim 回调解除。
@@ -238,9 +232,6 @@ public partial class StateMachine : Node
             if (_stepRemaining <= 0f) 完成当前链节();
         }
 
-        // —— 走动位移（只在循环段推进；起步/停步段原地演，起停更自然）——
-        if (_走动中 && CurrentState == WalkLoop) 推进走动((float)delta);
-
         // —— 计时器（每帧，精度足够） ——
         _运行秒 += delta;
         if (_重播冷却 > 0f) _重播冷却 -= (float)delta;
@@ -256,8 +247,8 @@ public partial class StateMachine : Node
         // —— 捏脸：长按计时（按住脸到阈值 → 触发） ——
         FacePinch.每帧((float)delta);
 
-        // —— 爬边（组② 行为层）：位移 + 相位推进 ——
-        Climb.每帧((float)delta);
+        // —— 智能移动（组② 重构#4）：位移 + 圈推进，由 MoveRunner 自管 ——
+        MoveRunner.每帧((float)delta);
 
         // —— 音乐反应（组③）：系统音量采样 + 起跳/收场 ——
         MusicSense.每帧((float)delta);
@@ -282,7 +273,6 @@ public partial class StateMachine : Node
         _chainRunning = false;
         _chainQueue.Clear();
         _activeCallback = null;
-        _走动中 = false;
         _排队状态 = null;      // 直接切换意味着有人接管了，排队项作废
         _排队兜底剩余 = 0f;
 
@@ -297,8 +287,8 @@ public partial class StateMachine : Node
         if (state != EdgeHideState && EdgeHide.占用中) EdgeHide.让位();
         // 捏脸同理：别人抢状态就放弃（表现交给新状态）
         if (state != PinchState && FacePinch.占用中) FacePinch.取消();
-        // 爬边同理：别人抢状态就终止爬边（窗口拉回屏内）
-        if (state != ClimbState && Climb.占用中) Climb.让位();
+        // 智能移动同理：别人抢状态就终止移动（窗口拉回屏内）
+        if (state != MoveState && MoveRunner.占用中) MoveRunner.让位();
 
         var 变化 = CurrentState != state;
 
@@ -427,8 +417,8 @@ public partial class StateMachine : Node
         if (CurrentState == EdgeHideState) { EdgeHide.动画播完(); return; }
         // 捏脸：段推进由 FacePinch 自管（A → B 循环 → 松手 C）
         if (CurrentState == PinchState) { FacePinch.动画播完(); return; }
-        // 爬边：相位推进由 Climb 自管（A→B 吸附、顶爬、下落、落地）
-        if (CurrentState == ClimbState) { Climb.动画播完(); return; }
+        // 智能移动：圈推进由 MoveRunner 自管（A 进入 → 吸附 → B 循环 → 接力/收势）
+        if (CurrentState == MoveState) { MoveRunner.动画播完(); return; }
         // 包裹态主段循环：重播钉死的主段（变体不再随机换）
         if (_包裹主名 != null && CharAnim.有动画(_包裹主名)) { CharAnim.PlayNamed(_包裹主名); return; }
         if (!_效果表.TryGetValue(CurrentState, out var 效果)) return;
@@ -557,11 +547,10 @@ public partial class StateMachine : Node
         _退出段中 = false;
         _退出目标 = null;
         EdgeHide.让位();   // 退出前把宠从屏外拉回来，别让它烂在边上
-        Climb.让位();      // 爬边同理：爬半路退出也要把窗口拉回来
+        MoveRunner.让位(); // 智能移动同理：走/爬半路退出也要把窗口拉回来
         _chainRunning = false;
         _chainQueue.Clear();
         _activeCallback = null;
-        _走动中 = false;
         _排队状态 = null;
         _排队兜底剩余 = 0f;
         _当前序列 = null;
@@ -706,34 +695,34 @@ public partial class StateMachine : Node
             return;
         }
 
-        // 自主走动：空闲达标后触发。
-        // 重构#3（2026-09-22）：首次走动仍走短倒计时（首跑体验：启动后 10~25s 内见它走一次）；
-        // 之后的每次走动改用 VPet 式**概率爬坡骰子**（MainLogic.cs:489-494 EventTimer_Elapsed）：
-        //   每「爬坡秒」掷一次 Next(max(爬坡下限, 爬坡周期 - 连续待机秒))，命中前「爬坡移动槽」个值 → 走动。
-        //   连续待机越久窗口越小、走动越勤；互动/走动后清零重新爬坡（= VPet CountNomal 语义）。
+        // 自主移动：空闲达标后触发（重构#4：走/爬/掉全归 MoveRunner 的移动表，这里只当调度器）。
+        // 重构#3（2026-09-22）：首次走动仍走短倒计时（首跑体验：启动后 10~25s 内见它动一次）；
+        // 之后的每次移动改用 VPet 式**概率爬坡骰子**（MainLogic.cs:489-494 EventTimer_Elapsed）：
+        //   每「爬坡秒」掷一次 Next(max(爬坡下限, 爬坡周期 - 连续待机秒))，命中前「爬坡移动槽」个值 → 移动。
+        //   连续待机越久窗口越小、走动越勤；互动/移动后清零重新爬坡（= VPet CountNomal 语义）。
         //   旧「固定 120~300s 均匀倒计时」没有爬坡——互动后和闲置 10 分钟一个频率，机械。
         if (_空闲秒 >= 设置.走动空闲秒 && 允许主动())
         {
             if (!_已报可走动)
             {
                 _已报可走动 = true;
-                GD.Print($"[StateMachine] 空闲达 {_空闲秒:0}s（阈值 {设置.走动空闲秒:0}s），距首次走动 {_走动倒计时:0.0}s");
+                GD.Print($"[StateMachine] 空闲达 {_空闲秒:0}s（阈值 {设置.走动空闲秒:0}s），距首次移动 {_走动倒计时:0.0}s");
             }
-            if (_走动次数 == 0)
+            if (_移动次数 == 0)
             {
                 // 首次：短倒计时保底（否则要等骰子爬坡几分钟才动，首跑看不到走动）
                 _走动倒计时 -= 设置.心跳秒;
-                if (_走动倒计时 <= 0f) 尝试走动();
+                if (_走动倒计时 <= 0f) 尝试移动();
             }
             else
             {
-                // 后续：概率爬坡骰子（连续待机秒只在 Idle 累计——走动/爬边期间 允许主动() 本就关门）
+                // 后续：概率爬坡骰子（连续待机秒只在 Idle 累计——移动期间 允许主动() 本就关门）
                 _爬坡待机秒 += 设置.心跳秒;
                 _爬坡骰子秒 += 设置.心跳秒;
                 if (_爬坡骰子秒 >= 设置.爬坡秒)
                 {
                     _爬坡骰子秒 = 0f;
-                    if (爬坡掷骰((int)_爬坡待机秒, 骰子)) 尝试走动();
+                    if (爬坡掷骰((int)_爬坡待机秒, 骰子)) 尝试移动();
                 }
             }
         }
@@ -916,7 +905,7 @@ public partial class StateMachine : Node
     public static int 探针_序列序 => _序列序;
     public static bool 探针_序列续命 => _序列续命;
 
-    private static int _走动次数; // 累计走动次数（观测用）
+    private static int _移动次数; // 累计自主移动次数（观测用；旧名「走动次数」）
 
     // 重构#3：旧的「随机间隔()」（走动间隔最小/最大秒 均匀倒计时）已删——后续走动由概率爬坡骰子调度（见 心跳()）。
 
@@ -936,6 +925,9 @@ public partial class StateMachine : Node
         return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "nomal" };
     }
 
+    /// <summary>MoveRunner 用：当前情绪档（happy/nomal/poor；三档关闭时恒为 nomal）。</summary>
+    public static string 当前情绪档 => 情绪变体("walk");
+
     /// <summary>档位降级链（重构#6，VPet GraphCore.FindGraphs 的 ModeType 序号相邻降级：Happy↔Nomal↔PoorCondition）。
     /// Ill 第 4 档不引入——无生病玩法、Ill 素材也未导入（仅 14/609 目录且全在 Eat/Drink/Gift/Raise 等未导入类）。</summary>
     public static string[] 降级链(string 档) => 档 switch
@@ -946,94 +938,20 @@ public partial class StateMachine : Node
         _ => new[] { 档 },
     };
 
-    /// <summary>走动画后缀（快/慢 = 心情档；没素材就没后缀 = 常速）。</summary>
-    private static string 走动档后缀 => 情绪变体("walk") switch { "happy" => "-fast", "poor" => "-slow", _ => "" };
-
-    /// <summary>走动位移倍率（与动画档位同步，避免滑步）。</summary>
-    private static float 走动档倍率 => 走动档后缀 switch { "-fast" => 1.35f, "-slow" => 0.72f, _ => 1f };
-
-    /// <summary>走链起步阶段时长（2026-09-20 打磨）：起步 `-a` 素材帧数÷帧率 + 余量；缺素材回退。</summary>
-    private static float 走起步时长() => 走段时长("-a", 0.35f);
-
-    /// <summary>走链停步阶段时长：停步 `-c` 素材帧数÷帧率 + 余量；缺素材回退。</summary>
-    private static float 走停步时长() => 走段时长("-c", 0.25f);
-
-    private static float 走段时长(string 段, float 回退)
-    {
-        var 方向 = _走动目标X >= DisplayServer.WindowGetPosition().X ? "right" : "left";
-        var t = CharAnim.动画时长($"walk-{方向}{走动档后缀}{段}");
-        if (t <= 0f) t = CharAnim.动画时长($"crawl-{方向}{段}");
-        return t > 0f ? t + 0.05f : 回退;
-    }
+    // 重构#4：旧的「走链/爬边相位」实现（走段时长、走动档后缀/倍率、尝试走动、走向目标X、推进走动）已全部删除——
+    // 移动改为 VPet Move 模型：MoveRunner 在「触发通过」的移动里随机轮询，圈推进与位移由它自管（见 MoveRunner.cs）。
 
     private static float 首次间隔() =>
         (float)GD.RandRange(设置.首次走动最小秒, 设置.首次走动最大秒);
 
-    /// <summary>自主走动：算目标位置 → 走行为链（链被 SetState 打断即中止）。</summary>
-    private static void 尝试走动()
+    /// <summary>自主移动（VPet DisplayToMove：随机轮询触发通过的移动；整条路线由「兼容接力」涌现）。</summary>
+    private static void 尝试移动()
     {
+        if (!MoveRunner.尝试移动()) return;   // 没有可跑的移动（都不触发 / 爬边族冷却中）→ 不消耗主动预算
         记一次主动();
         _爬坡待机秒 = 0f;   // 重构#3：任何主动行为后爬坡清零（= VPet CountNomal = 0）
         _爬坡骰子秒 = 0f;
-
-        // 组②：先有机会改成爬边（走到最近边 → 挂墙上爬一圈）。爬边自带冷却，不占走动节奏。
-        if (Climb.可触发() && GD.Randf() < 设置.爬边概率) { Climb.开始(); return; }
-
-        var 宠尺 = PetWindow.S;
-        var 屏 = DisplayServer.ScreenGetUsableRect(DisplayServer.WindowGetCurrentScreen());
-        var 当前X = DisplayServer.WindowGetPosition().X;
-
-        // 朝屏幕中心方向走，减少贴边/出界
-        var 中心X = (屏.Position.X + 屏.End.X) / 2 - 宠尺 / 2;
-        var 方向 = 当前X < 中心X ? 1 : -1;
-        var 距离 = GD.RandRange(设置.走动距离最小像素, 设置.走动距离最大像素);
-        var 目标 = 当前X + 方向 * 距离;
-        目标 = Math.Clamp(目标, 屏.Position.X + 8, Math.Max(屏.Position.X + 8, 屏.End.X - 宠尺 - 8));
-
-        if (Math.Abs(目标 - 当前X) < 4) return; // 已在边界，没必要走
-
-        _走动目标X = 目标;
-        // 组②：趴行（crawl）是走动的慢速变体（素材在才用）
-        _本次爬行 = GD.Randf() < 设置.爬行概率 && CharAnim.有动画("crawl-left") && CharAnim.有动画("crawl-right");
-        // P10：心情档 → 快走/慢走（动画与位移一起变）；组②：趴行更慢
-        _走动速度 = Math.Max(1f, 设置.走动速度像素每秒 * 走动档倍率 * (_本次爬行 ? Math.Clamp(设置.爬行速度倍率, 0.3f, 1.2f) : 1f));
-        var 时长 = Math.Abs(目标 - 当前X) / _走动速度;
-
-        GD.Print($"[StateMachine] 自主走动: {当前X} → {目标}（{时长:0.0}s）");
-        _走动次数++;
-        EnqueueChain(
-            new ChainStep(WalkStart, 走起步时长()),
-            new ChainStep(WalkLoop, 时长),
-            new ChainStep(WalkEnd, 走停步时长()));
-        _走动中 = true;
-    }
-
-    /// <summary>组② 爬边用：走向目标 X（走链 A→循环→C；到边由 Climb.每帧 检测，不挂回调——回调会走链引擎空链分支顶掉状态）。</summary>
-    public static void 走向目标X(int 目标X)
-    {
-        var 当前X = DisplayServer.WindowGetPosition().X;
-        _走动目标X = 目标X;
-        _本次爬行 = false;
-        _走动速度 = Math.Max(1f, 设置.走动速度像素每秒);
-        var 时长 = Math.Max(0.4f, Math.Abs(目标X - 当前X) / _走动速度);
-        GD.Print($"[StateMachine] 爬边走向: {当前X} → {目标X}（{时长:0.0}s）");
-        EnqueueChain(
-            new ChainStep(WalkStart, 走起步时长()),
-            new ChainStep(WalkLoop, 时长),
-            new ChainStep(WalkEnd, 走停步时长()));
-        _走动中 = true;
-    }
-
-    private static void 推进走动(float delta)
-    {
-        var 位置 = DisplayServer.WindowGetPosition();
-        var 方向 = Math.Sign(_走动目标X - 位置.X);
-        if (方向 == 0) { _走动中 = false; return; }
-        var 新X = 位置.X + 方向 * (int)Math.Max(1, Math.Round(_走动速度 * delta));
-        if (方向 > 0 && 新X > _走动目标X) 新X = _走动目标X;
-        if (方向 < 0 && 新X < _走动目标X) 新X = _走动目标X;
-        DisplayServer.WindowSetPosition(new Vector2I(新X, 位置.Y));
-        if (新X == _走动目标X) _走动中 = false;
+        _移动次数++;
     }
 
     private static void 推进保持与兜底(float delta)
@@ -1117,7 +1035,7 @@ public partial class StateMachine : Node
         }
     }
 
-    /// <summary>入队一条行为链并开始执行。示例：A→B = [walk_start, walk_loop, walk_end]。</summary>
+    /// <summary>入队一条行为链并开始执行。示例：思考→说话→收尾 = [think(2s), speak(6s), idle(0)]。</summary>
     public static void EnqueueChain(params ChainStep[] steps)
     {
         _chainRunning = false;
@@ -1133,7 +1051,6 @@ public partial class StateMachine : Node
         _chainRunning = false;
         _chainQueue.Clear();
         _activeCallback = null;
-        _走动中 = false;
         SetState(Idle);
     }
 
@@ -1143,7 +1060,6 @@ public partial class StateMachine : Node
         {
             _chainRunning = false;
             _activeCallback = null;
-            _走动中 = false;
             SetState(Idle);
             StateChanged?.Invoke("chain_done");
             return;
@@ -1305,36 +1221,13 @@ public partial class StateMachine : Node
 
     private static void 应用表现(string state)
     {
-        if (state is WalkStart or WalkLoop or WalkEnd)
-        {
-            // 走动：按方向播 walk 资产。2026-09-20 打磨：三段分播——WalkStart 起步（`-a`）、
-            // WalkLoop 循环、WalkEnd 停步（`-c`）；缺段素材时回退循环段（crawl / 老素材仍可用）。
-            // 链节边界换段时若已是目标动画则不重播，否则会在链节边界重置相位、看起来一顿一顿。
-            var 方向 = _走动目标X >= DisplayServer.WindowGetPosition().X ? "right" : "left";
-            // P10：**快/慢 = 心情档**（VPet 里 walk.*.faster 就是 Happy、walk.*.slow 就是 PoorCondition）
-            //      —— 位移速度也跟着变（走动档倍率），否则快动作配慢位移会滑步。
-            // 组②：趴行（crawl）是走动的慢速变体，素材方向直接对应
-            var 基础 = _本次爬行 && CharAnim.有动画($"crawl-{方向}") ? $"crawl-{方向}" : $"walk-{方向}{走动档后缀}";
-            if (!CharAnim.有动画(基础)) 基础 = $"walk-{方向}";
-            var 段 = state switch { WalkStart => "-a", WalkEnd => "-c", _ => "" };
-            var 期望 = 段 != "" && CharAnim.有动画(基础 + 段) ? 基础 + 段 : 基础;
-            if (CharAnim.有动画(期望))
-            {
-                if (CharAnim.当前动画名_只读 != 期望) CharAnim.PlayNamed(期望);
-            }
-            else
-            {
-                CharAnim.PlayState("drag"); // 资产缺失时优雅降级（P1 的占位行为）
-            }
-            return;
-        }
+        // 智能移动（重构#4）：表现由 MoveRunner 自管（VPet Move 模型——A 起步 → 吸附 → B 循环 → 接力/收势）
+        if (state == MoveState) { MoveRunner.应用表现(); return; }
         if (!_效果表.TryGetValue(state, out var 效果)) 效果 = _效果表[Idle];
         // 贴边隐藏：表现由 EdgeHide 按阶段精确播（不走池内随机）
         if (state == EdgeHideState) { EdgeHide.应用表现(); return; }
         // 捏脸：同理（三段由 FacePinch 自管）
         if (state == PinchState) { FacePinch.应用表现(); return; }
-        // 爬边：同理（相位自管；相=无时 Climb 自己决定从哪开始）
-        if (state == ClimbState) { Climb.应用表现(); return; }
         // 固定动画（一个池服务多个状态时用，如 switch-up / switch-down）
         if (!string.IsNullOrEmpty(效果.具体动画) && CharAnim.有动画(效果.具体动画)) { CharAnim.PlayNamed(效果.具体动画); return; }
         var 池 = 选择池(效果);
@@ -1367,9 +1260,6 @@ public partial class StateMachine : Node
         public static int 爬坡周期 = 200;
         public static int 爬坡下限 = 20;
         public static int 爬坡移动槽 = 3;
-        public static int 走动距离最小像素 = 60;
-        public static int 走动距离最大像素 = 160;
-        public static float 走动速度像素每秒 = 90f;
         public static int 每小时主动上限 = 8;
         public static float 持续态兜底秒 = 120f;
         public static float 排队兜底秒 = 3f;
@@ -1418,24 +1308,24 @@ public partial class StateMachine : Node
         public static bool 问候启用 = true;           // 当天首次见面按时间段问好
         public static bool 磁盘提醒启用 = true;       // 磁盘余量低 → 每天最多提醒一次
         public static int 磁盘剩余下限GB = 10;        // 低于这个余量算「快满了」
+        /// <summary>探针用：置 true 后 加载() 强制关闭「时间驱动」开关（问候/磁盘/音乐）——
+        /// 探针实例化场景前设的隔离值不再被 behavior.json 注入覆盖（否则全量回归里断言随顺序抖）。</summary>
+        public static bool 探针_冻结时间驱动开关;
 
-        // —— 组② 爬边（行为层 Climb.cs）：走到屏幕边 → 挂墙上爬 → 顶爬 → 对侧下爬 → 掉落落地 ——
-        public static bool 爬边启用 = true;
-        public static float 爬边概率 = 0.30f;        // 走动触发时改成爬边的概率
-        public static float 爬行概率 = 0.15f;        // 普通走动改成趴行（慢速 crawl）的概率
-        public static float 爬行速度倍率 = 0.72f;
-        public static float 爬边速度 = 90f;
-        public static float 顶爬速度 = 64f;
-        public static float 掉落初速 = 240f;
-        public static float 掉落加速度 = 1600f;
-        public static float 掉落终端速度 = 1400f;
-        public static float 挂边可见比例 = 0.52f;    // 侧挂时留在屏内的窗口宽比例
-        public static float 顶挂可见比例 = 0.55f;    // 顶挂时留在屏内的窗口高比例
+        // —— 组② 智能移动（重构#4：抄 VPet 原库的移动方式；**移动定义表在 config/moves.json**）——
+        // 逐条移动的触发/检查/速度/距离骰都进表；这里只放全局参数。
+        public static bool 移动启用 = true;
+        public static float 接力概率 = 0.8f;      // 检查/距离骰不过时的「兼容接力」命中率（VPet TreeRND 40%；我们调高让路线更常一气呵成）
+        public static float 移动冷却秒 = 600f;     // 落地后的「爬边族」冷却（走照常；我们保留的防重复观感，VPet 无此概念）
+        public static float 挂边可见比例 = 0.52f;  // 侧挂时留在屏内的窗口宽比例
+        public static float 顶挂可见比例 = 0.55f;  // 顶挂时留在屏内的窗口高比例
         public static int 爬边左偏移像素;
         public static int 爬边右偏移像素;
         public static int 顶挂偏移像素;
         public static int 脚底余量像素 = 6;
-        public static float 爬边冷却秒 = 600f;
+        public static float 掉落初速 = 240f;
+        public static float 掉落加速度 = 1600f;
+        public static float 掉落终端速度 = 1400f;
 
         // —— 组③ 音乐反应（MusicSense.cs）：系统在放声音就跳舞，安静就收场 ——
         public static bool 音乐检测启用 = true;
@@ -1468,9 +1358,6 @@ public partial class StateMachine : Node
                     爬坡下限 = Math.Max(1, 取整数(根, "爬坡下限", 爬坡下限));
                     爬坡移动槽 = Math.Max(1, 取整数(根, "爬坡移动槽", 爬坡移动槽));
                     爬坡周期 = Math.Max(爬坡下限 + 爬坡移动槽, 取整数(根, "爬坡周期", 爬坡周期));
-                    走动距离最小像素 = 取整数(根, "走动距离最小像素", 走动距离最小像素);
-                    走动距离最大像素 = 取整数(根, "走动距离最大像素", 走动距离最大像素);
-                    走动速度像素每秒 = Math.Max(1f, 取浮点(根, "走动速度像素每秒", 走动速度像素每秒));
                     每小时主动上限 = 取整数(根, "每小时主动上限", 每小时主动上限);
                     持续态兜底秒 = 取浮点(根, "持续态兜底秒", 持续态兜底秒);
                     fidget循环L = Math.Clamp(取整数(根, "fidget循环L", fidget循环L), 0, 20);
@@ -1500,12 +1387,9 @@ public partial class StateMachine : Node
                     问候启用 = 取布尔(根, "问候启用", 问候启用);
                     磁盘提醒启用 = 取布尔(根, "磁盘提醒启用", 磁盘提醒启用);
                     磁盘剩余下限GB = Math.Max(1, 取整数(根, "磁盘剩余下限GB", 磁盘剩余下限GB));
-                    爬边启用 = 取布尔(根, "爬边启用", 爬边启用);
-                    爬边概率 = 取浮点(根, "爬边概率", 爬边概率);
-                    爬行概率 = 取浮点(根, "爬行概率", 爬行概率);
-                    爬行速度倍率 = 取浮点(根, "爬行速度倍率", 爬行速度倍率);
-                    爬边速度 = 取浮点(根, "爬边速度", 爬边速度);
-                    顶爬速度 = 取浮点(根, "顶爬速度", 顶爬速度);
+                    移动启用 = 取布尔(根, "移动启用", 移动启用);
+                    接力概率 = Math.Clamp(取浮点(根, "接力概率", 接力概率), 0f, 1f);
+                    移动冷却秒 = 取浮点(根, "移动冷却秒", 移动冷却秒);
                     掉落初速 = 取浮点(根, "掉落初速", 掉落初速);
                     掉落加速度 = 取浮点(根, "掉落加速度", 掉落加速度);
                     掉落终端速度 = 取浮点(根, "掉落终端速度", 掉落终端速度);
@@ -1515,7 +1399,6 @@ public partial class StateMachine : Node
                     爬边右偏移像素 = 取整数(根, "爬边右偏移像素", 爬边右偏移像素);
                     顶挂偏移像素 = 取整数(根, "顶挂偏移像素", 顶挂偏移像素);
                     脚底余量像素 = 取整数(根, "脚底余量像素", 脚底余量像素);
-                    爬边冷却秒 = 取浮点(根, "爬边冷却秒", 爬边冷却秒);
                     音乐检测启用 = 取布尔(根, "音乐检测启用", 音乐检测启用);
                     音乐音量阈值 = 取浮点(根, "音乐音量阈值", 音乐音量阈值);
                     音乐刺激阈值 = 取浮点(根, "音乐刺激阈值", 音乐刺激阈值);
@@ -1527,7 +1410,6 @@ public partial class StateMachine : Node
             }
 
             if (首次走动最大秒 < 首次走动最小秒) 首次走动最大秒 = 首次走动最小秒;
-            if (走动距离最大像素 < 走动距离最小像素) 走动距离最大像素 = 走动距离最小像素;
 
             // 把 P6 开关交给感知层（它自己会遵守「未启用就一次也不查」）
             EnvironmentSense.启用 = 环境感知启用;
@@ -1547,21 +1429,24 @@ public partial class StateMachine : Node
             EdgeHide.循环内间隔秒 = Math.Clamp(贴边循环内间隔秒, 0.1f, 10f);
             EdgeHide.左偏移像素 = Math.Clamp(贴边左偏移像素, -400, 400);
             EdgeHide.右偏移像素 = Math.Clamp(贴边右偏移像素, -400, 400);
-            // 把组② 爬边参数交给行为层（含夹取，避免配置写坏导致窗口跑到屏外回不来）
-            Climb.启用 = 爬边启用;
-            Climb.速度侧爬 = Math.Clamp(爬边速度, 20f, 400f);
-            Climb.速度顶爬 = Math.Clamp(顶爬速度, 20f, 400f);
-            Climb.掉落初速 = Math.Clamp(掉落初速, 50f, 2000f);
-            Climb.掉落加速度 = Math.Clamp(掉落加速度, 200f, 8000f);
-            Climb.掉落终端速度 = Math.Clamp(掉落终端速度, 100f, 3000f);
-            Climb.挂边可见比例 = Math.Clamp(挂边可见比例, 0.10f, 0.90f);
-            Climb.顶挂可见比例 = Math.Clamp(顶挂可见比例, 0.10f, 0.90f);
-            Climb.左偏移像素 = Math.Clamp(爬边左偏移像素, -400, 400);
-            Climb.右偏移像素 = Math.Clamp(爬边右偏移像素, -400, 400);
-            Climb.顶偏移像素 = Math.Clamp(顶挂偏移像素, -400, 400);
-            Climb.脚底余量像素 = Math.Clamp(脚底余量像素, -40, 80);
-            Climb.冷却秒 = Math.Max(10f, 爬边冷却秒);
+            // 把组② 智能移动参数交给 MoveRunner（含夹取，避免配置写坏导致窗口跑到屏外回不来）
+            MoveRunner.启用 = 移动启用;
+            MoveRunner.接力概率 = Math.Clamp(接力概率, 0f, 1f);
+            MoveRunner.冷却秒 = Math.Max(10f, 移动冷却秒);
+            MoveRunner.掉落初速 = Math.Clamp(掉落初速, 50f, 2000f);
+            MoveRunner.掉落加速度 = Math.Clamp(掉落加速度, 200f, 8000f);
+            MoveRunner.掉落终端速度 = Math.Clamp(掉落终端速度, 100f, 3000f);
+            MoveRunner.挂边可见比例 = Math.Clamp(挂边可见比例, 0.10f, 0.90f);
+            MoveRunner.顶挂可见比例 = Math.Clamp(顶挂可见比例, 0.10f, 0.90f);
+            MoveRunner.左偏移像素 = Math.Clamp(爬边左偏移像素, -400, 400);
+            MoveRunner.右偏移像素 = Math.Clamp(爬边右偏移像素, -400, 400);
+            MoveRunner.顶偏移像素 = Math.Clamp(顶挂偏移像素, -400, 400);
+            MoveRunner.脚底余量像素 = Math.Clamp(脚底余量像素, -40, 80);
             // 把组③ 音乐反应参数交给 MusicSense（含夹取）
+            // —— 探针隔离（2026-09-22）：探针在**实例化场景前**设的「时间驱动」开关会被上面这批配置注入
+            //    （读 behavior.json）覆盖回配置文件值 → 全量回归里问候气泡/音乐反应会在探针中途抢状态，
+            //    断言随探针顺序抖（实测 MoveProbe「收步回 idle」被每日问候顶掉）。置冻结开关则强制关闭。
+            if (探针_冻结时间驱动开关) { 问候启用 = false; 磁盘提醒启用 = false; 音乐检测启用 = false; }
             MusicSense.启用 = 音乐检测启用;
             MusicSense.音量阈值 = Math.Clamp(音乐音量阈值, 0.001f, 0.5f);
             MusicSense.刺激阈值 = Math.Clamp(音乐刺激阈值, 0.01f, 1f);
@@ -1612,7 +1497,7 @@ public partial class StateMachine : Node
 
     public static float 空闲秒_只读 => _空闲秒;
     public static bool 入场未完成_只读 => _入场未完成;
-    public static int 走动次数_只读 => _走动次数;
+    public static int 移动次数_只读 => _移动次数;
     public static int 主动次数_只读 => _主动时间戳.Count;
     public static void 探针_推进空闲(float 秒) => _空闲秒 += 秒;
     public static void 探针_心跳() => 心跳();

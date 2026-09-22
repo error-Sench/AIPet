@@ -140,7 +140,7 @@ description: "这是一份 AIPet SOUL 内化说明：弄明白「这是怎么回
 
 | cmd | 参数 | 说明 |
 |---|---|---|
-| `set_state` | `state` | 合法值（共 19）：`idle` `interact` `drag` `think` `speak` `listen` `working` `sleep` `greet` `edge_hide` `pinch` `climb` `music` `bubble_talk` `bday` `interact_body` `turn` `work_in` `work_out`（持续态约 120 秒自动回 idle） |
+| `set_state` | `state` | 合法值（共 19）：`idle` `interact` `drag` `think` `speak` `listen` `working` `sleep` `greet` `edge_hide` `pinch` `move` `music` `bubble_talk` `bday` `interact_body` `turn` `work_in` `work_out`（持续态约 120 秒自动回 idle） |
 | `speak` | `text` | 冒个短气泡（≤ 200 字）。别复述正文；一轮最多一次 |
 | `set_mood` | `mood` | 0–100 数字，或 `happy` / `tired` / `sad` 等关键词 |
 | `play_anim` | `anim` | 播指定动画（**键名是 `anim`**；名字不确定就别用） |
