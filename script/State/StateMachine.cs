@@ -160,7 +160,10 @@ public partial class StateMachine : Node
     private static float _空闲秒;
     private static float _保持剩余;      // 非持续态：剩余保持时间
     private static float _兜底剩余;      // 持续态：剩余兜底时间
-    private static float _走动倒计时;    // 空闲达标后，距下一次自主走动的秒数
+    private static float _走动倒计时;    // 空闲达标后，距**首次**自主走动的秒数（重构#3 后只管首次；后续走概率爬坡骰子）
+    private static float _爬坡待机秒;    // 连续待机秒（= VPet CountNomal 的时间版）：走动/互动后清零
+    private static float _爬坡骰子秒;    // 爬坡骰子累计：每满「爬坡秒」掷一次（= VPet EventTimer 15s）
+    private static readonly Random 骰子 = new Random();   // 爬坡骰子专用
     private static float _重播冷却;      // 防止动画极短时疯狂重播
     private static string _排队状态;     // 排队等待「当前动画播完」再切的交互反应
     private static float _排队秒 = -1f;
@@ -546,6 +549,7 @@ public partial class StateMachine : Node
     public static void NotifyInteraction(string 来源 = "")
     {
         _空闲秒 = 0f;
+        _爬坡待机秒 = 0f;   // 重构#3：互动后爬坡清零——刚陪过它，不该马上又自主走动（VPet CountNomal = 0）
         _已报可走动 = false;
         DailyRoutine.交互();   // 时间驱动行为：当天首次见面 → 问个好（Plan #11）
         if (CurrentState == Sleep) 唤醒(来源);
@@ -659,22 +663,47 @@ public partial class StateMachine : Node
             return;
         }
 
-        // 自主走动：空闲达标后按随机间隔触发
+        // 自主走动：空闲达标后触发。
+        // 重构#3（2026-09-22）：首次走动仍走短倒计时（首跑体验：启动后 10~25s 内见它走一次）；
+        // 之后的每次走动改用 VPet 式**概率爬坡骰子**（MainLogic.cs:489-494 EventTimer_Elapsed）：
+        //   每「爬坡秒」掷一次 Next(max(爬坡下限, 爬坡周期 - 连续待机秒))，命中前「爬坡移动槽」个值 → 走动。
+        //   连续待机越久窗口越小、走动越勤；互动/走动后清零重新爬坡（= VPet CountNomal 语义）。
+        //   旧「固定 120~300s 均匀倒计时」没有爬坡——互动后和闲置 10 分钟一个频率，机械。
         if (_空闲秒 >= 设置.走动空闲秒 && 允许主动())
         {
             if (!_已报可走动)
             {
                 _已报可走动 = true;
-                GD.Print($"[StateMachine] 空闲达 {_空闲秒:0}s（阈值 {设置.走动空闲秒:0}s），距下次走动 {_走动倒计时:0.0}s");
+                GD.Print($"[StateMachine] 空闲达 {_空闲秒:0}s（阈值 {设置.走动空闲秒:0}s），距首次走动 {_走动倒计时:0.0}s");
             }
-            _走动倒计时 -= 设置.心跳秒;
-            if (_走动倒计时 <= 0f)
+            if (_走动次数 == 0)
             {
-                尝试走动();
-                _走动倒计时 = 随机间隔();
+                // 首次：短倒计时保底（否则要等骰子爬坡几分钟才动，首跑看不到走动）
+                _走动倒计时 -= 设置.心跳秒;
+                if (_走动倒计时 <= 0f) 尝试走动();
+            }
+            else
+            {
+                // 后续：概率爬坡骰子（连续待机秒只在 Idle 累计——走动/爬边期间 允许主动() 本就关门）
+                _爬坡待机秒 += 设置.心跳秒;
+                _爬坡骰子秒 += 设置.心跳秒;
+                if (_爬坡骰子秒 >= 设置.爬坡秒)
+                {
+                    _爬坡骰子秒 = 0f;
+                    if (爬坡掷骰((int)_爬坡待机秒, 骰子)) 尝试走动();
+                }
             }
         }
     }
+
+    /// <summary>重构#3：爬坡骰子的窗口 = max(下限, 周期 - 连续待机秒)——闲置越久窗口越小（VPet `Math.Max(20, InteractionCycle - CountNomal)`）。</summary>
+    public static int 爬坡窗口(int 连续待机秒)
+        => Math.Max(设置.爬坡下限, 设置.爬坡周期 - 连续待机秒);
+
+    /// <summary>重构#3：掷一次爬坡骰子——窗口内命中前「移动槽」个值即走动（VPet `Rnd.Next(rnddisplay)` 的 case 0/1/2 = 移动）。
+    /// 纯函数（不读时钟、不动状态），便于探针直接验证概率分布。</summary>
+    public static bool 爬坡掷骰(int 连续待机秒, Random 随)
+        => 随.Next(爬坡窗口(连续待机秒)) < 设置.爬坡移动槽;
 
     private static void 入睡()
     {
@@ -832,10 +861,13 @@ public partial class StateMachine : Node
     public static void 探针_清久坐冷却() => _久坐冷却剩余 = 0f;
     public static void 探针_重置久坐() { _活跃累计秒 = 0f; _久坐冷却剩余 = 0f; _久坐提醒次数 = 0; _久坐升级已写 = false; _上次主人不在 = false; }
 
+    /// <summary>探针用（重构#3）：爬坡计数器读写——验证「互动/走动后清零、闲置累计」。</summary>
+    public static float 探针_爬坡待机秒 => _爬坡待机秒;
+    public static void 探针_设爬坡待机秒(float 值) => _爬坡待机秒 = 值;
+
     private static int _走动次数; // 累计走动次数（观测用）
 
-    private static float 随机间隔() =>
-        (float)GD.RandRange(设置.走动间隔最小秒, 设置.走动间隔最大秒);
+    // 重构#3：旧的「随机间隔()」（走动间隔最小/最大秒 均匀倒计时）已删——后续走动由概率爬坡骰子调度（见 心跳()）。
 
     /// <summary>
     /// 按**三档状态**（手动档位，mod 可改）挑动画变体（`think-happy` / `think-poor` …）。
@@ -879,6 +911,8 @@ public partial class StateMachine : Node
     private static void 尝试走动()
     {
         记一次主动();
+        _爬坡待机秒 = 0f;   // 重构#3：任何主动行为后爬坡清零（= VPet CountNomal = 0）
+        _爬坡骰子秒 = 0f;
 
         // 组②：先有机会改成爬边（走到最近边 → 挂墙上爬一圈）。爬边自带冷却，不占走动节奏。
         if (Climb.可触发() && GD.Randf() < 设置.爬边概率) { Climb.开始(); return; }
@@ -1221,8 +1255,14 @@ public partial class StateMachine : Node
         public static float 走动空闲秒 = 30f;
         public static float 首次走动最小秒 = 10f;
         public static float 首次走动最大秒 = 25f;
-        public static float 走动间隔最小秒 = 120f;
-        public static float 走动间隔最大秒 = 300f;
+        // ── 重构#3（2026-09-22）走动概率爬坡（VPet MainLogic EventTimer 同款机制，数值按我们观感重定标）──
+        // 每「爬坡秒」掷一次 Next(max(爬坡下限, 爬坡周期 - 连续待机秒))，命中前「爬坡移动槽」个值 → 走动。
+        // VPet 原值：15s 一掷 / 周期 200（intercycle 默认）/ 下限 20 / 移动占 3 槽——我们照抄这套默认。
+        // 模拟：中位 ~210s、P75 ~270s（与旧固定 120~300s 均匀倒计时量级一致，但闲置越久越走得勤、互动后重新爬坡）。
+        public static float 爬坡秒 = 15f;
+        public static int 爬坡周期 = 200;
+        public static int 爬坡下限 = 20;
+        public static int 爬坡移动槽 = 3;
         public static int 走动距离最小像素 = 60;
         public static int 走动距离最大像素 = 160;
         public static float 走动速度像素每秒 = 90f;
@@ -1320,8 +1360,10 @@ public partial class StateMachine : Node
                     走动空闲秒 = 取浮点(根, "走动空闲秒", 走动空闲秒);
                     首次走动最小秒 = 取浮点(根, "首次走动最小秒", 首次走动最小秒);
                     首次走动最大秒 = 取浮点(根, "首次走动最大秒", 首次走动最大秒);
-                    走动间隔最小秒 = 取浮点(根, "走动间隔最小秒", 走动间隔最小秒);
-                    走动间隔最大秒 = 取浮点(根, "走动间隔最大秒", 走动间隔最大秒);
+                    爬坡秒 = Math.Max(1f, 取浮点(根, "爬坡秒", 爬坡秒));
+                    爬坡下限 = Math.Max(1, 取整数(根, "爬坡下限", 爬坡下限));
+                    爬坡移动槽 = Math.Max(1, 取整数(根, "爬坡移动槽", 爬坡移动槽));
+                    爬坡周期 = Math.Max(爬坡下限 + 爬坡移动槽, 取整数(根, "爬坡周期", 爬坡周期));
                     走动距离最小像素 = 取整数(根, "走动距离最小像素", 走动距离最小像素);
                     走动距离最大像素 = 取整数(根, "走动距离最大像素", 走动距离最大像素);
                     走动速度像素每秒 = Math.Max(1f, 取浮点(根, "走动速度像素每秒", 走动速度像素每秒));
@@ -1380,7 +1422,6 @@ public partial class StateMachine : Node
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
             }
 
-            if (走动间隔最大秒 < 走动间隔最小秒) 走动间隔最大秒 = 走动间隔最小秒;
             if (首次走动最大秒 < 首次走动最小秒) 首次走动最大秒 = 首次走动最小秒;
             if (走动距离最大像素 < 走动距离最小像素) 走动距离最大像素 = 走动距离最小像素;
 
