@@ -47,10 +47,17 @@ public partial class PoolProbe : Node
         "turn-a", "turn-b", "turn-c",
         "interact-happy-a", "interact-happy-b", "interact-happy-c",
         "switch-up", "switch-down",
-        // 2026-09-20 组①：State 待机变体 / 爱心彩蛋 / 生日三段 / idle 三档（重命名后必须还在）
-        "fidget-state-one", "fidget-state-two", "fidget-happy520",
+        // 2026-09-20 组①：爱心彩蛋 / 生日三段 / idle 三档（重命名后必须还在）
+        "fidget-happy520",
         "idle-happy-1", "idle-nomal-1", "idle-poor-1",
         "bday-a", "bday-b", "bday-c",
+        // 2026-09-22 重构#9：坐卧嵌套会话（StateONE/StateTWO；A/B/C 三段 + B 多变体，缺一段就断链）
+        "sit-nomal-a", "sit-nomal-b1", "sit-nomal-b2", "sit-nomal-c",
+        "sit-happy-a", "sit-happy-b1", "sit-happy-b2", "sit-happy-c",
+        "sit-poor-a", "sit-poor-b1", "sit-poor-c",
+        "lie-nomal-a", "lie-nomal-b1", "lie-nomal-c",
+        "lie-happy-a", "lie-happy-b1", "lie-happy-b2", "lie-happy-c",
+        "lie-poor-a", "lie-poor-b1", "lie-poor-b2", "lie-poor-c",
         // 2026-09-20 组①·过渡段（包裹段 A/C；挑主名要排除它们、段名解析要能找到它们）
         "think-nomal-a", "think-nomal-c", "think-happy-a", "think-happy-c", "think-poor-a", "think-poor-c",
         "say-smile-a", "say-smile-c", "say-self-a", "say-self-c",

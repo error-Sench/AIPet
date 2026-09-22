@@ -80,7 +80,9 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `interact_body` | a / b / c | 15/14/3 | **摸身体**反应三段（P10，VPet `Touch_Body/{A,B,C}_Happy/tb1`；官方只有 Happy/ill 两档，取 Happy）|
 | `turn` | a / b / c | 3/15/4 | **被摸转身**（P10，VPet `Touch_Body/Happy_Turn`）—— 摸身体时 30% 概率改成她转身躲一下 |
 | `switch` | up / down | 13/14 | **干活进出场过渡**（P10，VPet `Switch/Up·Down/Nomal`）—— `switch-up` 起身开工、`switch-down` 收工坐下 |
-| `fidget` | 原项目 6（bubble/doze/meow/meowlook/spin/yawning）+ VPet 5（squat/tennis/bubbles/boring/aside）+ 组① 3（state-one/state-two/happy520）| 共 340 | 待机小动作（P10 加 VPet 的 蹲/网球/泡泡/打呼噜/侧看；组①加 State 坐下/躺下待机与比心彩蛋；**2026-09-20 打磨**：五个 VPet 变体补全 A（进入）/C（退出）段——原先只导单个 B 段、尾巴卡顿；tennis 8→44 帧（含「收拍放下站直」收尾）；`+` 追加模式导入，不清空原有变体）|
+| `fidget` | 原项目 6（bubble/doze/meow/meowlook/spin/yawning）+ VPet 5（squat/tennis/bubbles/boring/aside）+ 组① 1（happy520）| 共 296 | 待机小动作（P10 加 VPet 的 蹲/网球/泡泡/打呼噜/侧看；组①加比心彩蛋；**2026-09-20 打磨**：五个 VPet 变体补全 A（进入）/C（退出）段——原先只导单个 B 段、尾巴卡顿；tennis 8→44 帧（含「收拍放下站直」收尾）；`+` 追加模式导入，不清空原有变体。**重构#9**：State 坐下/躺下两个拼接变体删除 → 独立 `sit`/`lie` 池 + 嵌套会话）|
+| `sit` | {happy,nomal,poor}-a / -b1..b2 / -c | 共 75 | **坐卧长待机·坐下**（VPet `StateONE`，重构#9）：A 进入 → B 循环（每圈随机换一个 B 变体）→ C 起身；运行时由 CharAnim 的**坐卧嵌套会话**驱动（逻辑态仍在 idle，不是状态机状态）|
+| `lie` | {happy,nomal,poor}-a / -b1..b2 / -c | 共 41 | **坐卧长待机·躺下**（VPet `StateTWO`，重构#9）：以 `1/(2+已躺次数)` 概率从 sit 嵌套进入，起身 C 播完**回 sit 的 B 判定**（可再躺）；素材含长停顿帧（单帧 1.5s 级）|
 | `edge_hide` | {left,right}-{in,keep,hold,out,peek,rise,unpeek} | 共 76 | 贴边隐藏：`Main`=隐藏姿态序列（in/keep/hold/out），`Rise`=探出（A 弹出 → **B 探出后微动循环** → C 缩回）。左右**逐段一一对应**（每侧 in9/keep4/hold1/out7/peek4/rise10/unpeek3） |
 | `pinch` | a / b / c | 1 / 6 / 21 | 捏脸（照 VPet 官方「**长按脸**」抄）：A 进入 → B **循环**（按住时连续播）→ C 松手退出。**只导 Nomal**——官方按它自己的 Mode 选 Happy/PoorCondition，我们的心情定义与官方不同 → 不做映射；官方的体力-2/心情+1 也不抄（捏脸只做动作） |
 | `climb` | left-a/b/c / right-a/b/c | 3/4/3 ×2 | **智能移动·爬墙**（VPet `MOVE/climb.*`，重构#4 起由 MoveRunner 按移动表驱动）：A 扑向墙挂住 / B 手脚交替爬（循环，方向由窗口位移决定）/ C 脱手回站姿。官方吸附 = 窗口推出屏外（左 145 / 右 185 @Zoom1）→ 我们用「挂边可见比例」参数换算 |

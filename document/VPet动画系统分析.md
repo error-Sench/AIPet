@@ -75,7 +75,7 @@ FindGraphs(...) 同逻辑但返回整个 List（调用方自己再随机/过滤 
 | Common | （不匹配任何类型的都是）| 被按名字点播：music/eat/drink/gift/levelup/bday/raise… | 随意 |
 | **Default** * | `Default/` | **呼吸待机**（常驻底座）| Single（10 目录 130 帧）|
 | **Idel** | `IDEL/` | 空闲小动作场（squat/tennis/bubbles/boring/aside…20+ 种）| A/B/C |
-| StateONE / StateTWO | `State/` | 待机模式1/模式2（22 目录）| A/B/C |
+| StateONE / StateTWO | `State/` | 待机模式1/模式2（22 目录）→ **已导入** = `sit`/`lie` 池（重构#9）| A/B/C |
 | **Move** | `MOVE/` | 一切位移（walk/climb/crawl/fall…）| A/B/C |
 | **Work** * | `WORK/` | 工作/学习/玩（13 种）| A/B/C |
 | **Sleep** * | `Sleep/` | 睡觉 | A/B/C |
@@ -95,7 +95,7 @@ FindGraphs(...) 同逻辑但返回整个 List（调用方自己再随机/过滤 
 
 （* = 注释里标「必须有的动画」。`BDay/Eat/Drink/Gift/LevelUP/Music/Shutdown/StartUP` 等目录 → Common，按名字点播。）
 
-**未导入的类**（我们 26 池之外）：`Eat/Drink/Gift`（**front_lay/back_lay 前后双层拆分**——角色在食物前/后两层叠加渲染，重构吃喝系统时要处理双图层合成）、`LevelUP`、`State`（StateONE/TWO 嵌套场素材）、`Raise` 的档位细分。
+**未导入的类**（我们 26 池之外）：`Eat/Drink/Gift`（**front_lay/back_lay 前后双层拆分**——角色在食物前/后两层叠加渲染，重构吃喝系统时要处理双图层合成）、`LevelUP`、`Raise` 的档位细分。（`State`（StateONE/TWO 嵌套场）已在重构#9 导入 → `sit`/`lie` 池。）
 **多外观机制**：一个 `pet/<name>/` 目录 + 同名 `.lps` = 一套皮（mod 平级并列）；vup 内**只有单角色**（petname#萝莉斯）。`StartUP/Happy_newyear` 是节日皮肤变体。我们的 mods/ 结构天然兼容这个模型。
 
 ## 3. 播放引擎（PNGAnimation.cs）
@@ -182,7 +182,7 @@ lps duration: state#10 squat#20 boring#20 sleep#20（其余默认 10）
 同名 B 多变体时每圈还换花样（tennis 的 B/B_2/B_3/B_4），观感不重复；EventTimer 15s 骰子也可能打断。
 Move 的 `Rnd.Next(walklength++) < Distance` 同法实测：Distance=7 → 平均 **11.7 段 B**（×0.75s/段 ≈ 走 9s）。
 
-**StateONE/StateTWO 嵌套场**（MainDisplay.cs:207-266）：StateONE 循环中可**概率跳进 StateTWO**（`Rnd.Next(2+CountNomal)` 掷中 0 → StateTWO），StateTWO 播完 C 又回 StateONEing——**两套待机场互相嵌套轮换**，我们完全没有这层。
+**StateONE/StateTWO 嵌套场**（MainDisplay.cs:207-266）：StateONE 循环中可**概率跳进 StateTWO**（`Rnd.Next(2+CountNomal)` 掷中 0 → StateTWO），StateTWO 播完 C 又回 StateONEing——**两套待机场互相嵌套轮换**。→ **✅ 重构#9 已实现**：`sit`（StateONE）/`lie`（StateTWO）两池 + CharAnim 嵌套会话（进 sit / 进 lie / 退 lie 三处 looptimes 清零、CountNomal 已躺次数压重复躺下、会话期间不掷显示骰子）；验证 SitProbe 36 断言。
 
 ### 5.3 Touch 摸头/摸身体（MainDisplay.cs:135-205）
 
@@ -310,14 +310,14 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 ## 7. 重构进度与待办（按性价比排序）
 
 1. ✅ **每帧时长**（2026-09-22 完成）：导入器解析文件名尾数 ms → info.json 写 `durations`（相对时长 = ms÷基准取整；缺失/笔误容错为 1）；`CharAnim.加载动画` 用 `AddFrame(名, 纹理, 时长)` 逐帧带上；`动画时长()` 改 Σduration÷rate（定格帧不再被低估）。全量重导 1777 帧（fidget/interact 追加模式不动原项目素材）。验证：PoolProbe 加 4 断言——fidget-squat 定格帧（1000ms→8 / 875ms→7）+ 总时长 4.50s（旧算法只有 2.375s）+ idle-nomal-1 呼吸停顿（250ms→2）全 PASS。
-2. ✅ **B 循环概率退出**（2026-09-22 完成）：fidget 待机小动作七个三段变体（squat/tennis/bubbles/boring/aside/state-one/state-two）拆回 `-a`/主段/`-c` 三段（导入器 SPEC 重写，与包裹段同命名约定）；CharAnim 加 fidget 会话——A 播完 → B 每圈掷 `Next(圈数) > L`（VPet `DisplayBLoopingToNomal` 原样，首圈恒不过线）→ 命中播 C → idle。单段变体（spin/bubble/doze 等 = VPet Single 型）保持一次过。L 进 `behavior.json`（`fidget循环L`，默认 2 = 平均 5.6 圈 ≈ 8~16s 会话；VPet 原版 10~20 = 分钟级，**机制照抄、数值按观感重定标**）。think/say/work/sleep/music 不上骰子（定时气泡 / 持续态强制循环 = VPet `DisplayBLoopingForce` 语义）。验证：FidgetProbe 14 断言（段推进/首圈保底/单段直通/L=2 大样本平均 5.57 圈）+ PoolProbe durations 断言随拆段更新，全 PASS。
+2. ✅ **B 循环概率退出**（2026-09-22 完成）：fidget 待机小动作七个三段变体（squat/tennis/bubbles/boring/aside/state-one/state-two——**后两个在重构#9 升级为独立 `sit`/`lie` 嵌套会话池**）拆回 `-a`/主段/`-c` 三段（导入器 SPEC 重写，与包裹段同命名约定）；CharAnim 加 fidget 会话——A 播完 → B 每圈掷 `Next(圈数) > L`（VPet `DisplayBLoopingToNomal` 原样，首圈恒不过线）→ 命中播 C → idle。单段变体（spin/bubble/doze 等 = VPet Single 型）保持一次过。L 进 `behavior.json`（`fidget循环L`，默认 2 = 平均 5.6 圈 ≈ 8~16s 会话；VPet 原版 10~20 = 分钟级，**机制照抄、数值按观感重定标**）。think/say/work/sleep/music 不上骰子（定时气泡 / 持续态强制循环 = VPet `DisplayBLoopingForce` 语义）。验证：FidgetProbe 14 断言（段推进/首圈保底/单段直通/L=2 大样本平均 5.57 圈）+ PoolProbe durations 断言随拆段更新，全 PASS。
 3. ✅ **EventTimer 概率爬坡**（2026-09-22 完成）：首次走动之后的自主走动改 VPet 式爬坡骰子（`MainLogic.cs:489-494` 同款）——每「爬坡秒」（15s）掷 `Next(max(爬坡下限, 爬坡周期 - 连续待机秒))`，命中前「爬坡移动槽」（3）个值 → 走动；**闲置越久窗口越小越走得勤，互动/走动后清零重新爬坡**（= CountNomal 语义）。参数进 `behavior.json`（爬坡秒/周期/下限/移动槽，默认 15/200/20/3 = VPet intercycle 默认；模拟中位 ~210s，与旧固定 120~300s 倒计时量级一致）。旧「走动间隔最小/最大秒」均匀倒计时删除（无爬坡、机械）。骰子数学提取为纯函数 `爬坡窗口()`/`爬坡掷骰()`。验证：RampProbe 10 断言（窗口公式/触底不破/大样本命中率 1.54%→2.99%→15.28% 与理论一致/互动清零）+ WalkProbe（端到端实机走位）全 PASS。
 4. ✅ **Move 接力**（2026-09-22 完成，重构#4）：走→爬→顶→掉改为**抄 VPet 原库的移动方式**——`MoveRunner.cs`（替换自写相位机 `Climb.cs` 与走链）＋ `config/moves.json` 移动定义表（`vup.lps` 16 条 `move:` 一行一条）。机制照抄：调度 = 触发通过的移动里随机轮询（`DisplayToMove`）；触发/检查 = 近边 ≤ / 远边 ≥ 的距离门；圈推进 = 检查 + **距离骰** `Rnd.Next(圈数) < 距离`（`Move.Length`）；**兼容接力** = 方向评分（同向 +1/反向 −1，某轴为 0 不参与）≥0 过滤后随机（`GetCompatibilityMove`；VPet 40%，我们默认 `接力概率` 0.8）；吸附 = 挂边/顶挂几何（VPet×0.5 边距换算）；收势 = 回位（`ResetPosition`：任一轴推出 >25% → 贴回）+ C 段；落地 = 重力移动触地即完成 → `移动冷却秒` 冷却（保留的防重复观感）。**加新移动方式 = 加一行数据，不改代码**。验证：MoveProbe 48 断言（纯函数/表加载/档位过滤/触发检查/冷却/方向评分/全流程 上墙→吸附→爬→顶爬→角上接力→下落→落地→回位→收势→idle + 下爬 junction + 让位拉回）全 PASS；WalkProbe 按新模型重写。
 5. ✅ **Touch B 循环续命**（2026-09-22 完成，VPet `SetContinue` 语义，`PNGAnimation.cs:556-574` + `MainDisplay.cs:146-165`）：同类触摸序列进行中又摸——A 段忽略（进场不打断）、**B 段续命**（这圈播完重播 B、不进 C）、C 段照常排队开新一轮。实现：`_序列续命` 标记 + `推进序列()` 消费；`摸摸()` 按段序分流。此前连续摸会排队重播整条 A→B→C（反复重演进场动作，观感差）。验证：TouchProbe F 组 8 断言（A 段续摸忽略/B 段续命置位/续命消费后仍在 B/无续命正常进 C/C 播完回 idle）全 PASS。
 6. ✅ **Ill 第 4 档 + 档位降级检索链**（2026-09-22 完成，`1dde4bd`）。**Ill 不引入**（决策）：Ill 素材仅 14/609 目录、全在未导入类（Eat/Drink/Gift/Raise），且我们无生病玩法（三档=手动档位）——降级链里没有 ill 档。**降级链**（对齐 VPet `GraphCore.FindGraphs` 的 ModeType 相邻降级）：`挑主名` = 精确档 → **无档基名**（Nomal 素材落点，先于升档试）→ 相邻档（happy↔nomal↔poor，序号相邻）→ 候选随机；`情绪变体` 修正——三档关/普通返回 `"nomal"` 而非空串（旧行为 = 整池随机串到 happy/poor 变体，违背「默认普通」口径）；`CharAnim.进入状态` 统一走 `挑主名`（idle 不再整池随机串档）。验证：GradeProbe 10 断言（200 次择档零串档/精确档命中/say+sleep 降级/800 次零段漏/链序=VPet 相邻档/无 ill）全 PASS。
 7. ✅ **档位补全：WORK Happy/Poor**（2026-09-22 完成）：13 类型里 12 个补 Happy/PoorCondition（WorkTWO 无 Happy 源、Study 无档位源 → 降级链兜底，开心/不良档里不出现）；命名 `{档}-{类型}`（与 idle/music 的 `{档}-{n}` 同口径，`挑主名` 按 `-happy-`/`-poor-` 前缀收组）；新增 **876 帧 / 68 变体**（work 池 39→107 变体、493→1369 帧；B 取与 Nomal 同名的那条 = 跨档「同一动作换表情」）。`段名` 加「**同类无档**」降级（`work-happy-study2-c` → `work-study2-c`——study2 的 Happy 源就没有 C 段，VPet 自己留白；对齐 VPet「每段动画各自找档」语义，不补假素材）。验证：PoolProbe 新增 12 必存在 + GradeProbe ⑥ 组 6 断言（档位择档/精确段命中/同类降级/既有段不受影响）全 PASS。余下：IDEL 各 B 变体维度（原版每圈换花样，我们钉死一个——低优先，见 #9 行下注）。
 8. ✅ **双缓冲渲染——判定：不需要**（2026-09-22，BufferProbe 实证）。VPet 的双 Grid 交替（MainDisplay.cs:556-608 `petgridcrlf` 翻转）是给 WPF 打的补丁：新动画要**运行时异步读盘+拼图**（cache/），加载期间旧 Grid 已 Stop → 不交替就会黑帧。我们启动时把全部纹理预载进 SpriteFrames（AddFrame(ImageTexture)），`Play(新名)` 同帧生效、不存在加载空窗。实证：BufferProbe 模拟段切换风暴（每 3 帧跨池换名 ~136 次），390+ 帧全程断言「当前动画存在且帧数 ≥1」——**零空窗帧**。单节点架构已覆盖该问题，不引入第二个 AnimatedSprite2D（省一半 draw call 与状态同步复杂度）。
-9. StateONE/TWO 嵌套待机场（低优先，State 素材 22 目录还没导）。
+9. ✅ **StateONE/TWO 嵌套待机场**（2026-09-22 完成，重构#9）：State 素材 22 目录 116 帧导入为 `sit`/`lie` 两池（旧 `fidget-state-one/two` 拼接变体删除）；CharAnim 加**嵌套会话**——`sit.A → sit.B 每圈随机换 B 变体 + 掷 Rnd.Next(圈数) > 坐卧循环L → 1/(躺下基数+已躺次数) 进 lie → lie.A→B 同款 → lie.C 起身回 sit 的 B 判定（可再躺）→ …→ sit.C → idle`（`MainDisplay.cs:207-266` 照抄：looptimes 三处清零、CountNomal 进 sit 清零/进 lie +1、A 只播一次）。调度 = 爬坡骰子从「移动 3 槽」扩成「移动 3 槽 + 坐卧 2 槽 + 其余无操作」（`爬坡掷槽`/`掷爬坡一次`，心跳与探针同一路径；VPet 1 槽/200 = 分钟级，我们 2 槽按观感重定标）。闸门 = 会话期间不入睡/不掷移动骰子（原版 IsIdel=false → 显示骰子整块跳过）、别的状态接管 → 会话作废。配置 = `坐卧启用/坐卧槽/坐卧循环L/躺下基数`。验证：SitProbe 36 断言（嵌套全流程 + 接管作废 + 分派集成 + 槽位分布）全 PASS；FidgetProbe/PoolProbe 随素材迁移更新。（导入器顺带修一处 rate 退化 bug：时长档无真众数 → 退回 125ms 基准，否则 rate=1 时长塌缩；影响面 7 个变体重写。）
 
 ## 8. 索引（源码快照文件名速查）
 

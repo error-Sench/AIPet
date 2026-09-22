@@ -289,6 +289,8 @@ public partial class StateMachine : Node
         if (state != PinchState && FacePinch.占用中) FacePinch.取消();
         // 智能移动同理：别人抢状态就终止移动（窗口拉回屏内）
         if (state != MoveState && MoveRunner.占用中) MoveRunner.让位();
+        // 坐卧会话同理（重构#9）：别人抢状态 → 会话作废（表现交给新状态；回 idle 不算「别人抢」）
+        if (state != Idle && CharAnim.坐卧会话中) CharAnim.作废坐卧会话();
 
         var 变化 = CurrentState != state;
 
@@ -684,6 +686,10 @@ public partial class StateMachine : Node
         // 忙状态与拖拽中不调度自主行为；**贴边隐藏中也不调度**（它就是「在边上待着」，不该被入睡/走动打回屏内 —— 实测 bug）
         if (CurrentState is Drag or Think or Speak or Working or Listen or Greet or Interact or EdgeHideState or PinchState) return;
 
+        // 坐卧会话中（重构#9）：VPet 里 StateONE/StateTWO 期间 DisplayType 非 Default/Work → EventTimer 的
+        // 显示骰子整块被跳过（IsIdel=false）。等同处理：会话期间不入睡、不掷移动/坐卧骰子（每日问候等数值心跳照常）。
+        if (CharAnim.坐卧会话中) return;
+
         if (CurrentState == Sleep) return; // 已在睡，等交互唤醒
 
         _空闲秒 += 设置.心跳秒;
@@ -722,7 +728,9 @@ public partial class StateMachine : Node
                 if (_爬坡骰子秒 >= 设置.爬坡秒)
                 {
                     _爬坡骰子秒 = 0f;
-                    if (爬坡掷骰((int)_爬坡待机秒, 骰子)) 尝试移动();
+                    // 重构#9：按「槽位」分诊（VPet EventTimer_Elapsed 的完整 switch）——
+                    // 移动 3 槽（case 0/1/2）/ 坐卧 1 槽（case 6 的 StateONE）/ 其余槽什么都不发生。
+                    掷爬坡一次();
                 }
             }
         }
@@ -732,10 +740,25 @@ public partial class StateMachine : Node
     public static int 爬坡窗口(int 连续待机秒)
         => Math.Max(设置.爬坡下限, 设置.爬坡周期 - 连续待机秒);
 
-    /// <summary>重构#3：掷一次爬坡骰子——窗口内命中前「移动槽」个值即走动（VPet `Rnd.Next(rnddisplay)` 的 case 0/1/2 = 移动）。
-    /// 纯函数（不读时钟、不动状态），便于探针直接验证概率分布。</summary>
+    /// <summary>重构#3/#9：掷一次爬坡骰子的**槽位**（VPet `switch (Rnd.Next(rnddisplay))`）——
+    /// 槽 &lt; 爬坡移动槽 → 移动（case 0/1/2）；再往后 &lt; 移动槽+坐卧槽 → 坐卧（case 6 的 StateONE）；
+    /// 其余本次什么都不发生。纯函数（不读时钟、不动状态），便于探针直接验证分布。</summary>
+    public static int 爬坡掷槽(int 连续待机秒, Random 随) => 随.Next(爬坡窗口(连续待机秒));
+
+    /// <summary>重构#3：命中「移动」槽（= VPet case 0/1/2）。</summary>
     public static bool 爬坡掷骰(int 连续待机秒, Random 随)
-        => 随.Next(爬坡窗口(连续待机秒)) < 设置.爬坡移动槽;
+        => 爬坡掷槽(连续待机秒, 随) < 设置.爬坡移动槽;
+
+    /// <summary>掷一次爬坡骰子并按槽位分派（VPet EventTimer_Elapsed 的完整 switch）。心跳与探针共用同一路径。</summary>
+    private static void 掷爬坡一次()
+    {
+        var 槽 = 爬坡掷槽((int)_爬坡待机秒, 骰子);
+        if (槽 < 设置.爬坡移动槽) 尝试移动();
+        else if (设置.坐卧启用 && 槽 < 设置.爬坡移动槽 + 设置.坐卧槽) 尝试坐卧();
+    }
+
+    /// <summary>探针：立即掷一次爬坡骰子（与心跳完全同一条分派路径）。</summary>
+    public static void 探针_掷爬坡一次() => 掷爬坡一次();
 
     private static void 入睡()
     {
@@ -917,7 +940,7 @@ public partial class StateMachine : Node
     /// </summary>
     private static string 情绪变体(string 池)
     {
-        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle")) return "";
+        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle" or "sit" or "lie")) return "";
         // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
         // 重构#6：三档关闭 / 档位=普通 → 返回 "nomal"（而非旧的空串）——真正落实主人「默认普通」口径：
         // 钉普通档演，不再整池随机串到 happy/poor 变体；精确档缺失由 挑主名 的降级链兜（相邻档 → 随机）。
@@ -927,6 +950,21 @@ public partial class StateMachine : Node
 
     /// <summary>MoveRunner 用：当前情绪档（happy/nomal/poor；三档关闭时恒为 nomal）。</summary>
     public static string 当前情绪档 => 情绪变体("walk");
+
+    /// <summary>坐卧会话用（重构#9）：按当前情绪档挑「{池}-{档}」主名前缀——走与 挑主名 同一条降级链；
+    /// 无档基名（{池}-a）兜底；都没有返回 null。CharAnim 拿它拼 A/B/C 段名（sit-nomal-a 等）。</summary>
+    public static string 档名(string 池)
+    {
+        var 变体 = 情绪变体(池);
+        if (变体.Length > 0)
+            foreach (var 档 in 降级链(变体))
+            {
+                var 名 = $"{池}-{档}";
+                if (CharAnim.有动画(名 + "-a")) return 名;
+                if (档 == 变体 && CharAnim.有动画($"{池}-a")) return 池;   // 无档基名：普通档的实际落点，先于升档试
+            }
+        return CharAnim.有动画($"{池}-a") ? 池 : null;
+    }
 
     /// <summary>档位降级链（重构#6，VPet GraphCore.FindGraphs 的 ModeType 序号相邻降级：Happy↔Nomal↔PoorCondition）。
     /// Ill 第 4 档不引入——无生病玩法、Ill 素材也未导入（仅 14/609 目录且全在 Eat/Drink/Gift/Raise 等未导入类）。</summary>
@@ -952,6 +990,16 @@ public partial class StateMachine : Node
         _爬坡待机秒 = 0f;   // 重构#3：任何主动行为后爬坡清零（= VPet CountNomal = 0）
         _爬坡骰子秒 = 0f;
         _移动次数++;
+    }
+
+    /// <summary>坐卧长待机会话（重构#9，VPet EventTimer case 6 → DisplayIdel_StateONE）：
+    /// 挑当前情绪档的 sit 素材开嵌套会话（坐 → 概率躺 → 起身）。没有素材 → 不消耗主动预算。</summary>
+    private static void 尝试坐卧()
+    {
+        if (!CharAnim.开始坐卧会话()) return;
+        记一次主动();
+        _爬坡待机秒 = 0f;   // 主动行为后爬坡清零（= VPet CountNomal = 0）
+        _爬坡骰子秒 = 0f;
     }
 
     private static void 推进保持与兜底(float delta)
@@ -1260,6 +1308,11 @@ public partial class StateMachine : Node
         public static int 爬坡周期 = 200;
         public static int 爬坡下限 = 20;
         public static int 爬坡移动槽 = 3;
+        // —— 组② 坐卧长待机会话（重构#9：抄 VPet StateONE/StateTWO 嵌套待机场；素材池 sit/lie）——
+        public static bool 坐卧启用 = true;
+        public static int 坐卧槽 = 2;       // 爬坡骰子里坐卧占的槽数（VPet 1 槽/200 面；我们调高一点，主人能常看到它坐下）
+        public static int 坐卧循环L = 2;    // B 循环骰子阈值（VPet `state#10`；机制照抄、数值按观感重定标）
+        public static int 躺下基数 = 2;     // 进 lie 的概率 = 1/(躺下基数 + 已躺次数)（VPet `Rnd.Next(2 + CountNomal)`）
         public static int 每小时主动上限 = 8;
         public static float 持续态兜底秒 = 120f;
         public static float 排队兜底秒 = 3f;
@@ -1358,6 +1411,12 @@ public partial class StateMachine : Node
                     爬坡下限 = Math.Max(1, 取整数(根, "爬坡下限", 爬坡下限));
                     爬坡移动槽 = Math.Max(1, 取整数(根, "爬坡移动槽", 爬坡移动槽));
                     爬坡周期 = Math.Max(爬坡下限 + 爬坡移动槽, 取整数(根, "爬坡周期", 爬坡周期));
+                    坐卧启用 = 取布尔(根, "坐卧启用", 坐卧启用);
+                    坐卧槽 = Math.Clamp(取整数(根, "坐卧槽", 坐卧槽), 0, 10);
+                    坐卧循环L = Math.Clamp(取整数(根, "坐卧循环L", 坐卧循环L), 0, 20);
+                    躺下基数 = Math.Clamp(取整数(根, "躺下基数", 躺下基数), 2, 10);
+                    // 槽位总和不能超过窗口上限（否则尾部槽永远掷不到）
+                    爬坡周期 = Math.Max(爬坡周期, 爬坡下限 + 爬坡移动槽 + (坐卧启用 ? 坐卧槽 : 0));
                     每小时主动上限 = 取整数(根, "每小时主动上限", 每小时主动上限);
                     持续态兜底秒 = 取浮点(根, "持续态兜底秒", 持续态兜底秒);
                     fidget循环L = Math.Clamp(取整数(根, "fidget循环L", fidget循环L), 0, 20);

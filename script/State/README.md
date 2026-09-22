@@ -145,6 +145,9 @@ StateMachine.EnqueueChain(
 | `移动启用` | true | 重构#4：false = 关掉全部自主移动（走/趴行/爬/掉落） |
 | `接力概率` | 0.8 | 检查/距离骰不过时换一条兼容移动接下去的概率（VPet 原版 40%） |
 | `移动冷却秒` | 600 | **落地**后的爬边族冷却（走照常；防重复观感的保留项） |
+| `坐卧启用` | true | 重构#9：false = 关掉坐卧长待机会话（坐下/躺下都不再出现） |
+| `坐卧槽` | 2 | 爬坡骰子里坐卧占几面（VPet 1 面/200；我们 2 面让它常被看到） |
+| `坐卧循环L` / `躺下基数` | 2 / 2 | 坐卧会话的 B 循环阈值（2 ≈ 一场 20~60 秒）与进躺概率分母（2 = 首次 50%、躺过再 33%） |
 | —— | —— | 逐条移动的触发/检查/速度/距离骰在 **`config/moves.json`**（加新移动 = 加一条数据，不用改代码） |
 | `每小时主动上限` | 8 | 主动行为（walk/greet）滑动 1 小时窗口预算；设 0 只关主动行为 |
 | `持续态兜底秒` | 120 | Agent 不回 `end_turn` 时防止永远卡在 think/speak |
@@ -373,7 +376,7 @@ StateMachine.EnqueueChain(
 
 | 项 | 做法 |
 |---|---|
-| **State 待机变体** | VPet `StateONE`=坐下待机 / `StateTWO`=躺下休息。原件是「A 进入 → B 循环（加权停留，还能 ONE↔TWO 互转）→ C 退出」的待机链（`MainDisplay.cs`）——**简化为一次过**：A+B_1+B_2+C 拼成一条，作为 `fidget` 变体随机冒（`fidget-state-one` 28帧 / `fidget-state-two` 16帧）|
+| **State 待机变体** | VPet `StateONE`=坐下待机 / `StateTWO`=躺下休息。原件是「A 进入 → B 循环（加权停留，还能 ONE↔TWO 互转）→ C 退出」的待机链（`MainDisplay.cs`）——当初**简化为一次过**（A+B_1+B_2+C 拼一条当 `fidget` 变体）。**重构#9 起升级回原版嵌套机制**：删掉这两个拼接变体，改 `sit`/`lie` 两个独立池 + CharAnim 会话机（见下「坐卧嵌套会话」节）|
 | **idle 三档** | 补 `Default/{Nomal,PoorCondition}` → `idle-nomal-1..3` / `idle-poor-1..2`（原 idle/1..3 重命名为 `idle-happy-1..3`）；`情绪变体("idle")` 入择档名单，档位对应**一组**时按前缀随机取一条（`应用表现` 的组变体分支）|
 | **爱心彩蛋** | `fidget-happy520`（VPet `IDEL/happy_like520`，连串比心 31帧）→ 进 fidget 随机池 |
 | **生日彩蛋** | `bday` 池三段 + 新状态 `Bday`（`序列表` = bday-a→b→c，播完回 idle）；触发 = `config/config.json` 的「生日」（MM-dd）命中当天 → 入场完成后播一遍 + 一句祝福（`phrases.json` 新分类「生日」）|
@@ -405,6 +408,19 @@ StateMachine.EnqueueChain(
 
 **验证**：`tests/MoveProbe`（纯函数几何/骰子 + 触发/检查/冷却/方向评分 + 全流程：上墙→吸附→爬→顶爬→角上接力→下落→落地→收势→idle + 下爬 junction + 让位拉回；48 断言）+ `PoolProbe` 素材存在性 +20。
 
+### 2026-09-22 重构#9：坐卧嵌套会话（**抄 VPet 原库的 StateONE/StateTWO 嵌套待机场**）
+
+把组① 的「State 一次过」升级回原版机制：新增 `sit`（坐下待机）/ `lie`（躺下休息）两个池（VPet `State/*`，22 目录 116 帧，全三档 + B 变体分开），表现由 **CharAnim 自管**（不是状态机状态——逻辑态一直待在 `idle`，所以每日问候/睡眠等一切节律照常判定它的存在）。
+
+- **会话结构（照抄 `MainDisplay.cs:207-266`）**：`sit.A` → `sit.B`（**每圈随机换一个 B 变体**，每圈掷 `Rnd.Next(圈数) > 坐卧循环L`）→ 命中后 `1/(躺下基数 + 已躺次数)` 进 `lie` → `lie.A → lie.B`（同款循环）→ `lie.C` 起身 → **回 sit 的 B 判定**（可再躺）→ … → `sit.C` → idle。整条「坐下 →（概率）躺下 → 回坐 → 起身」是两场嵌套涌现出来的。
+- **照抄点**：`looptimes` 三处清零（进 sit / 进 lie / 退 lie）；「已躺次数」= VPet `CountNomal`（进 sit 清零、进 lie +1 → 压「反复躺下」的概率）；A 段只播一次，之后全是 B。
+- **闸门**：会话期间不入睡、不掷移动/坐卧骰子（原版这会儿 `IsIdel=false` → EventTimer 的显示骰子整块跳过；每日问候等**数值**心跳照常）；别的状态接管 → 会话作废（`StateMachine.SetState` 挂钩 `作废坐卧会话()`）。
+- **调度**：爬坡骰子从「移动 3 槽」扩成「移动 3 槽 + 坐卧 2 槽 + 其余什么都不发生」（`爬坡掷槽` 纯函数 → `掷爬坡一次` 分派，**心跳与探针同一条路径**）。数值照旧重定标：VPet 坐卧 1 槽/200 = 分钟级少见，我们 2 槽让它常被主人看到。
+- **挑档**：`StateMachine.档名(池)` 复用 `挑主名` 的降级链，给会话挑「{池}-{档}」主名前缀（`sit-nomal` 等，A/B/C 段名由它拼）。
+- **探针隔离**：`探针_坐卧退出覆盖` / `探针_坐卧躺下覆盖` 强制「退/不退」「躺/不躺」；`探针_开始坐卧(主名)` 绕过档位随机 → 全流程 headless 可复现（SitProbe）。
+
+**验证**：`tests/SitProbe`（36 断言：档名/B 变体列表/四键加载 + sit A→B 循环→进 lie→lie C→回坐→收场 C→idle + 接管作废 + 分派集成（全槽坐卧 / 坐卧关闭）+ 槽位分布 + 掷骰≡槽位）+ `PoolProbe` 素材存在性（旧 state-one/two 变体换 sit/lie 22 条）。
+
 ### 2026-09-20 组③：音乐反应（系统在放声音就跳舞）
 
 素材 = VPet `Music/*`（A 起跳 1 帧 / B 三档舞蹈循环带音符特效 / C 收尾 / Single 轻快摇摆三表情版）；检测 = `script/Util/AudioMeter.cs`（Windows Core Audio `IAudioMeterInformation` 默认播放设备峰值，**纯 COM 无第三方库；只读峰值，不读音频内容、不落盘、不联网**）；行为 = `script/State/MusicSense.cs`。
@@ -413,7 +429,7 @@ StateMachine.EnqueueChain(
 - **状态**：`music` = 包裹段（A → 主段 → C）；主段默认按三档组变体随机（`nomal-1..5` / `happy-1..4` / `poor-1..4`），**嗨档时 MusicSense 用 `包裹主名指定` 钉 `music-single-{档}`**；`single-*` 不进普通随机（挑主名特判）。
 - **闸门**：`StateMachine.演出闸门开放`（空闲 + 环境安静 + 入场完成）——**不吃每小时主动上限**（对声音的反应不是打扰型行为）；面板/悬停/拖拽时不抢。
 - **独有约定**：`_已请求收场` 防重（C 段退出期间状态仍是 music，别每帧重发 SetState——**实机抓到的刷屏 bug**，已修）；读不到音频设备 → AudioMeter 自动停用（不影响其它功能）。
-- **探针隔离**：时序敏感探针（State/Pool/Wrap/Move/Bubble/Touch/Interact/Event/Walk）都置 `MusicSense.启用 = false`（真实播放会误触发）；MusicProbe 用 `探针_峰值覆写` 注入假音量。
+- **探针隔离**：时序敏感探针（State/Pool/Wrap/Move/Sit/Bubble/Touch/Interact/Event/Walk）都置 `MusicSense.启用 = false`（真实播放会误触发）；MusicProbe 用 `探针_峰值覆写` 注入假音量。**全量回归的顺序抖动**另有一道闸：`StateMachine.设置.探针_冻结时间驱动开关 = true`（实例化场景前设，`加载()` 里强制关 问候/磁盘提醒/音乐检测——实测每日问候会中途抢状态顶掉断言）。
 - **实机验收**：外部音源 → 峰值 0.61 → 嗨档起跳 → 音停收场 → C → idle（三段日志 + 截图）；此前排查的「无声」根因 = bash 双引号吃掉了 PS 变量（测试音根本没响）。
 
 **验证**：`tests/MusicProbe`（阈值 + 全流程 + 嗨档换曲）。

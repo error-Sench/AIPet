@@ -384,16 +384,40 @@ SPEC = {
         ("aside-a",   [("IDEL/aside/Nomal/A", None, None)]),
         ("aside",     [("IDEL/aside/Nomal/B", None, None)]),
         ("aside-c",   [("IDEL/aside/Nomal/C", None, None)]),
-        # State 待机变体 —— VPet StateONE=坐下待机 / StateTWO=躺下休息（逐帧看图核对过：
-        # A=进入过渡、B=循环微动、C=退出过渡）。state-one 主段 = B/1+B/2 两变体拼一圈（~4.25s）。
-        ("state-one-a", [("State/StateONE/A_Nomal", None, None)]),
-        ("state-one",   [("State/StateONE/B_Nomal/1", None, None), ("State/StateONE/B_Nomal/2", None, None)]),
-        ("state-one-c", [("State/StateONE/C_Nomal", None, None)]),
-        ("state-two-a", [("State/StateTWO/A_Nomal", None, None)]),
-        ("state-two",   [("State/StateTWO/B_Nomal", None, None)]),
-        ("state-two-c", [("State/StateTWO/C_Nomal", None, None)]),
+        # State 长待机会话（重构#9：VPet StateONE=坐下待机 / StateTWO=躺下休息）——见下方 sit / lie 池。
+        # 注：旧的 fidget-state-one/state-two（Nomal 一次过简化版）已被 sit/lie 池取代（2026-09-22）。
         # IDEL 彩蛋：一连串比心/爱心（VPet happy_like520，Single 型一次过）。
         ("happy520", [("IDEL/happy_like520", None, None)]),
+    ],
+    # 坐卧长待机会话（重构#9：VPet StateONE / StateTWO 嵌套待机场，素材 State 22 目录 116 帧全量）。
+    # 与 IDEL 小动作的区别：**嵌套会话 + B 多变体**——sit 的 B 每圈随机换（B/1 或 B/2），
+    # 骰子退出时概率进 lie（躺下），lie 收尾后回 sit 继续，最终 sit C 回待机。
+    # 语义：A=进入过渡 / B=循环微动（多变体）/ C=退出过渡；PoorCondition 的 sit B 只有一个变体。
+    "sit": [
+        ("happy-a",  [("State/StateONE/A_Happy", None, None)]),
+        ("happy-b1", [("State/StateONE/B_Happy/1", None, None)]),
+        ("happy-b2", [("State/StateONE/B_Happy/2", None, None)]),
+        ("happy-c",  [("State/StateONE/C_Happy", None, None)]),
+        ("nomal-a",  [("State/StateONE/A_Nomal", None, None)]),
+        ("nomal-b1", [("State/StateONE/B_Nomal/1", None, None)]),
+        ("nomal-b2", [("State/StateONE/B_Nomal/2", None, None)]),
+        ("nomal-c",  [("State/StateONE/C_Nomal", None, None)]),
+        ("poor-a",   [("State/StateONE/A_PoorCondition", None, None)]),
+        ("poor-b1",  [("State/StateONE/B_PoorCondition", None, None)]),
+        ("poor-c",   [("State/StateONE/C_PoorCondition", None, None)]),
+    ],
+    "lie": [
+        ("happy-a",  [("State/StateTWO/Happy/A", None, None)]),
+        ("happy-b1", [("State/StateTWO/Happy/B", None, None)]),
+        ("happy-b2", [("State/StateTWO/Happy/B_2", None, None)]),
+        ("happy-c",  [("State/StateTWO/Happy/C", None, None)]),
+        ("nomal-a",  [("State/StateTWO/A_Nomal", None, None)]),
+        ("nomal-b1", [("State/StateTWO/B_Nomal", None, None)]),
+        ("nomal-c",  [("State/StateTWO/C_Nomal", None, None)]),
+        ("poor-a",   [("State/StateTWO/PoorCondition/A", None, None)]),
+        ("poor-b1",  [("State/StateTWO/PoorCondition/B", None, None)]),
+        ("poor-b2",  [("State/StateTWO/PoorCondition/B_2", None, None)]),
+        ("poor-c",   [("State/StateTWO/PoorCondition/C", None, None)]),
     ],
     "edge_hide": [
         ("left-in",     [("SideHide_Left_Main/Nomal/A", None, None)]),
@@ -552,8 +576,13 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
     # durations = 每帧相对时长（ms ÷ 基准帧时长，取整；缺失/笔误容错为 1）。
     # 原版 6181 帧里 125ms 占 92.6%，其余全是 125 的整数倍（250=爬墙慢动作、500=咀嚼停顿、
     # 1000+=长定格）——统一 rate 会把这些节奏全压平（见 document/VPet动画系统分析.md §3.1）。
+    # 2026-09-22 修：**无真正众数**（每帧时长都不同，如 lie 的 [875,125,500]）时不能拿"第一项"
+    # 当基准——会推出 rate=1 把整段时长塌缩（实测 lie/happy-b1 3s 应为 1.5s）。此时退回 VPet
+    # 默认帧单位 125ms（所有 ms 都是它的整数倍，时长不失真）。
     档 = Counter(时长秒(f) for _, f in frames)
-    ms = 档.most_common(1)[0][0] or 125
+    ms, 次数 = 档.most_common(1)[0]
+    if 次数 < 2: ms = 125
+    ms = ms or 125
     rate = max(1, round(1000 / ms))
     基准 = 1000.0 / rate
     durations = []

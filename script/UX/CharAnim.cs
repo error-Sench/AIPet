@@ -40,6 +40,8 @@ public partial class CharAnim : AnimatedSprite2D
          // 起跳（2026-09-20 主人点名：素材未到、逻辑先接）——GamePlayer.上升期播 `jump-left/right`，
          // 缺素材自动回退（`jump` → 起跳前姿态）；素材导入后随池自动生效
          "jump",
+         // 坐卧长待机会话（重构#9：VPet StateONE/StateTWO 嵌套待机场；表现由 CharAnim 会话自管）
+         "sit", "lie",
          // 音乐反应（2026-09-20 组③：VPet Music；包裹段 + MusicSense）
          "music"];
 
@@ -167,6 +169,11 @@ public partial class CharAnim : AnimatedSprite2D
                 _idle循环次数 = 0;
                 进入状态("idle");
                 break;
+            case "sit":
+            case "lie":
+                // 重构#9：坐卧嵌套会话（A → B 循环×骰子 → 概率躺下 → 回坐 → C → idle）
+                推进坐卧会话(Animation.ToString());
+                break;
             case "idle":
                 _idle循环次数++;
                 if (_idle循环次数>=_fidget触发次数)
@@ -266,6 +273,9 @@ public partial class CharAnim : AnimatedSprite2D
     {
         // 换到别的状态：作废未完成的 fidget 会话（拖拽/气泡等硬切时不留脏状态）
         if (id != "fidget") _fidget主名 = null;
+        // 重构#9：坐卧会话同理——任何「按池进入」的状态都代表别人接管了表现（sit/lie 段是直接 Play 的，
+        // 不会走到这里；会话本身只在 结束坐卧会话 里回 idle）
+        _坐卧主名 = null; _坐卧场 = null; _坐卧圈数 = 0; _坐卧次数 = 0;
         if (!显示人物.动画池字典.TryGetValue(id, out var list) || list.Count == 0)
         {
             if (id != "idle") 进入状态("idle");   // ReSharper disable once TailRecursiveCall
@@ -296,6 +306,129 @@ public partial class CharAnim : AnimatedSprite2D
         _idle循环次数 = 0;
         进入状态("idle");
     }
+
+    // ── 重构#9（2026-09-22）坐卧嵌套会话（VPet StateONE/StateTWO「嵌套待机场」；抄原库嵌套逻辑）──
+    // 结构：sit.A → sit.B（每圈随机换 B 变体，每圈掷骰 Rnd.Next(++n) > L）→ 命中后
+    //       1/(躺下基数 + 已躺次数) 进 lie（A → 同款 B 循环 → C 起身 → **回 sit 的 B 循环判定**）
+    //       → … → sit.C → idle。整条「坐下→（概率）躺下→回坐→起身」是两场嵌套出来的。
+    // 照抄点（MainDisplay.cs:207-266）：`looptimes` 三处清零（进 sit / 进 lie / 退 lie）；
+    // 「已躺次数」= VPet CountNomal（进 sit 清零、进 lie +1 —— 压「反复躺下」概率）。
+    private static string _坐卧主名;      // 当前场主名前缀（sit-nomal / lie-happy）；null = 无会话
+    private static string _坐卧场;        // "sit" | "lie"
+    private static int _坐卧圈数;         // 当前场已播 B 圈数（= VPet looptimes）
+    private static int _坐卧次数;         // 本会话已进 lie 次数（= VPet CountNomal）
+    private static readonly Random _坐卧骰子 = new Random();
+
+    /// <summary>坐卧会话进行中（StateMachine 用它做闸门：VPet 里 StateONE 期间 IsIdel=false，显示骰子整块被跳过）。</summary>
+    public static bool 坐卧会话中 => _坐卧主名 != null;
+
+    /// <summary>开始坐卧会话（VPet DisplayToIdel_StateONE）：挑当前情绪档的 sit 素材 → A 进入。
+    /// 没有 sit 素材返回 false（调用方当没事发生）。</summary>
+    public static bool 开始坐卧会话()
+    {
+        if (_单例 == null) return false;
+        var 主名 = StateMachine.档名("sit");
+        if (主名 == null || !有动画(主名 + "-a")) return false;
+        _坐卧主名 = 主名; _坐卧场 = "sit"; _坐卧圈数 = 0; _坐卧次数 = 0;
+        _单例.Play(主名 + "-a");
+        return true;
+    }
+
+    /// <summary>B 变体列表（原版每圈随机换一个）：{主名}-b1/-b2/…；单变体时退回 {主名}。</summary>
+    private static List<string> 坐卧B变体(string 主名)
+    {
+        var 结果 = new List<string>();
+        for (var i = 1; i <= 4; i++)
+            if (有动画($"{主名}-b{i}")) 结果.Add($"{主名}-b{i}");
+        if (结果.Count == 0 && 有动画(主名)) 结果.Add(主名);
+        return 结果;
+    }
+
+    private static void 播坐卧B()
+    {
+        var 变体 = 坐卧B变体(_坐卧主名);
+        if (变体.Count == 0) { 结束坐卧会话(); return; }
+        _单例.Play(变体[_坐卧骰子.Next(变体.Count)]);
+    }
+
+    /// <summary>会话收尾（sit 的 C 播完）：清会话、重置 idle 计数、回 idle。</summary>
+    private static void 结束坐卧会话()
+    {
+        _坐卧主名 = null; _坐卧场 = null; _坐卧圈数 = 0; _坐卧次数 = 0;
+        _idle循环次数 = 0;
+        进入状态("idle");
+    }
+
+    /// <summary>坐卧段推进（OnAnimationFinished 的 sit/lie 分支，按动画名后缀分诊 -a / -bN / -c）。</summary>
+    private static void 推进坐卧会话(string 当前名)
+    {
+        if (_坐卧主名 == null) { 进入状态("idle"); return; }   // 脏状态兜底
+        if (当前名.EndsWith("-a", StringComparison.Ordinal))
+        {
+            _坐卧圈数 = 1;      // = VPet 回调计数：A 播完是第 1 次（Next(1)=0 恒不过线 → 必进 B）
+            播坐卧B();
+            return;
+        }
+        if (当前名.EndsWith("-c", StringComparison.Ordinal))
+        {
+            if (_坐卧场 == "lie")
+            {
+                // lie 收尾 → 回 sit 的 B 判定（退 lie 时 looptimes 已清零；= VPet C_End → DisplayIdel_StateONEing）
+                _坐卧场 = "sit";
+                _坐卧主名 = StateMachine.档名("sit") ?? _坐卧主名;
+                _坐卧圈数 = 1;
+                播坐卧B();
+                return;
+            }
+            结束坐卧会话();      // sit 收尾 → 回待机
+            return;
+        }
+        // —— 一圈 B 播完：掷「退出骰」——
+        _坐卧圈数++;
+        var 通过 = 探针_坐卧退出覆盖 ?? (_坐卧骰子.Next(_坐卧圈数) > StateMachine.设置.坐卧循环L);
+        if (!通过) { 播坐卧B(); return; }
+        if (_坐卧场 == "sit")
+        {
+            // 去向判定：1/(2 + 已躺次数) 进 lie，否则 sit 收场（= VPet Rnd.Next(2 + CountNomal)）
+            var 躺 = 探针_坐卧躺下覆盖 ?? (_坐卧骰子.Next(2 + _坐卧次数) == 0);
+            var 躺主名 = 躺 ? StateMachine.档名("lie") : null;
+            if (躺主名 != null && 有动画(躺主名 + "-a"))
+            {
+                _坐卧场 = "lie"; _坐卧主名 = 躺主名; _坐卧圈数 = 0; _坐卧次数++;
+                _单例.Play(躺主名 + "-a");
+                return;
+            }
+            _单例.Play(_坐卧主名 + "-c");   // sit 收场（C 播完 → idle）
+            return;
+        }
+        // lie 场通过 → C 起身（喂下一段判定的 looptimes 清零）
+        _坐卧圈数 = 0;
+        _单例.Play(_坐卧主名 + "-c");
+    }
+
+    /// <summary>探针钩子：强制「退出判定」结果（null = 掷真骰子）——让嵌套全流程可复现。</summary>
+    public static bool? 探针_坐卧退出覆盖;
+    /// <summary>探针钩子：强制「进 lie」判定结果（null = 掷真骰子）。</summary>
+    public static bool? 探针_坐卧躺下覆盖;
+    /// <summary>探针：直接以指定主名开 sit 会话（绕过档位随机）。</summary>
+    public static void 探针_开始坐卧(string 主名)
+    {
+        if (_单例 == null || !有动画(主名 + "-a")) return;
+        _坐卧主名 = 主名; _坐卧场 = "sit"; _坐卧圈数 = 0; _坐卧次数 = 0;
+        _单例.Play(主名 + "-a");
+    }
+    public static string 坐卧会话_只读 => _坐卧主名;
+    public static string 坐卧场_只读 => _坐卧场;
+    public static int 坐卧圈数_只读 => _坐卧圈数;
+    public static int 坐卧次数_只读 => _坐卧次数;
+    public static List<string> 探针_坐卧B变体列表(string 主名) => 坐卧B变体(主名);
+
+    /// <summary>会话作废（别的状态接管时由 StateMachine 调）：只清字段，不动表现（新状态自己播）。</summary>
+    public static void 作废坐卧会话()
+    {
+        _坐卧主名 = null; _坐卧场 = null; _坐卧圈数 = 0; _坐卧次数 = 0;
+    }
+
     public static void 载入人物动画()
     {
         var 人物 = 显示人物;
