@@ -221,6 +221,10 @@ public partial class CharAnim : AnimatedSprite2D
     /// <summary>探针用：以指定主段开 fidget 会话（绕过池内随机——FidgetProbe 要钉死 squat 验证段推进）。</summary>
     public static void 探针_fidget会话(string 主段名) { if (_单例 != null) 开始fidget会话(主段名); }
 
+    /// <summary>探针用：某动画的帧数（未载入返回 0）——BufferProbe 验证「切换风暴下当前动画始终立即可渲染」。</summary>
+    public static int 帧数_只读(string 名)
+        => _单例 != null && _单例.SpriteFrames.HasAnimation(名) ? _单例.SpriteFrames.GetFrameCount(名) : 0;
+
     /// <summary>探针用：某动画第 i 帧的相对时长（单位 1/帧率 秒；未载入/越界返回 -1）。验证 durations 逐帧时长生效。</summary>
     public static float 帧时长_只读(string 名, int i)
         => _单例 != null && _单例.SpriteFrames.HasAnimation(名) && i < _单例.SpriteFrames.GetFrameCount(名)

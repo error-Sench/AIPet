@@ -15,7 +15,7 @@
 | 干活 | WORK **13 种 × A/B/C × 3 档（Happy 58/Nomal 49/Poor 57 目录）× 多 B 变体 = 180 目录 2214 帧** | 39 变体 493 帧（只取 Nomal 档 + 单个最全 B） | 差 4.5 倍（档位+变体） |
 | 帧时长 | **每帧独立 ms**（文件名尾数），主力 125ms=8fps，但 250/375/500 大量存在 | 每池统一 rate（8fps） | 节奏细节丢失 |
 | B 循环圈数 | lps `duration:` 表（squat#20 boring#20 sleep#20，默认 10）+ **概率递减退出** | 状态机定时/包裹段播完即切 | 机制不同 |
-| 渲染 | **双 Grid 交替缓冲**（无缝切换）+ 运行时拼图缓存（cache/） | AnimatedSprite2D 单节点 | 切换有黑帧风险 |
+| 渲染 | **双 Grid 交替缓冲**（无缝切换）+ 运行时拼图缓存（cache/） | AnimatedSprite2D 单节点（启动全量预载） | ~~切换有黑帧风险~~ 2026-09-22 BufferProbe 实证零空窗——VPet 双缓冲是 WPF 异步读盘的补丁，预载架构不需要（见 §7.8） |
 
 ## 1. 数据模型：一条动画 = 四元组（GraphInfo）
 
@@ -316,7 +316,7 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 5. **Touch B 循环续命**（SetContinue）：连续摸头不重播 A，循环续命——手感细节。
 6. **Ill 第 4 档** + 档位降级检索链（Happy↔Nomal↔Poor 互备、Ill 不外泄）。
 7. **档位补全**：WORK 的 Happy/Poor 档（现只有 Nomal）+ IDEL 各 B 变体（原版每圈换花样，我们钉死一个）。**IDEL 10 种动画名已全部导入**（2026-09-22 盘点确认，amusement_B 用作 greet）——种数不缺，缺的是档位/变体维度。
-8. **双缓冲渲染**：Godot 侧两个 AnimatedSprite2D 交替（段切换零黑帧）——现在靠「同名不重播」规避，跨段切换仍有 1 帧风险。
+8. ✅ **双缓冲渲染——判定：不需要**（2026-09-22，BufferProbe 实证）。VPet 的双 Grid 交替（MainDisplay.cs:556-608 `petgridcrlf` 翻转）是给 WPF 打的补丁：新动画要**运行时异步读盘+拼图**（cache/），加载期间旧 Grid 已 Stop → 不交替就会黑帧。我们启动时把全部纹理预载进 SpriteFrames（AddFrame(ImageTexture)），`Play(新名)` 同帧生效、不存在加载空窗。实证：BufferProbe 模拟段切换风暴（每 3 帧跨池换名 ~136 次），390+ 帧全程断言「当前动画存在且帧数 ≥1」——**零空窗帧**。单节点架构已覆盖该问题，不引入第二个 AnimatedSprite2D（省一半 draw call 与状态同步复杂度）。
 9. StateONE/TWO 嵌套待机场（低优先，State 素材 22 目录还没导）。
 
 ## 8. 索引（源码快照文件名速查）
