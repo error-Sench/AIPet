@@ -11,7 +11,7 @@ namespace desktop.tests;
 /// 游戏模式探针（**非 headless**：要真实窗口几何、真实物理与渲染截图）：
 /// ① 确认弹窗：Esc 取消（留在办公）/ 空格确认（进入游戏；主人指定空格确认）；
 /// ② 挂载：窗口铺满屏幕、世界/玩家/相机就位、桌宠精灵 Reparent 进物理体、办公面板收起；
-/// ③ 最小可玩：着地 / WSAD 位移（含走动画）/ 空格跳跃（起跳-落地，空中播 `fall-B`）/
+/// ③ 最小可玩：着地 / 方向键位移（含走动画）/ C 跳跃（起跳-落地，空中播 `fall-B`）/ X 攻击（G 组）/
 ///    相机跟随（含「人物在屏幕中下」偏置）/ 走中与空中即时转身 / 背板全透明采样（天空 alpha≈0、地面不透明）；
 /// ③b 手感三件套：F1 土狼时间（离台缘 3 帧内还能跳）/ F2 跳跃缓冲（落地前按 → 自动起跳）/
 ///    F3 可变跳高（轻点 = 小跳）；
@@ -19,6 +19,7 @@ namespace desktop.tests;
 /// ⑤ 「办公即游戏」钩子：干完一次活 → 办公星 +1；
 /// ⑥ 二进宫（玩法切片一）：收集星星（回血 + 存档去重）/ 掉落扣血 / 血空「玩累了」回满血原地继续（**不退出**）；
 /// ⑧ 纯键盘（主人 2026-09-22）：游戏内鼠标穿透开/关断言 + Esc 退出 + **失焦变淡**（α≈0.30）+ 失焦不响应操作 + M 键切换（写回配置，探针重定向）；
+/// ⑨ 键位改版（主人 2026-09-22）：方向键移动 / C 跳跃 / X 攻击（真实键注入，G 组）+ 占位符（攻击/起跳）；
 /// ⑦ 截两帧 PNG（站立 / 空中）供视觉复核。
 /// 隔离：游戏存档走临时档（GameSession.探针_覆盖存盘路径），收尾只删临时档。
 /// 用法：Godot_..._console.exe --path &lt;项目&gt; res://tests/GameProbe.tscn
@@ -53,6 +54,9 @@ public partial class GameProbe : Node
         try { System.IO.File.Delete(GameSession.探针_存盘路径); } catch { /* 上轮残留 */ }
         // 隔离：配置写回走临时根（M 键切换的写回不碰真配置）
         ConfigEdit.探针_根目录 = ProjectSettings.GlobalizePath("user://probe_cfg_tmp");
+
+        // 省时间轴：攻击时长临时压到 0.15s（9 帧）——G 组只验「触发/冷却/收势」时序（默认 0.45）
+        GamePlayer.攻击时长秒 = 0.15f;
 
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
@@ -156,6 +160,7 @@ public partial class GameProbe : Node
                 break;
             case 110:
                 断言(!CharAnim.当前动画名_只读.StartsWith("fall"), $"C5e 上升期不播下坠素材（fall 只在过最高点后，实际 {CharAnim.当前动画名_只读}）");
+                断言(CharAnim.当前动画名_只读 == GamePlayer.起跳占位, $"C5e2 上升期播起跳占位（实际 {CharAnim.当前动画名_只读}）");
                 break;
             case 112:
                 玩家.探针_跳 = false;   // 按住 12 帧（0.2s）→ 满跳 ≈128px（可变跳高不截）
@@ -171,11 +176,11 @@ public partial class GameProbe : Node
             case 136:   // —— 失焦表现（主人 2026-09-22）：变淡 + 不响应操作 ——
                 GameHost.单例.探针_强制失焦 = true;
                 _失焦前X = 玩家.Position.X;
-                敲键(Key.D, true);          // 注入真实键（失焦应被无视）
+                敲键(Key.Right, true);      // 注入真实键（方向键；失焦应被无视）
                 break;
             case 166:
                 断言(Mathf.Abs(玩家.Position.X - _失焦前X) < 2f,
-                    $"C5f 失焦不响应操作（D 按住 30 帧，X 未动 {_失焦前X:0.0} → {玩家.Position.X:0.0}）");
+                    $"C5f 失焦不响应操作（→ 按住 30 帧，X 未动 {_失焦前X:0.0} → {玩家.Position.X:0.0}）");
                 断言(Mathf.Abs(GameHost.单例.探针_世界.Modulate.A - 0.30f) < 0.05f,
                     $"C5g 失焦变淡：世界 α={GameHost.单例.探针_世界.Modulate.A:0.00} ≈ 0.30");
                 {
@@ -184,7 +189,7 @@ public partial class GameProbe : Node
                     // 地面 = 描边层 + 本体层两层叠画：各 0.30 → 合成 1-0.7² = 0.51（全不透明时两层都=1，看不出来）
                     断言(地.A is > 0.3f and < 0.75f, $"C5h 失焦时地面像素也变淡（alpha={地.A:0.00}，叠层混合 ≈0.51）");
                 }
-                敲键(Key.D, false);
+                敲键(Key.Right, false);
                 GameHost.单例.探针_强制失焦 = false;
                 break;
             case 182:
@@ -268,9 +273,45 @@ public partial class GameProbe : Node
                 敲键(Key.M, false);
                 break;
 
+            // ===== G 组：攻击 X（主人 2026-09-22；攻击时长已压到 9 帧） =====
+            case 276:
+                敲键(Key.X, true);   // 真实键位：X 攻击（此刻朝向右）
+                break;
+            case 279:
+                敲键(Key.X, false);
+                断言(玩家.探针_攻击中_只读, "G1 X 键 → 进入攻击状态");
+                断言(玩家.探针_最近攻击请求 == "attack-right", $"G2 朝右攻击请求 attack-right（实际 {玩家.探针_最近攻击请求}）");
+                断言(CharAnim.池已注册("attack"), "G3 攻击池已登记（素材导入即生效）");
+                断言(CharAnim.当前动画名_只读 == GamePlayer.攻击占位, $"G3b 攻击播占位（实际 {CharAnim.当前动画名_只读}）");
+                break;
+            case 282:
+                敲键(Key.X, true);   // 冷却内再按：不应刷新时长
+                break;
+            case 284:
+                敲键(Key.X, false);
+                break;
+            case 287:
+                断言(!玩家.探针_攻击中_只读, "G4 攻击时长到 → 自动收势；期间再按不刷新（否则会延续到 291）");
+                break;
+
             case 290:
                 断言(玩家.IsOnFloor(), "C14 空中转身后正常落回地面");
                 断言(CharAnim.当前动画名_只读 == "walk-right", $"C14b 落地后回常规姿态（实际 {CharAnim.当前动画名_只读}）");
+                break;
+            case 292:
+                玩家.探针_水平输入 = 0f;      // 让真实键盘接管（验证方向键）
+                敲键(Key.Left, true);
+                break;
+            case 294:
+                断言(玩家.探针_朝向_只读 < 0f, $"G5 方向键 ← 真实生效（朝向 {玩家.探针_朝向_只读:0}）");
+                断言(CharAnim.当前动画名_只读 == "walk-left", $"G5b 走动画同步（实际 {CharAnim.当前动画名_只读}）");
+                敲键(Key.Left, false);
+                玩家.探针_攻击 = true;        // 朝左攻击 → 请求 attack-left
+                break;
+            case 295:
+                断言(玩家.探针_最近攻击请求 == "attack-left", $"G6 朝左攻击请求 attack-left（实际 {玩家.探针_最近攻击请求}）");
+                断言(玩家.探针_攻击中_只读, "G6b 攻击中（第二发）");
+                玩家.探针_攻击 = false;
                 break;
             case 296:
                 玩家.GlobalPosition = new Vector2(560f, 129f);   // 台1 台面左缘附近（250 - 脚线 121）

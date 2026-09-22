@@ -4,7 +4,7 @@ using desktop.script.UX;
 namespace desktop.script.Game;
 
 /// <summary>
-/// 游戏模式的玩家控制（横板最小可玩）：**WSAD + 空格跳跃**，相机跟随，掉落回出生点。
+/// 游戏模式的玩家控制（横板最小可玩）：**方向键移动 + C 跳跃 + X 攻击**（主人 2026-09-22 改键位），相机跟随，掉落回出生点。
 /// 桌宠精灵（CharAnim）就挂在这个物理体上 —— 本体不销毁、只换壳；游戏期间
 /// CharAnim 的办公播完回调被闸掉（见 CharAnim.OnAnimationFinished），动画归这里管。
 /// 手感参数都是常数（主人可调，见代码顶部）。
@@ -24,12 +24,22 @@ public partial class GamePlayer : CharacterBody2D
     /// <summary>相机纵向比例（主人 2026-09-22「人物在屏幕中下」）：0.5 = 正中，越大人物越靠下。</summary>
     public const float 屏幕纵向比例 = 0.66f;
     public const int 掉落扣血 = 20;          // 掉出世界一次扣多少血（0 血 → 「玩累了」退场，见 GameHost）
+    /// <summary>攻击状态时长（秒；期间再按不刷新 = 冷却即时长）。非 const：探针会临时改小以省时间轴（GameProbe）。</summary>
+    public static float 攻击时长秒 = 0.45f;
+    // —— 占位符（主人 2026-09-22「空缺动画用占位符替代」）：真素材到位后自动让位（回退链末位，见 播攻击动画/更新动画） ——
+    /// <summary>攻击占位：挥拍暂代挥击（真素材 `attack-left/right` 到位即自动优先）。</summary>
+    public const string 攻击占位 = "fidget-tennis";
+    /// <summary>起跳占位：窜入→腾空→落地 暂代起跳（`enter-2` 首帧空白是它自带的出场效果）。</summary>
+    public const string 起跳占位 = "enter-2";
 
     /// <summary>探针注入：非 0 时优先于真实键盘（确定性测试用；±1 = 左/右）。</summary>
     public float 探针_水平输入;
 
     /// <summary>探针注入：跳跃按住状态（确定性测试用；边沿触发，按住不会连跳）。</summary>
     public bool 探针_跳;
+
+    /// <summary>探针注入：攻击按下状态（确定性测试用；边沿触发）。</summary>
+    public bool 探针_攻击;
 
     // 空中拆两相（主人 2026-09-20）：升 = 上升期保持起跳前姿态；落 = 过最高点才播 fall 素材
     private enum 姿态 { 站, 走, 升, 落 }
@@ -43,6 +53,10 @@ public partial class GamePlayer : CharacterBody2D
     private float _朝向 = 1f;
     private float _离地长 = 99f;     // 离地时长（土狼窗口用）
     private float _跳跃缓冲 = 99f;   // 「跳」按下沿距今时长（缓冲窗口用）
+    private float _攻击剩余;         // 攻击状态剩余秒（>0 = 攻击中）
+    private bool _攻击上次;          // 攻击按键沿检测
+    private bool _攻击有素材;        // 攻击素材到位才保持攻击姿态（未到 = 只走状态/冷却，不干扰常规动画）
+    private bool _动画脏;            // 强制下一帧重评估姿态（攻击收势用）
 
     public override void _Ready()
     {
@@ -67,7 +81,7 @@ public partial class GamePlayer : CharacterBody2D
     {
         _出生点 = 出生点;
         _相机 = 相机;
-        _跳跃上次 = Input.IsPhysicalKeyPressed(Key.Space);   // 确认弹窗的空格可能还按着 → 不当成跳跃
+        _跳跃上次 = Input.IsPhysicalKeyPressed(Key.C);   // 进入瞬间若 C 已按住 → 不当成起跳（空格现为弹窗确认键，无冲突）
         GameSession.设关卡(GameHost.关卡id);
     }
 
@@ -75,19 +89,33 @@ public partial class GamePlayer : CharacterBody2D
     {
         var dt = (float)delta;
 
-        // —— 水平输入（物理键位 = 键盘布局无关） ——
+        // —— 水平输入（物理键位 = 键盘布局无关；方向键，主人 2026-09-22 改） ——
         // 失焦不响应操作（主人 2026-09-22）：真实键盘只在窗口聚焦时生效；探针注入不受影响
         var 聚焦 = GameHost.单例?.聚焦中 == true;
         var 水平 = 探针_水平输入 != 0f
             ? Mathf.Sign(探针_水平输入)
-            : 聚焦 ? (Input.IsPhysicalKeyPressed(Key.A) ? -1f : 0f) + (Input.IsPhysicalKeyPressed(Key.D) ? 1f : 0f)
+            : 聚焦 ? (Input.IsPhysicalKeyPressed(Key.Left) ? -1f : 0f) + (Input.IsPhysicalKeyPressed(Key.Right) ? 1f : 0f)
             : 0f;
 
         // —— 跳跃输入：按下沿记缓冲；离地计时供土狼窗口 ——
-        var 按跳 = 探针_跳 || (聚焦 && Input.IsPhysicalKeyPressed(Key.Space));
+        var 按跳 = 探针_跳 || (聚焦 && Input.IsPhysicalKeyPressed(Key.C));
         if (按跳 && !_跳跃上次) _跳跃缓冲 = 0f; else _跳跃缓冲 += dt;
         _跳跃上次 = 按跳;
         if (IsOnFloor()) _离地长 = 0f; else _离地长 += dt;
+
+        // —— 攻击（X，主人 2026-09-22）：边沿触发；攻击时长内再按无效（冷却 = 时长） ——
+        var 按攻击 = 探针_攻击 || (聚焦 && Input.IsPhysicalKeyPressed(Key.X));
+        if (按攻击 && !_攻击上次 && _攻击剩余 <= 0f)
+        {
+            _攻击剩余 = 攻击时长秒;
+            播攻击动画();
+        }
+        _攻击上次 = 按攻击;
+        if (_攻击剩余 > 0f)
+        {
+            _攻击剩余 -= dt;
+            if (_攻击剩余 <= 0f) { _攻击剩余 = 0f; _动画脏 = true; }   // 收势：常规姿态重播接管
+        }
 
         // —— 重力（下落段加成）+ 起跳（土狼时间 + 跳跃缓冲：经典三件套） ——
         var 重力系数 = Velocity.Y > 0f ? 下落重力倍率 : 1f;
@@ -130,12 +158,23 @@ public partial class GamePlayer : CharacterBody2D
     private void 更新动画(float 水平)
     {
         var 有输入 = Mathf.Abs(水平) > 0.1f;
+        // 攻击中（且素材已到）：地面保持攻击姿态（换向 = 换手重播）；空中交给 升/落（计时照走）
+        if (_攻击剩余 > 0f && _攻击有素材 && IsOnFloor())
+        {
+            if (有输入 && Mathf.Sign(水平) != _朝向)
+            {
+                _朝向 = Mathf.Sign(水平);
+                播攻击动画();
+            }
+            return;
+        }
         var 新姿态 = !IsOnFloor() ? (Velocity.Y < 0f ? 姿态.升 : 姿态.落)
             : 有输入 ? 姿态.走
             : 姿态.站;
         var 姿态变了 = 新姿态 != _姿态;
         var 朝向变了 = 有输入 && Mathf.Sign(水平) != _朝向;
-        if (!姿态变了 && !朝向变了) return;   // 反向输入 = 立刻转身（主人 2026-09-20：地面走中 / 空中都要及时）
+        if (!姿态变了 && !朝向变了 && !_动画脏) return;   // 反向输入 = 立刻转身（主人 2026-09-20：地面走中 / 空中都要及时）
+        _动画脏 = false;
         _姿态 = 新姿态;
         if (有输入) _朝向 = Mathf.Sign(水平);
         switch (新姿态)
@@ -153,6 +192,11 @@ public partial class GamePlayer : CharacterBody2D
                 var 起跳名 = _朝向 < 0f ? "jump-left" : "jump-right";
                 if (CharAnim.有动画(起跳名)) CharAnim.PlayNamed(起跳名);
                 else if (CharAnim.有动画("jump")) CharAnim.PlayNamed("jump");
+                else if (CharAnim.有动画(起跳占位))
+                {
+                    // 占位（真素材到位自动走上面两条）；已在播就不重播——空中转身不重启
+                    if (CharAnim.当前动画名_只读 != 起跳占位) CharAnim.PlayNamed(起跳占位);
+                }
                 else if (朝向变了) CharAnim.PlayNamed(_朝向 < 0f ? "walk-left" : "walk-right");
                 break;
             }
@@ -160,6 +204,24 @@ public partial class GamePlayer : CharacterBody2D
                 // 过最高点 = 下落：VPet `fall-B`（横着下落，循环）；转身换向、落地由 站/走 接管
                 CharAnim.PlayNamed(_朝向 < 0f ? "fall-left-b" : "fall-right-b");
                 break;
+        }
+    }
+
+    /// <summary>攻击姿态：`attack-left/right` → 缺则 `attack` → 再缺保持当前姿态（与起跳槽位同规矩：
+    /// 素材未到、逻辑先接；请求名留给探针断言，素材到位后随池自动生效）。</summary>
+    private void 播攻击动画()
+    {
+        var 名 = _朝向 < 0f ? "attack-left" : "attack-right";
+        探针_最近攻击请求 = 名;
+        _攻击有素材 = CharAnim.有动画(名);
+        if (_攻击有素材) { if (CharAnim.当前动画名_只读 != 名) CharAnim.PlayNamed(名); return; }
+        _攻击有素材 = CharAnim.有动画("attack");
+        if (_攻击有素材) { if (CharAnim.当前动画名_只读 != "attack") CharAnim.PlayNamed("attack"); return; }
+        // 占位（真素材到位自动走上面两条）
+        if (CharAnim.有动画(攻击占位))
+        {
+            _攻击有素材 = true;
+            if (CharAnim.当前动画名_只读 != 攻击占位) CharAnim.PlayNamed(攻击占位);
         }
     }
 
@@ -213,4 +275,10 @@ public partial class GamePlayer : CharacterBody2D
 
     /// <summary>探针：当前朝向（只读；±1）。</summary>
     public float 探针_朝向_只读 => _朝向;
+
+    /// <summary>探针：最近一次攻击请求的素材名（如 attack-left；素材未到也记录）。</summary>
+    public string 探针_最近攻击请求 { get; private set; } = "";
+
+    /// <summary>探针：是否攻击中（只读）。</summary>
+    public bool 探针_攻击中_只读 => _攻击剩余 > 0f;
 }

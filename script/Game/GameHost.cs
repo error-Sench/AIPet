@@ -354,7 +354,7 @@ public partial class GameHost : Node
         _界面层.AddChild(容器);
         _界面根 = 容器;
 
-        var 提示 = new Label { Name = "Hint", Text = "WASD 移动 · 空格 跳跃 · M 鼠标穿透 · Esc 退出游戏" };
+        var 提示 = new Label { Name = "Hint", Text = "← → 移动 · C 跳跃 · X 攻击 · M 鼠标穿透 · Esc 退出游戏" };
         MicaTheme.应用(提示, 13);
         提示.AddThemeColorOverride("font_color", new Color(0.93f, 0.96f, 1.0f));   // 浅字
         提示.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.55f));
