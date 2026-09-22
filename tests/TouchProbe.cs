@@ -188,10 +188,69 @@ public partial class TouchProbe : Node
 
             case 15:
                 断言(StateMachine.CurrentState == StateMachine.Idle, $"过渡到点回 idle（{StateMachine.CurrentState}）");
-                收尾();
+                GD.Print("--- F 组：重构#5 触摸 B 段续命（VPet SetContinue）---");
+                StateMachine.SetState(StateMachine.Idle);
+                StateMachine.摸摸(StateMachine.TouchPart.Head);   // 排队 → idle 播完生效
+                下一阶段();
+                break;
+
+            case 16:  // F1：等 interact 序列开始（A 段）
+                if (StateMachine.CurrentState == StateMachine.Interact && _阶段帧 > 3)
+                {
+                    断言(StateMachine.探针_序列序 == 0, $"序列在 A 段（序 {StateMachine.探针_序列序}）");
+                    StateMachine.摸摸(StateMachine.TouchPart.Head);   // A 段期间又摸 → 应忽略（VPet：A_Start 不打断）
+                    断言(!StateMachine.探针_序列续命, "A 段续摸被忽略（不设续命、不排队）");
+                    _子步 = 0;
+                    下一阶段();
+                }
+                else if (_阶段帧 > 500) { 断言(false, "F1 超时没进 interact"); 下一阶段(); }
+                break;
+
+            case 17:  // F2：推进到 B 段
+                _子步++;
+                if (_子步 == 4) StateMachine.探针_动画播完回调();   // A 播完 → B（隔帧避开重播冷却）
+                if (_子步 == 8)
+                {
+                    断言(StateMachine.探针_序列序 == 1, $"推进到 B 段（序 {StateMachine.探针_序列序}）");
+                    断言(CharAnim.当前动画名_只读.StartsWith("interact-") && !CharAnim.当前动画名_只读.EndsWith("-a"),
+                        $"B 段在播（{CharAnim.当前动画名_只读}）");
+                    StateMachine.摸摸(StateMachine.TouchPart.Head);   // B 段期间又摸 → 续命
+                    断言(StateMachine.探针_序列续命, "B 段续摸 → 续命标记置位（SetContinue）");
+                    _子步 = 0;
+                    下一阶段();
+                }
+                break;
+
+            case 18:  // F3：B 播完 → 续命生效（重播 B、不进 C）
+                _子步++;
+                if (_子步 == 4) StateMachine.探针_动画播完回调();
+                if (_子步 == 8)
+                {
+                    断言(StateMachine.探针_序列序 == 1, $"续命：仍在 B 段没进 C（序 {StateMachine.探针_序列序}）");
+                    断言(!StateMachine.探针_序列续命, "续命标记已消费");
+                    _子步 = 0;
+                    下一阶段();
+                }
+                break;
+
+            case 19:  // F4：没有新摸 → B 播完正常进 C → 播完回 idle
+                _子步++;
+                if (_子步 == 4) StateMachine.探针_动画播完回调();   // B → C
+                if (_子步 == 8)
+                {
+                    断言(StateMachine.探针_序列序 == 2, $"无续命时 B 播完进 C（序 {StateMachine.探针_序列序}）");
+                    StateMachine.探针_动画播完回调();               // C → 序列收尾
+                }
+                if (_子步 == 14)
+                {
+                    断言(StateMachine.CurrentState == StateMachine.Idle, $"C 播完序列收尾回 idle（{StateMachine.CurrentState}）");
+                    收尾();
+                }
                 break;
         }
     }
+
+    private int _子步;
 
     // ---- A：命中区（纯函数；换算见 config/behavior.json 注释）----
     private void A组_命中区()

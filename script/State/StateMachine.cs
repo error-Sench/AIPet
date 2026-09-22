@@ -146,6 +146,9 @@ public partial class StateMachine : Node
 
     private static string[] _当前序列;
     private static int _序列序;
+    /// <summary>重构#5（VPet SetContinue）：B 段「续命」标记——序列进行中又摸了一次，
+    /// 则 B 这圈播完从头再来一遍而不进 C（连续摸头不会一直重播进场动作）。</summary>
+    private static bool _序列续命;
 
     // ================= 行为链（原有） =================
 
@@ -338,6 +341,7 @@ public partial class StateMachine : Node
         // 序列由「动画播完」回调逐段推进，不做时长猜测。
         _当前序列 = null;
         _序列序 = 0;
+        _序列续命 = false;
         string[] 序列 = null;
         if (_序列表.TryGetValue(state, out var 候选) && 候选.Length > 0 && CharAnim.有动画(候选[0])) 序列 = 候选;
 
@@ -446,6 +450,17 @@ public partial class StateMachine : Node
     private static void 推进序列()
     {
         if (_当前序列 == null) return;
+        // 重构#5：B 段（中段）续命——期间又摸了一次就从头再演这圈，不进 C（VPet SetContinue 语义）
+        if (_序列续命)
+        {
+            _序列续命 = false;
+            if (_序列序 > 0 && _序列序 < _当前序列.Length - 1)
+            {
+                GD.Print($"[StateMachine] 触摸续命：重播 B 段（第 {_序列序 + 1}/{_当前序列.Length} 段）");
+                播放序列段();
+                return;
+            }
+        }
         _序列序++;
         if (_序列序 >= _当前序列.Length)
         {
@@ -511,6 +526,7 @@ public partial class StateMachine : Node
             GD.Print($"[StateMachine] 打断交互序列（{state} 立即生效）");
             _当前序列 = null;
             _序列序 = 0;
+            _序列续命 = false;
         }
         // 包裹会话同样作废：拖拽/松手立即生效，旧会话不能残留（否则重播会错播上一条会话的主段）
         _包裹主名 = null;
@@ -541,6 +557,7 @@ public partial class StateMachine : Node
         _排队兜底剩余 = 0f;
         _当前序列 = null;
         _序列序 = 0;
+        _序列续命 = false;
     }
 
     // ================= 交互入口（唯一重置空闲的口径） =================
@@ -565,12 +582,25 @@ public partial class StateMachine : Node
         NotifyInteraction(部位 == TouchPart.Body ? "摸摸·身体" : "摸摸");
         // 数值不因互动变化（2026-09-20 主人定：数值只影响回复策略、不加入互动）
         if (CurrentState is Drag or Think or Speak or Working or WorkIn or WorkOut) return; // 忙时不当成互动
-        if (CurrentState is InteractBody or Turn) return;   // 已经在对上一次摸做反应了
         if (CurrentState == Sleep) return; // 唤醒流程已接管（会走 greet），让招呼播完
         // 不硬切：等当前这次动画播完再进入对应反应
         var 目标 = 部位 == TouchPart.Body && CharAnim.有动画("interact_body-a")
             ? (Random.Shared.NextDouble() < 0.3 && CharAnim.有动画("turn-a") ? Turn : InteractBody)
             : Interact;
+        // 重构#5（VPet DisplayToTouchHead/Body 语义，MainDisplay.cs:146-165）：同类触摸序列进行中又摸——
+        // A 段忽略（进场动作不打断）；B 段续命（这圈播完重播 B、不进 C——连续摸头不会反复重演进场）；
+        // C 段照常排队（退场播完开新一轮）。
+        if (CurrentState == 目标 && _当前序列 != null)
+        {
+            if (_序列序 == 0) return;                       // A 段：忽略
+            if (_序列序 < _当前序列.Length - 1)             // B 段：续命
+            {
+                _序列续命 = true;
+                GD.Print("[StateMachine] 触摸续命：B 段这圈播完从头再来（VPet SetContinue）");
+                return;
+            }
+        }
+        else if (CurrentState is InteractBody or Turn) return;   // 在对另一种身体反应做反应了：不打断（原语义）
         排队状态(目标);
         // 本地模式（没接 Agent）时，被摸也要有话说 —— 走话语表；接了 Agent 则由 Agent 自己回
         本地说话("被摸", 15f);
@@ -865,6 +895,10 @@ public partial class StateMachine : Node
     public static float 探针_爬坡待机秒 => _爬坡待机秒;
     public static void 探针_设爬坡待机秒(float 值) => _爬坡待机秒 = 值;
 
+    /// <summary>探针用（重构#5）：触摸序列的当前段序与续命标记——验证 B 段续命（SetContinue 语义）。</summary>
+    public static int 探针_序列序 => _序列序;
+    public static bool 探针_序列续命 => _序列续命;
+
     private static int _走动次数; // 累计走动次数（观测用）
 
     // 重构#3：旧的「随机间隔()」（走动间隔最小/最大秒 均匀倒计时）已删——后续走动由概率爬坡骰子调度（见 心跳()）。
@@ -879,10 +913,21 @@ public partial class StateMachine : Node
     {
         if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle")) return "";
         // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
-        if (设置.三档状态启用)
-            return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "" };
-        return "";
+        // 重构#6：三档关闭 / 档位=普通 → 返回 "nomal"（而非旧的空串）——真正落实主人「默认普通」口径：
+        // 钉普通档演，不再整池随机串到 happy/poor 变体；精确档缺失由 挑主名 的降级链兜（相邻档 → 随机）。
+        if (!设置.三档状态启用) return "nomal";
+        return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "nomal" };
     }
+
+    /// <summary>档位降级链（重构#6，VPet GraphCore.FindGraphs 的 ModeType 序号相邻降级：Happy↔Nomal↔PoorCondition）。
+    /// Ill 第 4 档不引入——无生病玩法、Ill 素材也未导入（仅 14/609 目录且全在 Eat/Drink/Gift/Raise 等未导入类）。</summary>
+    public static string[] 降级链(string 档) => 档 switch
+    {
+        "happy" => new[] { "happy", "nomal" },          // VPet Happy(0)：向下兼容 = Nomal(1)
+        "poor" => new[] { "poor", "nomal" },            // VPet PoorCondition(2)：向上兼容 = Nomal(1)（Ill 跳过）
+        "nomal" => new[] { "nomal", "poor", "happy" },  // VPet Nomal(1)：向下 Poor(2) → 向上 Happy(0)
+        _ => new[] { 档 },
+    };
 
     /// <summary>走动画后缀（快/慢 = 心情档；没素材就没后缀 = 常速）。</summary>
     private static string 走动档后缀 => 情绪变体("walk") switch { "happy" => "-fast", "poor" => "-slow", _ => "" };
@@ -1159,32 +1204,60 @@ public partial class StateMachine : Node
     private static bool 是段名(string 名)
         => 名.EndsWith("-a", StringComparison.Ordinal) || 名.EndsWith("-c", StringComparison.Ordinal);
 
-    /// <summary>按三档/组变体规则从池里挑一条主段动画名（不播放）；池不存在或为空返回 null。与包裹段共用同一套挑法。</summary>
-    private static string 挑主名(string 池)
+    /// <summary>按三档/组变体规则从池里挑一条主段动画名（不播放）；池不存在或为空返回 null。与包裹段共用同一套挑法。
+    /// 重构#6：择档走 VPet 式降级链（精确档 → 无档基名 → 相邻档），不再「精确档缺失就整池随机」。</summary>
+    public static string 挑主名(string 池)
     {
         try
         {
-            var 排除段 = Array.IndexOf(包裹池, 池) >= 0;
-            // music 池：`single-*` 是「嗨档」专用（MusicSense 显式指定），不进普通随机
-            bool 排除(string n) => (排除段 && 是段名(n)) || (池 == "music" && n.Contains("-single-"));
+            var 列表 = Main.显示人物?.动画池字典.GetValueOrDefault(池);
+            if (列表 is not { Count: > 0 }) return null;
+            // 段变体（-a/-c）不进普通随机：包裹池必然有；fidget/walk 等拆段池同理（按「池里存在段」判定，
+            // 比写死池名更稳——新池拆段后自动生效）。music 的 `single-*` 是「嗨档」专用（MusicSense 显式点播）。
+            bool 排除(string n) => (列表.Exists(x => 是段名(x.name)) && 是段名(n))
+                                   || (池 == "music" && n.Contains("-single-", StringComparison.Ordinal));
+            var 候选 = 列表.FindAll(x => !排除(x.name));
+            if (候选.Count == 0) 候选 = 列表;
+
             var 变体 = 情绪变体(池);
             if (变体.Length > 0)
             {
-                var 精确 = $"{池}-{变体}";
-                if (CharAnim.有动画(精确)) return 精确;
-                // 组变体（如 idle-happy-1/2/3）：该档位对应的是一组时，按 `{池}-{档}-` 前缀随机取一条
-                var 组 = Main.显示人物?.动画池字典.GetValueOrDefault(池)?
-                    .FindAll(x => x.name.StartsWith($"{精确}-", StringComparison.Ordinal) && !排除(x.name));
-                if (组 is { Count: > 0 }) return 组.列表随机项().name;
+                foreach (var 档 in 降级链(变体))
+                {
+                    var 精确 = $"{池}-{档}";
+                    // 单条精确（think-nomal）或组变体（idle-nomal-1/2/3）一并收
+                    var 命中 = 候选.FindAll(x => x.name == 精确
+                        || x.name.StartsWith($"{精确}-", StringComparison.Ordinal));
+                    if (命中.Count > 0) return 命中.列表随机项().name;
+                    // 无档基名（sleep-loop / say-smile：从 Nomal 素材导入、名字里不带档位）——
+                    // 它是「普通档」的实际落点，必须先于升到别的档位试（否则 sleep 会被迫演 sleep-happy）。
+                    if (档 == 变体)
+                    {
+                        var 基 = 候选.FindAll(x => 无档名(x.name, 池));
+                        if (基.Count > 0) return 基.列表随机项().name;
+                    }
+                }
             }
-            var 列表 = Main.显示人物?.动画池字典.GetValueOrDefault(池);
-            if (排除段 || 池 == "music") 列表 = 列表?.FindAll(x => !排除(x.name));
-            return 列表 is { Count: > 0 } ? 列表.列表随机项().name : null;
+            return 候选.列表随机项().name;
         }
         catch (Exception)
         {
             return null;   // 人物数据未就绪（同 选择池 的惯例）：交给应用表现的兜底
         }
+    }
+
+    /// <summary>名字里不带任何档位标记（happy/nomal/poor，以及 walk 的 fast/slow）= 「无档基名」。
+    /// 我们的导入约定：VPet 的 Nomal 档素材多数落成无档名（sleep-loop / say-smile / interact-a），
+    /// 只有部分池显式写了 `-nomal`（think/idle/music）。</summary>
+    private static bool 无档名(string 名, string 池)
+    {
+        var 余 = 名.StartsWith($"{池}-", StringComparison.Ordinal) ? 名[(池.Length + 1)..] : 名;
+        foreach (var 档 in new[] { "happy", "nomal", "poor", "fast", "slow" })
+        {
+            if (余 == 档 || 余.StartsWith($"{档}-", StringComparison.Ordinal) || 余.EndsWith($"-{档}", StringComparison.Ordinal))
+                return false;
+        }
+        return true;
     }
 
     /// <summary>包裹段解析：优先 `{主名}-{段}`（think-nomal-a / sleep-happy-c），没有则退回池级 `{池}-{段}`（sleep-a）；都没有返回 null。</summary>

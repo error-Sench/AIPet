@@ -259,41 +259,20 @@ public partial class CharAnim : AnimatedSprite2D
     {
         // 换到别的状态：作废未完成的 fidget 会话（拖拽/气泡等硬切时不留脏状态）
         if (id != "fidget") _fidget主名 = null;
-        if (显示人物.动画池字典.TryGetValue(id,out var list) && list.Count>0)
+        if (!显示人物.动画池字典.TryGetValue(id, out var list) || list.Count == 0)
         {
-            if (id == "fidget")
-            {
-                // 重构#2：池里混着 `-a`/`-c` 过渡段（fidget 拆段后），随机只挑**主段**；
-                // 主段带 `-a` = 三段结构 → 开会话（A 进场 → B 循环掷骰 → C 退场），否则单段一次过。
-                var 候选 = list.FindAll(x => !是过渡段(x.name));
-                if (候选.Count == 0) 候选 = list;
-                var 主 = 候选.列表随机项();
-                if (有动画(主.name + "-a"))
-                {
-                    开始fidget会话(主.name);
-                }
-                else
-                {
-                    _fidget主名 = null;
-                    _单例.Play(主.name);
-                }
-                return;
-            }
-            _单例.Play(list.列表随机项().name);
+            if (id != "idle") 进入状态("idle");   // ReSharper disable once TailRecursiveCall
+            return;
         }
-        else
-        {
-            if (id!="idle")
-            {
-                // ReSharper disable once TailRecursiveCall
-                进入状态("idle");
-            }
-        }   
+        // 重构#6：择档统一走 StateMachine.挑主名（VPet 式降级链 + 段排除）——
+        // idle 不再整池随机串到 happy/poor（默认钉 nomal，落实「默认普通」口径）；
+        // fidget 自动排除 -a/-c 过渡段。挑主名 返回 null（数据未就绪）时退回旧的整池随机。
+        var 主名 = StateMachine.挑主名(id) ?? list.列表随机项()?.name;
+        if (string.IsNullOrEmpty(主名)) { if (id != "idle") 进入状态("idle"); return; }
+        // 重构#2：fidget 主段带 -a = 三段结构 → 开会话（A 进场 → B 循环掷骰 → C 退场），否则单段一次过。
+        if (id == "fidget" && 有动画(主名 + "-a")) { 开始fidget会话(主名); return; }
+        _单例.Play(主名);
     }
-
-    /// <summary>fidget 池里的 A/C 过渡段（`-a`/`-c` 结尾，与包裹段同约定）——随机挑主段时排除。</summary>
-    private static bool 是过渡段(string 名)
-        => 名.EndsWith("-a", StringComparison.Ordinal) || 名.EndsWith("-c", StringComparison.Ordinal);
 
     /// <summary>开 fidget 会话：钉死主段、圈数清零、先播 A 进场段（播完由 OnAnimationFinished 接 B 循环）。</summary>
     private static void 开始fidget会话(string 主名)
