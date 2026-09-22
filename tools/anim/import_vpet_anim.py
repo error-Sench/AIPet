@@ -19,6 +19,7 @@
 import os
 import re
 import sys
+import json
 import shutil
 from collections import Counter
 from PIL import Image
@@ -26,6 +27,7 @@ from PIL import Image
 VPET = r"D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup"
 DST_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mods", "main_anim", "anim", "loris")
 REF = os.path.join(DST_ROOT, "idle/happy-1/000.png")   # 2026-09-20：idle 变体重命名 {档}-{n} 后跟着更新；注意帧名是 3 位（%03d），重导后会覆盖旧 2 位文件
+基线快照 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "baseline.json")   # 站位锚点快照（防漂移，见 基线()）
 CANVAS = 512
 
 # 固定缩放（不用每段动画各自的包围盒高度来反推！）
@@ -139,6 +141,80 @@ SPEC = {
         ("rope",      [("WORK/RopeSkipping/Nomal/B/1", None, None)]),
         ("rope-a",    [("WORK/RopeSkipping/Nomal/A", None, None)]),
         ("rope-c",    [("WORK/RopeSkipping/Nomal/C", None, None)]),
+        # ── 重构#7（2026-09-22）：补 Happy / PoorCondition 档位素材（原只导 Nomal，三档切换时 WORK 无档可换）──
+        # 命名 `{档}-{类型}`：档位是第一层轴（与 idle/music 的 `{档}-{n}` 同口径），挑主名 按 `-happy-`/-poor- 前缀收组。
+        # 每类型每档 = A + 一条 B 循环 + C（B 取与 Nomal 同名的那条，跨档「同一动作换表情」）。
+        # WorkTWO 无 Happy 源、Study 无档位源 → 不补，由降级链兜底（开心/不良档里不会出现它们）。
+        ("happy-calligraphy",   [("WORK/Calligraphy/Happy/B", None, None)]),
+        ("happy-calligraphy-a", [("WORK/Calligraphy/Happy/A", None, None)]),
+        ("happy-calligraphy-c", [("WORK/Calligraphy/Happy/C", None, None)]),
+        ("poor-calligraphy",    [("WORK/Calligraphy/PoorCondition/B", None, None)]),
+        ("poor-calligraphy-a",  [("WORK/Calligraphy/PoorCondition/A", None, None)]),
+        ("poor-calligraphy-c",  [("WORK/Calligraphy/PoorCondition/C", None, None)]),
+        ("happy-fixmenu",   [("WORK/FixMenu/Happy/B_2", None, None)]),
+        ("happy-fixmenu-a", [("WORK/FixMenu/Happy/A", None, None)]),
+        ("happy-fixmenu-c", [("WORK/FixMenu/Happy/C", None, None)]),
+        ("poor-fixmenu",    [("WORK/FixMenu/PoorCondition/B_2", None, None)]),
+        ("poor-fixmenu-a",  [("WORK/FixMenu/PoorCondition/A", None, None)]),
+        ("poor-fixmenu-c",  [("WORK/FixMenu/PoorCondition/C", None, None)]),
+        ("happy-sausage",   [("WORK/GrilledSausage/Happy/B", None, None)]),
+        ("happy-sausage-a", [("WORK/GrilledSausage/Happy/A", None, None)]),
+        ("happy-sausage-c", [("WORK/GrilledSausage/Happy/C", None, None)]),
+        ("poor-sausage",    [("WORK/GrilledSausage/PoorCondition/B", None, None)]),
+        ("poor-sausage-a",  [("WORK/GrilledSausage/PoorCondition/A", None, None)]),
+        ("poor-sausage-c",  [("WORK/GrilledSausage/PoorCondition/C", None, None)]),
+        ("happy-game",   [("WORK/PlayONE/Happy/B", None, None)]),
+        ("happy-game-a", [("WORK/PlayONE/Happy/A", None, None)]),
+        ("happy-game-c", [("WORK/PlayONE/Happy/C", None, None)]),
+        ("poor-game",    [("WORK/PlayONE/PoorCondition/B", None, None)]),
+        ("poor-game-a",  [("WORK/PlayONE/PoorCondition/A", None, None)]),
+        ("poor-game-c",  [("WORK/PlayONE/PoorCondition/C", None, None)]),
+        ("happy-water",   [("WORK/PlayWater/Happy/B", None, None)]),
+        ("happy-water-a", [("WORK/PlayWater/Happy/A", None, None)]),
+        ("happy-water-c", [("WORK/PlayWater/Happy/C", None, None)]),
+        ("poor-water",    [("WORK/PlayWater/PoorCondition/B", None, None)]),
+        ("poor-water-a",  [("WORK/PlayWater/PoorCondition/A", None, None)]),
+        ("poor-water-c",  [("WORK/PlayWater/PoorCondition/C", None, None)]),
+        ("happy-remove",   [("WORK/RemoveObject/Happy/B", None, None)]),
+        ("happy-remove-a", [("WORK/RemoveObject/Happy/A", None, None)]),
+        ("happy-remove-c", [("WORK/RemoveObject/Happy/C", None, None)]),
+        ("poor-remove",    [("WORK/RemoveObject/PoorCondition/B", None, None)]),
+        ("poor-remove-a",  [("WORK/RemoveObject/PoorCondition/A", None, None)]),
+        ("poor-remove-c",  [("WORK/RemoveObject/PoorCondition/C", None, None)]),
+        ("happy-rope",   [("WORK/RopeSkipping/Happy/B/1", None, None)]),
+        ("happy-rope-a", [("WORK/RopeSkipping/Happy/A", None, None)]),
+        ("happy-rope-c", [("WORK/RopeSkipping/Happy/C", None, None)]),
+        ("poor-rope",    [("WORK/RopeSkipping/PoorCondition/B/1", None, None)]),
+        ("poor-rope-a",  [("WORK/RopeSkipping/PoorCondition/A", None, None)]),
+        ("poor-rope-c",  [("WORK/RopeSkipping/PoorCondition/C", None, None)]),
+        ("happy-paint",   [("WORK/StudyPaint/Happy/B", None, None)]),
+        ("happy-paint-a", [("WORK/StudyPaint/Happy/A", None, None)]),
+        ("happy-paint-c", [("WORK/StudyPaint/Happy/C", None, None)]),
+        ("poor-paint",    [("WORK/StudyPaint/PoorCondition/B", None, None)]),
+        ("poor-paint-a",  [("WORK/StudyPaint/PoorCondition/A", None, None)]),
+        ("poor-paint-c",  [("WORK/StudyPaint/PoorCondition/C", None, None)]),
+        ("happy-study2",   [("WORK/StudyTWO/Happy/B_3", None, None)]),
+        ("happy-study2-a", [("WORK/StudyTWO/Happy/A", None, None)]),
+        # study2 的 Happy 源没有 C 段（VPet 自己留白）——退出段走 段名() 的「同类无档」降级（work-study2-c），
+        # 这正是 VPet「每段动画各自找档」的语义，不要补假素材。
+        ("poor-study2",   [("WORK/StudyTWO/PoorCondition/B_3", None, None)]),
+        ("poor-study2-a", [("WORK/StudyTWO/PoorCondition/A", None, None)]),
+        ("poor-study2-c", [("WORK/StudyTWO/PoorCondition/C", None, None)]),
+        ("happy-clean",   [("WORK/WorkClean/Happy/B_1", None, None)]),
+        ("happy-clean-a", [("WORK/WorkClean/Happy/A", None, None)]),
+        ("happy-clean-c", [("WORK/WorkClean/Happy/C", None, None)]),
+        ("poor-clean",    [("WORK/WorkClean/PoorCondition/B_1", None, None)]),
+        ("poor-clean-a",  [("WORK/WorkClean/PoorCondition/A", None, None)]),
+        ("poor-clean-c",  [("WORK/WorkClean/PoorCondition/C", None, None)]),
+        ("happy-write",   [("WORK/WorkONE/Happy/B", None, None)]),
+        ("happy-write-a", [("WORK/WorkONE/Happy/A", None, None)]),
+        ("happy-write-c", [("WORK/WorkONE/Happy/C", None, None)]),
+        ("poor-write",    [("WORK/WorkONE/PoorCondition/B", None, None)]),
+        ("poor-write-a",  [("WORK/WorkONE/PoorCondition/A", None, None)]),
+        ("poor-write-c",  [("WORK/WorkONE/PoorCondition/c", None, None)]),   # 源目录就小写 c（WorkONE 唯一一处）
+        ("poor-pc",   [("WORK/WorkTWO/PoorCondition/B_1", None, None)]),
+        ("poor-pc-a", [("WORK/WorkTWO/PoorCondition/A", None, None)]),
+        ("poor-pc-c", [("WORK/WorkTWO/PoorCondition/C", None, None)]),
     ],
     "interact": [
         # 摸头反应其实是三段：A=进入(中立→抱头) B=保持(抱头) C=退出(抱头→中立)。
@@ -351,8 +427,8 @@ def 帧序(name):
     return int(m.group(1)) if m else 0
 
 
-def 前缀(name):
-    """取 `前缀_帧序_时长.png` 里的前缀；不符合该结构返回 None。"""
+def 帧前缀(name):
+    """取 `前缀_帧序_时长.png` 里的前缀（注意别和 收集片段 里的局部变量 `前缀` 混了——2026-09-22 踩过遮蔽坑）；不符合该结构返回 None。"""
     m = re.match(r"^(.*?)_\d+_\d+\.png$", name, re.IGNORECASE)
     return m.group(1) if m else None
 
@@ -375,8 +451,19 @@ def union_bbox(paths):
 
 
 def 基线():
+    """角色站位锚点（底边 y / 中心 x / 角色高）——冻结在 tools/anim/baseline.json 里。
+    2026-09-22：旧实现每轮从 REF（= 导入产物 idle/happy-1）现场算，全量重导时
+    「拿产物当基准」自反馈，每轮漂移 +8px（教训见 43b4998 提交说明）。
+    快照一旦生成就不再变——所有导入对齐同一锚点；删掉快照才会从 REF 重新生成。"""
+    if os.path.isfile(基线快照):
+        with open(基线快照, encoding="utf-8") as fp:
+            return json.load(fp)
     bb = Image.open(REF).convert("RGBA").getchannel("A").getbbox()
-    return {"bottom": bb[3], "cx": (bb[0] + bb[2]) / 2, "h": bb[3] - bb[1]}
+    d = {"bottom": bb[3], "cx": (bb[0] + bb[2]) / 2, "h": bb[3] - bb[1]}
+    with open(基线快照, "w", encoding="utf-8") as fp:
+        json.dump(d, fp, ensure_ascii=False, indent=1)
+    print(f"[基线] 首次生成快照 -> {基线快照}（此后不再从 REF 现场计算）")
+    return d
 
 
 def 收集片段(片段列表, 报告):
@@ -403,12 +490,19 @@ def 收集片段(片段列表, 报告):
                 continue
         # 规则 4：判据必须是**帧序号重复**，不能是「文件名前缀不同」——VPet 里有帧名拼写不一致的真实案例：
         #   SideHide_Right_Main/Nomal/A 里 A_000..A_013 少一个 A_011，而第 11 帧被命名成 A01_011。
+        # 2026-09-22 细化：重号分两种处置——
+        #   ① 前缀相同（如 RopeSkipping/Happy/C 的 跳绳开心_000_124 + 跳绳开心_000_125）：源作者没重编号，
+        #      仍是同一序列 → **保留**（排序键退化为「序号, 文件名」= 与源收录顺序一致）；
+        #   ② 前缀不同（FLA_/FLB_ 两条序列混装）→ 真混装，跳过，用 4 元组的前缀切片拆。
         序号集 = [帧序(f) for f in frames]
         if len(set(序号集)) != len(序号集):
-            重复 = [s for s, c in Counter(序号集).items() if c > 1]
-            报告.append(f"  [跳过] {源}: 帧序号重复 {sorted(重复)[:3]} —— 确实混了两条序列，需人工拆目录")
-            continue
-        frames = [f for _, f in sorted(zip(序号集, frames))]  # 按帧序号排序（而非文件名序）
+            重复序 = {s for s, c in Counter(序号集).items() if c > 1}
+            重复帧 = [f for f in frames if 帧序(f) in 重复序]
+            if len({帧前缀(f) for f in 重复帧}) > 1:
+                报告.append(f"  [跳过] {源}: 帧序号重复 {sorted(重复序)[:3]}（跨前缀）—— 确实混了两条序列，需人工拆目录")
+                continue
+            报告.append(f"  [保留] {源}: 帧序号重复 {sorted(重复序)[:3]}（同前缀 = 源未重编号，收入全部帧）")
+        frames = [f for _, f in sorted(zip(序号集, frames))]  # 按（帧序号, 文件名）排序（而非纯文件名序）
         # 规则 7：帧切片（含端点）
         if 起 is not None or 止 is not None:
             lo = 起 if 起 is not None else 帧序(frames[0])

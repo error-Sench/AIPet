@@ -12,7 +12,7 @@
 | 素材规模 | **609 个帧目录 / 6181 帧 / 25 大类** | 26 池 / 191 变体 / 2099 帧 | 帧数只有 1/3 |
 | 状态档 | **4 档**（Happy/Nomal/PoorCondition/**Ill 生病**；WORK 素材只有前 3 档） | 3 档（无 Ill） | 少一档 |
 | 待机场 | Idel 类 **10 种动画名 / 73 目录 849 帧**（Tennis/Meow/aside/Squat/meowlook/Bubbles/yawning/happy_like520/Boring/amusement_B——**10 种我们全导了**，amusement_B 用作 greet） | fidget 14 变体 340 帧 | 种数齐；缺 Happy/Poor 档位变体与冗余 B 变体（849→340 帧） |
-| 干活 | WORK **13 种 × A/B/C × 3 档（Happy 58/Nomal 49/Poor 57 目录）× 多 B 变体 = 180 目录 2214 帧** | 39 变体 493 帧（只取 Nomal 档 + 单个最全 B） | 差 4.5 倍（档位+变体） |
+| 干活 | WORK **13 种 × A/B/C × 3 档（Happy 58/Nomal 49/Poor 57 目录）× 多 B 变体 = 180 目录 2214 帧** | **107 变体 1369 帧**（3 档全；每类型每档取单个 B） | 档位齐（重构#7）；余「多 B 变体」维度 |
 | 帧时长 | **每帧独立 ms**（文件名尾数），主力 125ms=8fps，但 250/375/500 大量存在 | 每池统一 rate（8fps） | 节奏细节丢失 |
 | B 循环圈数 | lps `duration:` 表（squat#20 boring#20 sleep#20，默认 10）+ **概率递减退出** | 状态机定时/包裹段播完即切 | 机制不同 |
 | 渲染 | **双 Grid 交替缓冲**（无缝切换）+ 运行时拼图缓存（cache/） | AnimatedSprite2D 单节点（启动全量预载） | ~~切换有黑帧风险~~ 2026-09-22 BufferProbe 实证零空窗——VPet 双缓冲是 WPF 异步读盘的补丁，预载架构不需要（见 §7.8） |
@@ -314,8 +314,8 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 3. ✅ **EventTimer 概率爬坡**（2026-09-22 完成）：首次走动之后的自主走动改 VPet 式爬坡骰子（`MainLogic.cs:489-494` 同款）——每「爬坡秒」（15s）掷 `Next(max(爬坡下限, 爬坡周期 - 连续待机秒))`，命中前「爬坡移动槽」（3）个值 → 走动；**闲置越久窗口越小越走得勤，互动/走动后清零重新爬坡**（= CountNomal 语义）。参数进 `behavior.json`（爬坡秒/周期/下限/移动槽，默认 15/200/20/3 = VPet intercycle 默认；模拟中位 ~210s，与旧固定 120~300s 倒计时量级一致）。旧「走动间隔最小/最大秒」均匀倒计时删除（无爬坡、机械）。骰子数学提取为纯函数 `爬坡窗口()`/`爬坡掷骰()`。验证：RampProbe 10 断言（窗口公式/触底不破/大样本命中率 1.54%→2.99%→15.28% 与理论一致/互动清零）+ WalkProbe（端到端实机走位）全 PASS。
 4. **Move 接力**：走→爬→顶→掉用「兼容 Move 40% 接力」模型重写（现在是自写相位机，行为对但扩展性差；加新移动方式要改代码，VPet 只要加一行 lps）。**暂缓**（2026-09-22）：行为已正确，重写只为扩展性，性价比低——等真要加新移动方式（游泳/飞行 mod）再做。
 5. ✅ **Touch B 循环续命**（2026-09-22 完成，VPet `SetContinue` 语义，`PNGAnimation.cs:556-574` + `MainDisplay.cs:146-165`）：同类触摸序列进行中又摸——A 段忽略（进场不打断）、**B 段续命**（这圈播完重播 B、不进 C）、C 段照常排队开新一轮。实现：`_序列续命` 标记 + `推进序列()` 消费；`摸摸()` 按段序分流。此前连续摸会排队重播整条 A→B→C（反复重演进场动作，观感差）。验证：TouchProbe F 组 8 断言（A 段续摸忽略/B 段续命置位/续命消费后仍在 B/无续命正常进 C/C 播完回 idle）全 PASS。
-6. **Ill 第 4 档** + 档位降级检索链（Happy↔Nomal↔Poor 互备、Ill 不外泄）。
-7. **档位补全**：WORK 的 Happy/Poor 档（现只有 Nomal）+ IDEL 各 B 变体（原版每圈换花样，我们钉死一个）。**IDEL 10 种动画名已全部导入**（2026-09-22 盘点确认，amusement_B 用作 greet）——种数不缺，缺的是档位/变体维度。
+6. ✅ **Ill 第 4 档 + 档位降级检索链**（2026-09-22 完成，`1dde4bd`）。**Ill 不引入**（决策）：Ill 素材仅 14/609 目录、全在未导入类（Eat/Drink/Gift/Raise），且我们无生病玩法（三档=手动档位）——降级链里没有 ill 档。**降级链**（对齐 VPet `GraphCore.FindGraphs` 的 ModeType 相邻降级）：`挑主名` = 精确档 → **无档基名**（Nomal 素材落点，先于升档试）→ 相邻档（happy↔nomal↔poor，序号相邻）→ 候选随机；`情绪变体` 修正——三档关/普通返回 `"nomal"` 而非空串（旧行为 = 整池随机串到 happy/poor 变体，违背「默认普通」口径）；`CharAnim.进入状态` 统一走 `挑主名`（idle 不再整池随机串档）。验证：GradeProbe 10 断言（200 次择档零串档/精确档命中/say+sleep 降级/800 次零段漏/链序=VPet 相邻档/无 ill）全 PASS。
+7. ✅ **档位补全：WORK Happy/Poor**（2026-09-22 完成）：13 类型里 12 个补 Happy/PoorCondition（WorkTWO 无 Happy 源、Study 无档位源 → 降级链兜底，开心/不良档里不出现）；命名 `{档}-{类型}`（与 idle/music 的 `{档}-{n}` 同口径，`挑主名` 按 `-happy-`/`-poor-` 前缀收组）；新增 **876 帧 / 68 变体**（work 池 39→107 变体、493→1369 帧；B 取与 Nomal 同名的那条 = 跨档「同一动作换表情」）。`段名` 加「**同类无档**」降级（`work-happy-study2-c` → `work-study2-c`——study2 的 Happy 源就没有 C 段，VPet 自己留白；对齐 VPet「每段动画各自找档」语义，不补假素材）。验证：PoolProbe 新增 12 必存在 + GradeProbe ⑥ 组 6 断言（档位择档/精确段命中/同类降级/既有段不受影响）全 PASS。余下：IDEL 各 B 变体维度（原版每圈换花样，我们钉死一个——低优先，见 #9 行下注）。
 8. ✅ **双缓冲渲染——判定：不需要**（2026-09-22，BufferProbe 实证）。VPet 的双 Grid 交替（MainDisplay.cs:556-608 `petgridcrlf` 翻转）是给 WPF 打的补丁：新动画要**运行时异步读盘+拼图**（cache/），加载期间旧 Grid 已 Stop → 不交替就会黑帧。我们启动时把全部纹理预载进 SpriteFrames（AddFrame(ImageTexture)），`Play(新名)` 同帧生效、不存在加载空窗。实证：BufferProbe 模拟段切换风暴（每 3 帧跨池换名 ~136 次），390+ 帧全程断言「当前动画存在且帧数 ≥1」——**零空窗帧**。单节点架构已覆盖该问题，不引入第二个 AnimatedSprite2D（省一半 draw call 与状态同步复杂度）。
 9. StateONE/TWO 嵌套待机场（低优先，State 素材 22 目录还没导）。
 

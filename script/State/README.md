@@ -80,7 +80,7 @@ StateMachine.EnqueueChain(
 | `walk` | left / right + 快/慢档 + 每档 `-a`/`-c` 起步/停步段 | 6+6 / 10+10 / 5+5 + 段共 80 | VPet `MOVE/walk.*`；**循环**（段非循环）。P10：快/慢 = 三档档位（`walk.*.faster`=Happy / `walk.*.slow`=PoorCondition；三档开关打开时生效），位移速度同步。**2026-09-20**：走链三段分播（`-a` 起步 / 循环 / `-c` 停步），阶段时长按素材帧数算、位移只在循环段推进 |
 | `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
 | `say` | smile / self / serious / shy | 7/15/4/5 | VPet `Say/Shining·Self·Serious·Shy`（P10 补害羞档）|
-| `work` | 13 种 + 每项 `-a`/`-c` 段（包裹段）| 共 493 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`）|
+| `work` | 13 种 × {Nomal + happy/poor 档} + 每项 `-a`/`-c` 段（包裹段）| 共 1369 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`；**2026-09-22 重构#7**：补 Happy/PoorCondition 档素材（`{档}-{类型}` 命名，`挑主名` 按前缀收组；12/13 种有源，降级链兜底）|
 | `sleep` | loop / happy | 6+6 | VPet `Sleep/B_Nomal·B_Happy`；**循环** |
 | `greet` | amuse / meow | 11/20 | VPet `IDEL/amusement_B·Meow/Happy/1`（VPet 无专门打招呼动作，取开心姿势） |
 | `interact` | a / b / c + happy-a / happy-b / happy-c | 2/11/2 + 3/12/2 | VPet `Touch_Head/{Nomal,Happy}/{A,B,C}`（**三段序列**；P10 补高兴档）|
@@ -354,7 +354,7 @@ StateMachine.EnqueueChain(
 | 项 | 做法 |
 |---|---|
 | **摸身体** | 单击部位分流：**脸区优先**（捏脸那套）→ 身体区（`HitRegion` 公共命中判定；比例由官方 `.lps` 的 `touchbody: px166 py206 sw163 sh136` 换算）→ 都不中当摸头。头 = `interact` 序列；身体 = `interact_body` 序列；**30% 概率**改成 `turn`（转身躲一下）|
-| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。开着时 `情绪变体()` **手动档位生效**（开心→happy / 不良→poor / 普通→不带变体）；关着时池内随机。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）。**2026-09-20 组①：`idle` 也纳入择档**（`idle-happy-1..3` / `idle-nomal-1..3` / `idle-poor-1..2`——档位对应一组时按 `{池}-{档}-` 前缀随机取一条）|
+| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。`情绪变体()` 手动档位生效（开心→happy / 不良→poor / **普通或关闭→nomal**——重构#6 起普通档钉住 nomal 组，不再整池随机串档）。择档走**降级链**（VPet `GraphCore.FindGraphs` 语义）：精确档 → **无档基名**（Nomal 素材落点）→ 相邻档（happy↔nomal↔poor）→ 候选随机；**Ill 档刻意不引入**（无生病玩法）。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）。**2026-09-20 组①：`idle` 也纳入择档**（`idle-happy-1..3` / `idle-nomal-1..3` / `idle-poor-1..2`——档位对应一组时按 `{池}-{档}-` 前缀随机取一条）|
 | **走路快慢** | 快/慢 = 三档档位（VPet 里 faster=Happy、slow=PoorCondition）：动画 `walk-{方向}[-fast|-slow]` + 位移速度 ×1.35 / ×0.72（同步，避免滑步；三档默认关 = 常速）|
 | **干活进出场** | `开始干活()` → `work_in`（`switch-up`）→ **自动回落** working；`结束干活()` → `work_out`（`switch-down`）→ idle。`状态效果` 新增两个字段：`具体动画`（一个池服务多个状态时钉死播哪个）与 `回落`（非持续态到点回落到哪，默认 idle）|
 | **摸头高兴档** | 序列也支持换档：`播放序列段()` 会用 `情绪变体(池)` 把 `interact-a` 换成 `interact-happy-a`（素材在才换，不硬造）|
@@ -380,7 +380,7 @@ StateMachine.EnqueueChain(
 
 - 状态效果加 `包裹 = true`（现标：`think` / `speak` / `sleep` / `work` / `music` / `bubble_talk`）。进入时 `挑主名(池)` 挑一条主段**钉住整段会话**；有 A 段就先播 A，播完经 `重播当前状态()` 接主段；主段循环走「钉死主段」分支。
 - **退出是延迟的**：切别的状态先播 C，播完才落地（`_退出目标`）；C 期间逻辑状态仍是原状态。**硬接管例外**（拖拽 / 捏脸 / 贴边）跳过 C —— 用户上手要立刻响应。
-- 段名解析 `段名(主名, "a"/"c")`：优先 `{主名}-{段}`（`think-happy-a`），退回池级 `{池}-{段}`（`sleep-loop` → `sleep-a`）。
+- 段名解析 `段名(主名, "a"/"c")`：① 精确 `{主名}-{段}`（`think-happy-a`）；② **同类无档** `{池}-{去档前缀}-{段}`（`work-happy-study2-c` → `work-study2-c`，源缺该档段时退 Nomal 素材——重构#7）；③ 池级 `{池}-{段}`（`sleep-loop` → `sleep-a`）。
 - `挑主名()` 对包裹池（think/say/sleep/music/work）随机时**排除段本身**（`-a`/`-c` 结尾），否则 `sleep-a` 会被当主段抽到。
 - 重播门：`CharAnim.OnAnimationFinished` 派发条件加 `|| StateMachine.包裹中`（非锁定态如 bubble_talk 的段推进也归状态机管）；`标记状态`（拖拽）/ 链节 / `准备退出` 清包裹会话。
 - **探针要「即时切换」语义时置 `StateMachine.探针_禁用包裹`**（StateProbe / PoolProbe 已置；包裹段专测 = WrapProbe）。

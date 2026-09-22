@@ -35,6 +35,12 @@ public partial class PoolProbe : Node
         "say-shy",
         "work-calligraphy", "work-paint", "work-study2", "work-sausage", "work-clean",
         "work-fixmenu", "work-game", "work-water", "work-remove", "work-rope",
+        // 重构#7：WORK Happy/Poor 档素材（挑主名 按 -happy-/-poor- 前缀收组；段名 同类降级）
+        "work-happy-calligraphy", "work-happy-calligraphy-a", "work-happy-calligraphy-c",
+        "work-poor-calligraphy", "work-poor-calligraphy-c",
+        "work-happy-write", "work-poor-write", "work-poor-write-c",
+        "work-happy-study2", "work-happy-study2-a",
+        "work-poor-pc", "work-poor-pc-c",
         "walk-left-fast", "walk-right-fast", "walk-left-slow", "walk-right-slow",
         "fidget-squat", "fidget-tennis", "fidget-bubbles", "fidget-boring", "fidget-aside",
         "interact_body-a", "interact_body-b", "interact_body-c",

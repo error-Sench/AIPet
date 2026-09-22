@@ -114,6 +114,30 @@ public partial class GradeProbe : Node
                 断言(StateMachine.降级链("happy")[1] == "nomal" && StateMachine.降级链("poor")[1] == "nomal"
                         && StateMachine.降级链("nomal")[1] == "poor" && StateMachine.降级链("nomal")[2] == "happy",
                     "降级链顺序 = VPet 相邻档（happy→nomal、poor→nomal、nomal→poor→happy）");
+                break;
+
+            // ── ⑥ WORK 档位素材（重构#7）+ 段名同类降级 ──
+            case 26:
+                StateMachine.设置.三档状态启用 = true;
+                StateMachine.设置.状态档位 = "开心";
+                var w名 = StateMachine.挑主名("work");
+                断言(w名 != null && w名.StartsWith("work-happy-", StringComparison.Ordinal),
+                    $"开心档 work → work-happy-*（实际 {w名}）");
+                StateMachine.设置.状态档位 = "不良";
+                var w名2 = StateMachine.挑主名("work");
+                断言(w名2 != null && w名2.StartsWith("work-poor-", StringComparison.Ordinal),
+                    $"不良档 work → work-poor-*（实际 {w名2}）");
+                StateMachine.设置.三档状态启用 = false;
+                var w名3 = StateMachine.挑主名("work");
+                断言(w名3 != null && !w名3.Contains("-happy-", StringComparison.Ordinal)
+                        && !w名3.Contains("-poor-", StringComparison.Ordinal),
+                    $"普通档 work → 无档基名（实际 {w名3}）");
+                断言(StateMachine.探针_段名("work-happy-calligraphy", "a") == "work-happy-calligraphy-a",
+                    "档位段精确命中（calligraphy Happy A）");
+                断言(StateMachine.探针_段名("work-happy-study2", "c") == "work-study2-c",
+                    "档位段缺失 → 同类无档降级（study2 Happy 无 C 源 → Nomal C）");
+                断言(StateMachine.探针_段名("sleep-happy", "a") == "sleep-happy-a",
+                    "既有段解析不受新降级影响（sleep-happy-a）");
                 GD.Print($"[GRADE] ===== 失败数 = {_失败} =====");
                 GD.Print(_失败 == 0 ? "[GRADE] PASS" : "[GRADE] FAIL");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);

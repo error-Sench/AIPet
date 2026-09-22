@@ -1277,7 +1277,9 @@ public partial class StateMachine : Node
         return true;
     }
 
-    /// <summary>包裹段解析：优先 `{主名}-{段}`（think-nomal-a / sleep-happy-c），没有则退回池级 `{池}-{段}`（sleep-a）；都没有返回 null。</summary>
+    /// <summary>包裹段解析：① 精确 `{主名}-{段}`（think-nomal-a / work-happy-calligraphy-c）；
+    /// ② 同类无档 `{池}-{去掉档位前缀}-{段}`（work-happy-study2-c → work-study2-c；VPet 每段动画各自找档，
+    /// Happy 源缺 C 时退 Nomal 素材——重构#7）；③ 池级 `{池}-{段}`（sleep-a）；都没有返回 null。</summary>
     private static string 段名(string 主名, string 段)
     {
         if (string.IsNullOrEmpty(主名)) return null;
@@ -1285,9 +1287,21 @@ public partial class StateMachine : Node
         if (CharAnim.有动画(变体段)) return 变体段;
         var i = 主名.IndexOf('-');
         if (i < 0) return null;
-        var 池段 = $"{主名[..i]}-{段}";
+        var 池 = 主名[..i];
+        foreach (var 档 in new[] { "happy", "poor" })
+        {
+            var 档前缀 = $"{池}-{档}-";
+            if (!主名.StartsWith(档前缀, StringComparison.Ordinal)) continue;
+            var 无档 = $"{池}-{主名[档前缀.Length..]}";
+            if (CharAnim.有动画($"{无档}-{段}")) return $"{无档}-{段}";
+            break;
+        }
+        var 池段 = $"{池}-{段}";
         return CharAnim.有动画(池段) ? 池段 : null;
     }
+
+    /// <summary>探针：段名解析（GradeProbe 校验档位段降级链）。</summary>
+    public static string 探针_段名(string 主名, string 段) => 段名(主名, 段);
 
     private static void 应用表现(string state)
     {
