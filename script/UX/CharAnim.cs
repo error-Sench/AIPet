@@ -42,8 +42,13 @@ public partial class CharAnim : AnimatedSprite2D
          "jump",
          // 坐卧长待机会话（重构#9：VPet StateONE/StateTWO 嵌套待机场；表现由 CharAnim 会话自管）
          "sit", "lie",
+         // 攻击（2026-09-22 主人点名：X 键；素材未到、逻辑先接）——GamePlayer 播 `attack-left/right`，
+         // 缺素材自动回退（`attack` → 保持姿态）；素材导入后随池自动生效
+         "attack",
          // 音乐反应（2026-09-20 组③：VPet Music；包裹段 + MusicSense）
-         "music"];
+         "music",
+         // 登场/退场（2026-09-22：游戏起跳占位用 `enter-2`；两池原本只随机载 1 条，登记后全变体常驻）
+         "enter", "exit"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。
     /// fall 同理：`-b`（横着下落）在智能移动与游戏模式的空中段都当持续姿态用（`-a`/`-c` 段仍被排除，见加载处）。</summary>
