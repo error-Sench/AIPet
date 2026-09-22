@@ -180,7 +180,7 @@ lps duration: state#10 squat#20 boring#20 sleep#20（其余默认 10）
 
 **实测模拟**（Python 复刻 `Rnd.Next(++n) > L`，20 万次）：L=10 → 平均 **15.5 圈**；L=20 → 平均 **27.1 圈**。
 同名 B 多变体时每圈还换花样（tennis 的 B/B_2/B_3/B_4），观感不重复；EventTimer 15s 骰子也可能打断。
-Move 的 `Rnd.Next(walklength++) < Distance` 同法实测：Distance=7 → 平均 **11.7 段 B**（×0.75s/段 ≈ 走 9s）。
+Move 的 `Rnd.Next(walklength++) < Distance` 同法实测（30 万次，C# 复刻 post-increment 口径 = `while (Rnd.Next(walk++) < D)`，源码行 `GraphHelper.cs:519`）：Distance=5 → **8.19 段 B**；**Distance=7 → 10.69 段 B**（×0.75s/段 ≈ 8.0s）；Distance=8 → 11.92；Distance=10 → 14.34。注意 `walklength` 从 0 起 post-increment → **头两次检查恒为 `Next(0)=0` / `Next(1)=0`，必续圈**。（旧记「11.7」为口径偏差，已按实测修正。）
 
 **StateONE/StateTWO 嵌套场**（MainDisplay.cs:207-266）：StateONE 循环中可**概率跳进 StateTWO**（`Rnd.Next(2+CountNomal)` 掷中 0 → StateTWO），StateTWO 播完 C 又回 StateONEing——**两套待机场互相嵌套轮换**。→ **✅ 重构#9 已实现**：`sit`（StateONE）/`lie`（StateTWO）两池 + CharAnim 嵌套会话（进 sit / 进 lie / 退 lie 三处 looptimes 清零、CountNomal 已躺次数压重复躺下、会话期间不掷显示骰子）；验证 SitProbe 36 断言。
 
@@ -222,7 +222,7 @@ move.Display(m):
         !Checked() → 40% 概率(Rnd.Next(TreeRND=5)<=1)换兼容 Move(GetCompatibilityMove:
                      同方向加分/反向减分,分数>=0 且 Triggered 的随机) 否则 StopMoving
         Rnd.Next(walklength++) < Distance → 继续 B_Loop 递归
-            // ★Distance=7: 走得越久越容易停（实测平均 11.7 段 ≈ 9s 路程，负反馈）
+            // ★Distance=7: 走得越久越容易停（实测平均 10.7 段 ≈ 8s 路程，负反馈）
         否则 40% 换兼容 Move，否则 StopMoving
     StopMoving(): 停 MoveTimer → Display(graph, C_End) → DisplayToNomal   // 停步收势
 ```
