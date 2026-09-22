@@ -21,6 +21,8 @@ public partial class GamePlayer : CharacterBody2D
     public const float 下落重力倍率 = 1.3f;  // 下落段重力加成：落地更快、不飘（起跳段不受影响）
     public const float 掉落重生Y = 900f;     // 掉出世界 → 回出生点
     public const float 检查点间隔秒 = 5f;    // 游玩中每 N 秒静默记一次检查点
+    /// <summary>相机纵向比例（主人 2026-09-22「人物在屏幕中下」）：0.5 = 正中，越大人物越靠下。</summary>
+    public const float 屏幕纵向比例 = 0.66f;
     public const int 掉落扣血 = 20;          // 掉出世界一次扣多少血（0 血 → 「玩累了」退场，见 GameHost）
 
     /// <summary>探针注入：非 0 时优先于真实键盘（确定性测试用；±1 = 左/右）。</summary>
@@ -74,12 +76,15 @@ public partial class GamePlayer : CharacterBody2D
         var dt = (float)delta;
 
         // —— 水平输入（物理键位 = 键盘布局无关） ——
+        // 失焦不响应操作（主人 2026-09-22）：真实键盘只在窗口聚焦时生效；探针注入不受影响
+        var 聚焦 = GameHost.单例?.聚焦中 == true;
         var 水平 = 探针_水平输入 != 0f
             ? Mathf.Sign(探针_水平输入)
-            : (Input.IsPhysicalKeyPressed(Key.A) ? -1f : 0f) + (Input.IsPhysicalKeyPressed(Key.D) ? 1f : 0f);
+            : 聚焦 ? (Input.IsPhysicalKeyPressed(Key.A) ? -1f : 0f) + (Input.IsPhysicalKeyPressed(Key.D) ? 1f : 0f)
+            : 0f;
 
         // —— 跳跃输入：按下沿记缓冲；离地计时供土狼窗口 ——
-        var 按跳 = 探针_跳 || Input.IsPhysicalKeyPressed(Key.Space);
+        var 按跳 = 探针_跳 || (聚焦 && Input.IsPhysicalKeyPressed(Key.Space));
         if (按跳 && !_跳跃上次) _跳跃缓冲 = 0f; else _跳跃缓冲 += dt;
         _跳跃上次 = 按跳;
         if (IsOnFloor()) _离地长 = 0f; else _离地长 += dt;
@@ -109,9 +114,9 @@ public partial class GamePlayer : CharacterBody2D
         // —— 掉出世界 → 回出生点 ——
         if (GlobalPosition.Y > 掉落重生Y) 重生();
 
-        // —— 相机跟随（指数平滑，不跟死） ——
+        // —— 相机跟随（指数平滑，不跟死；目标含「人物在屏幕中下」的纵向偏置） ——
         if (_相机 != null && IsInstanceValid(_相机))
-            _相机.GlobalPosition = _相机.GlobalPosition.Lerp(GlobalPosition, 1f - Mathf.Exp(-7f * dt));
+            _相机.GlobalPosition = _相机.GlobalPosition.Lerp(相机目标(), 1f - Mathf.Exp(-7f * dt));
 
         // —— 检查点节流（进度保留；退出时 GameHost 还会立刻补记一次） ——
         _检查点计时 -= dt;
@@ -158,12 +163,25 @@ public partial class GamePlayer : CharacterBody2D
         }
     }
 
+    /// <summary>相机目标点：玩家位置 + 纵向偏置（人物落在屏幕中下，主人 2026-09-22）。</summary>
+    public Vector2 相机目标()
+    {
+        var 视口高 = GetViewportRect().Size.Y / (_相机?.Zoom.Y ?? 1f);
+        return GlobalPosition + new Vector2(0f, -(屏幕纵向比例 - 0.5f) * 视口高);
+    }
+
+    /// <summary>相机瞬移吸附到目标点（出生 / 重生用）。</summary>
+    public void 相机吸附()
+    {
+        if (_相机 != null && IsInstanceValid(_相机)) _相机.GlobalPosition = 相机目标();
+    }
+
     /// <summary>回出生点（掉出世界用）。相机瞬移吸附 —— 别从原地慢慢平移过去。扣血、血空 → 「玩累了」。</summary>
     public void 重生()
     {
         GlobalPosition = _出生点;
         Velocity = Vector2.Zero;
-        if (_相机 != null && IsInstanceValid(_相机)) _相机.GlobalPosition = _出生点;
+        相机吸附();
         GameSession.设血量(GameSession.血量 - 掉落扣血);
         GD.Print($"[Game] 掉出世界 → 回出生点（血量 {GameSession.血量}）");
         GameHost.单例?.刷新状态UI();

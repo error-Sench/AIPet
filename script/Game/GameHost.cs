@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using desktop.script.State;
 using desktop.script.UX;
+using desktop.script.Util;
 
 namespace desktop.script.Game;
 
@@ -39,8 +40,11 @@ public partial class GameHost : Node
     public const int 星星回血 = 15;
 
     // —— 关卡配色（想微调就改这几个；视觉验收标准见 tests/GameProbe） ——
-    // 背板半透明（主人 2026-09-20 要的）：游戏浮在桌面上、透出底下的桌面；地面/平台仍不透明（可读性）
-    private const float 背板不透明度 = 0.55f;
+    // 背板**全透明**（主人 2026-09-22：只留关卡本体浮在桌面上）；地面/平台仍不透明（可读性）
+    private const float 背板不透明度 = 0f;
+
+    /// <summary>相机倍率（主人 2026-09-22「还是太大」再调小：1.3 → 1.1 → 0.8）。</summary>
+    private const float 相机倍率 = 0.8f;
     private static readonly Color 背板色 = new(0.87f, 0.92f, 1.0f, 背板不透明度);
     private static readonly Color 地面色 = new(0.40f, 0.47f, 0.62f);
     private static readonly Color 平台色 = new(0.44f, 0.57f, 0.84f);
@@ -69,6 +73,13 @@ public partial class GameHost : Node
     private Label _状态标签;
     private float _时间;
     private bool _累了;
+    private float _透明度 = 1f;
+    private Control _界面根;
+    private bool _鼠标穿透 = true;   // 运行时状态；初值从 config/game.json 读（默认 true）
+
+    // —— 失焦表现（主人 2026-09-22）：不聚焦 → 整窗 30% 不透明（像一片影子）+ 操作不响应 ——
+    private const float 失焦透明度 = 0.30f;   // 不聚焦时整窗不透明度
+    private const float 淡变速度 = 3.5f;      // 透明度过渡速度（每秒；1.0 ↔ 0.30 约 0.2s）
 
     // —— 探针访问器（只读） ——
     public Node2D 探针_世界 => _世界;
@@ -77,6 +88,12 @@ public partial class GameHost : Node
     public Node2D 探针_精灵 => _精灵;
     public Node 探针_主场景根 => 主场景根();
     public bool 探针_累了 => _累了;
+
+    /// <summary>探针：强制失焦（测「失焦变淡 / 失焦不响应」，不去真抢焦点）。</summary>
+    public bool 探针_强制失焦 { get; set; }
+
+    /// <summary>窗口是否聚焦（游戏操作只在聚焦时响应；失焦 → 变淡 + 忽略键盘）。</summary>
+    public bool 聚焦中 => !探针_强制失焦 && GetWindow().HasFocus();
     public IReadOnlyList<(string Id, Vector2 位, Node2D 节点)> 探针_星星 => _星星;
     public string 探针_状态文本 => _状态标签?.Text ?? "";
     public static IReadOnlyList<(string Id, Vector2 位)> 探针_星星表 => 星星表;
@@ -118,6 +135,8 @@ public partial class GameHost : Node
             var 屏号 = DisplayServer.WindowGetCurrentScreen();
             DisplayServer.WindowSetSize(DisplayServer.ScreenGetSize(屏号));
             DisplayServer.WindowSetPosition(DisplayServer.ScreenGetPosition(屏号));
+            _鼠标穿透 = 读鼠标穿透配置();
+            设置鼠标穿透(_鼠标穿透);   // 纯键盘（主人 2026-09-22）：默认穿透点击桌面（M 键可切）
 
             // 4) 建世界 + 挂载
             建世界();
@@ -146,7 +165,32 @@ public partial class GameHost : Node
         GD.Print($"[Game] 退出游戏模式（窗口还原 {DisplayServer.WindowGetSize()} @ {DisplayServer.WindowGetPosition()}）");
     }
 
-    /// <summary>外部请求退出（右上角 ✕ / Esc）：先补记检查点再切模式（切换会自动存盘）。</summary>
+    /// <summary>鼠标穿透（主人 2026-09-22「纯键盘交互，鼠标穿透点击桌面」）：
+    /// 引擎侧 = WM_NCHITTEST → HTTRANSPARENT，点击直达下方窗口/桌面；游戏内一律键盘。</summary>
+    private void 设置鼠标穿透(bool 开) => GetWindow().SetFlag(Window.Flags.MousePassthrough, 开);
+
+    /// <summary>读「鼠标穿透」配置（config/game.json；缺省 = true = 穿透）。</summary>
+    private static bool 读鼠标穿透配置() =>
+        !string.Equals(ConfigEdit.读文本("config/game.json", "鼠标穿透", "true").Trim(), "false", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>M 键：鼠标穿透 ⇄ 可点击（主人 2026-09-22）；选择写回 config/game.json。</summary>
+    private void 切换鼠标穿透()
+    {
+        _鼠标穿透 = !_鼠标穿透;
+        设置鼠标穿透(_鼠标穿透);
+        ConfigEdit.写("config/game.json", "鼠标穿透", _鼠标穿透);
+        显示提示(_鼠标穿透 ? "鼠标：穿透（点桌面）" : "鼠标：可点击游戏", 1.2f);
+        GD.Print($"[Game] 鼠标穿透 = {_鼠标穿透}（已写回配置）");
+    }
+
+    /// <summary>整窗透明度（世界 + 界面一起变；失焦变淡用）。</summary>
+    private void 应用透明度(float α)
+    {
+        if (_世界 != null && IsInstanceValid(_世界)) _世界.Modulate = new Color(1f, 1f, 1f, α);
+        if (_界面根 != null && IsInstanceValid(_界面根)) _界面根.Modulate = new Color(1f, 1f, 1f, α);
+    }
+
+    /// <summary>外部请求退出（Esc；纯键盘 —— 原右上角 ✕ 按钮已移除，主人 2026-09-22）。</summary>
     public static void 请求退出()
     {
         if (单例 == null || !挂载中) return;
@@ -166,6 +210,11 @@ public partial class GameHost : Node
         if (@event is InputEventKey { Pressed: true, PhysicalKeycode: Key.Escape })
         {
             请求退出();
+            GetViewport().SetInputAsHandled();
+        }
+        if (@event is InputEventKey { Pressed: true, Echo: false, PhysicalKeycode: Key.M })
+        {
+            切换鼠标穿透();
             GetViewport().SetInputAsHandled();
         }
     }
@@ -213,11 +262,11 @@ public partial class GameHost : Node
         else GD.PrintErr("[Game] 找不到 AnimatedSprite2D —— 玩家没有外观");
 
         // 相机：世界子节点，由玩家每帧平滑跟随
-        _相机 = new Camera2D { Name = "GameCamera", Zoom = new Vector2(1.1f, 1.1f) };
+        _相机 = new Camera2D { Name = "GameCamera", Zoom = new Vector2(相机倍率, 相机倍率) };
         _世界.AddChild(_相机);
         _相机.MakeCurrent();
 
-        // 游戏内 UI（退出按钮 + 操作提示）
+        // 游戏内 UI（操作提示 + 状态行；纯键盘 —— 不设鼠标按钮，主人 2026-09-22）
         _界面层 = new CanvasLayer { Name = "GameUi", Layer = 10 };
         AddChild(_界面层);
         构建界面();
@@ -225,8 +274,8 @@ public partial class GameHost : Node
         // 出生：读检查点（进度保留）
         var 出生 = 出生点();
         _玩家.Position = 出生;
-        _相机.GlobalPosition = 出生;
         _玩家.装配(出生, _相机);
+        _玩家.相机吸附();   // 相机目标含「人物在屏幕中下」的纵向偏置（主人 2026-09-22）
         建星星();            // 收集品（已收集过的不再出现）
         刷新状态UI();
         GD.Print($"[Game] 世界就绪：出生 {出生}");
@@ -248,10 +297,12 @@ public partial class GameHost : Node
         _相机 = null;
         _玩家 = null;
         _精灵 = null;
+        _界面根 = null;
     }
 
     private void 还原壳()
     {
+        设置鼠标穿透(false);   // 保险：所有退出路径都先把鼠标交还桌面
         if (!_有存壳) return;
         DisplayServer.WindowSetSize(_原尺寸);
         DisplayServer.WindowSetPosition(_原位置);
@@ -301,15 +352,9 @@ public partial class GameHost : Node
         var 容器 = new Control { Name = "UiRoot", MouseFilter = Control.MouseFilterEnum.Ignore };
         容器.SetAnchorsPreset(Control.LayoutPreset.FullRect);
         _界面层.AddChild(容器);
+        _界面根 = 容器;
 
-        var 退出 = new Button { Name = "ExitGame", Text = "✕ 退出游戏", TooltipText = "切回办公模式（Esc）" };
-        MicaTheme.应用强调按钮(退出, 13);
-        退出.AnchorLeft = 1f; 退出.AnchorRight = 1f; 退出.AnchorTop = 0f; 退出.AnchorBottom = 0f;
-        退出.OffsetLeft = -132f; 退出.OffsetRight = -16f; 退出.OffsetTop = 16f; 退出.OffsetBottom = 50f;
-        退出.Pressed += 请求退出;
-        容器.AddChild(退出);
-
-        var 提示 = new Label { Name = "Hint", Text = "WASD 移动 · 空格 跳跃 · Esc 退出游戏" };
+        var 提示 = new Label { Name = "Hint", Text = "WASD 移动 · 空格 跳跃 · M 鼠标穿透 · Esc 退出游戏" };
         MicaTheme.应用(提示, 13);
         提示.AddThemeColorOverride("font_color", new Color(0.93f, 0.96f, 1.0f));   // 浅字
         提示.AddThemeColorOverride("font_outline_color", new Color(0f, 0f, 0f, 0.55f));
@@ -373,20 +418,21 @@ public partial class GameHost : Node
         _状态标签.Text = $"❤ {GameSession.血量}　⭐ {收}/{星星表.Length}　办公星 ×{GameSession.办公星}";
     }
 
-    /// <summary>「玩累了」：血量见底 → 回满 + 屏幕提示 + 延时自动退出（只动游戏容器，办公侧无副作用）。</summary>
+    /// <summary>「玩累了」：血量见底 → 回满 + 回出生点 + 居中提示，**不退出游戏**（主人 2026-09-22：
+    /// 死亡不该把人赶出游戏；要退出按 Esc）。只动游戏容器，办公侧无副作用。</summary>
     public void 玩累了()
     {
         if (!挂载中 || _累了) return;
         _累了 = true;
         GameSession.设血量(GameSession.血量上限);
         刷新状态UI();
-        GD.Print("[Game] 玩累了 → 血量回满，稍候自动退出");
-        显示提示("玩累了，休息一下～");
-        GetTree().CreateTimer(1.6).Timeout += () => { if (挂载中) 请求退出(); };
+        GD.Print("[Game] 玩累了 → 回满血、原地满血复活（不退出）");
+        显示提示("玩累了…拍拍灰，满血复活！", 2.5f);
+        GetTree().CreateTimer(2.5f).Timeout += () => { _累了 = false; };   // 提示消散后解锁：下一次见底还能触发
     }
 
-    /// <summary>居中大号提示（停留到世界卸载为止）。</summary>
-    private void 显示提示(string 文案)
+    /// <summary>居中大号提示（秒数到自动消散；世界卸载时一并清掉）。</summary>
+    private void 显示提示(string 文案, float 秒)
     {
         if (_界面层 == null) return;
         var 标签 = new Label
@@ -399,13 +445,19 @@ public partial class GameHost : Node
         };
         MicaTheme.应用(标签, 22);
         标签.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-        _界面层.AddChild(标签);
+        _界面根.AddChild(标签);
+        GetTree().CreateTimer(秒).Timeout += () => { if (IsInstanceValid(标签)) 标签.QueueFree(); };
     }
 
     public override void _Process(double delta)
     {
         if (!挂载中) return;
         _时间 += (float)delta;
+
+        // 失焦 = 暂停变淡（主人 2026-09-22）：不聚焦时整窗降到 30% 不透明、操作不响应；聚焦即恢复
+        var 目标α = 聚焦中 ? 1f : 失焦透明度;
+        _透明度 = Mathf.MoveToward(_透明度, 目标α, 淡变速度 * (float)delta);
+        应用透明度(_透明度);
 
         // 星星呼吸浮动（视觉提示）
         for (var i = 0; i < _星星.Count; i++)

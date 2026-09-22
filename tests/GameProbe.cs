@@ -2,6 +2,7 @@ using desktop.script.Game;
 using desktop.script.Mode;
 using desktop.script.State;
 using desktop.script.UX;
+using desktop.script.Util;
 using Godot;
 
 namespace desktop.tests;
@@ -11,12 +12,13 @@ namespace desktop.tests;
 /// ① 确认弹窗：Esc 取消（留在办公）/ 空格确认（进入游戏；主人指定空格确认）；
 /// ② 挂载：窗口铺满屏幕、世界/玩家/相机就位、桌宠精灵 Reparent 进物理体、办公面板收起；
 /// ③ 最小可玩：着地 / WSAD 位移（含走动画）/ 空格跳跃（起跳-落地，空中播 `fall-B`）/
-///    相机跟随 / 走中与空中即时转身 / 背板半透明采样（天空带 alpha、地面不透明）；
+///    相机跟随（含「人物在屏幕中下」偏置）/ 走中与空中即时转身 / 背板全透明采样（天空 alpha≈0、地面不透明）；
 /// ③b 手感三件套：F1 土狼时间（离台缘 3 帧内还能跳）/ F2 跳跃缓冲（落地前按 → 自动起跳）/
 ///    F3 可变跳高（轻点 = 小跳）；
 /// ④ 退出：**窗口几何原样还原**、精灵回主场景居中、世界清理、回到 idle、检查点已写进存档；
 /// ⑤ 「办公即游戏」钩子：干完一次活 → 办公星 +1；
-/// ⑥ 二进宫（玩法切片一）：收集星星（回血 + 存档去重）/ 掉落扣血 / 血空「玩累了」回满血并自动退场；
+/// ⑥ 二进宫（玩法切片一）：收集星星（回血 + 存档去重）/ 掉落扣血 / 血空「玩累了」回满血原地继续（**不退出**）；
+/// ⑧ 纯键盘（主人 2026-09-22）：游戏内鼠标穿透开/关断言 + Esc 退出 + **失焦变淡**（α≈0.30）+ 失焦不响应操作 + M 键切换（写回配置，探针重定向）；
 /// ⑦ 截两帧 PNG（站立 / 空中）供视觉复核。
 /// 隔离：游戏存档走临时档（GameSession.探针_覆盖存盘路径），收尾只删临时档。
 /// 用法：Godot_..._console.exe --path &lt;项目&gt; res://tests/GameProbe.tscn
@@ -31,6 +33,7 @@ public partial class GameProbe : Node
     private float _跳前Y;
     private float _最高Y;
     private float _退出前X;
+    private float _失焦前X;
     private float _转身前X;
     private int _F步骤;
     private int _F离地帧;
@@ -48,6 +51,8 @@ public partial class GameProbe : Node
         // 隔离：游戏存档走临时档
         GameSession.探针_覆盖存盘路径 = "user://probe_game_mount_tmp.json";
         try { System.IO.File.Delete(GameSession.探针_存盘路径); } catch { /* 上轮残留 */ }
+        // 隔离：配置写回走临时根（M 键切换的写回不碰真配置）
+        ConfigEdit.探针_根目录 = ProjectSettings.GlobalizePath("user://probe_cfg_tmp");
 
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
@@ -111,6 +116,9 @@ public partial class GameProbe : Node
                 断言(ModeManager.CurrentMode == ModeManager.Mode.Game, "B3 切到游戏模式");
                 断言(GameHost.挂载中, "B4 世界已挂载");
                 break;
+            case 44:
+                DisplayServer.WindowMoveToForeground();   // 保证聚焦（失焦会变淡 + 不响应，像素断言要确定性）
+                break;
             case 48:
             {
                 var 屏号 = DisplayServer.WindowGetCurrentScreen();
@@ -122,6 +130,8 @@ public partial class GameProbe : Node
                 断言(宿主?.探针_世界 != null && 宿主.探针_玩家 != null && 宿主.探针_相机 != null, "B8 世界/玩家/相机就位");
                 断言(宿主?.探针_精灵?.GetParent() == 宿主.探针_玩家, "B9 桌宠精灵 Reparent 进物理体（本体不销毁）");
                 断言(宿主?.探针_相机?.IsCurrent() == true, "B10 相机已接管视图");
+                断言(GetWindow().GetFlag(Window.Flags.MousePassthrough), "B11 游戏内鼠标穿透已开（点击直达桌面，纯键盘）");
+                断言(GameHost.单例.聚焦中, "B12 进入后窗口聚焦（键盘可操作）");
                 break;
             }
 
@@ -158,24 +168,56 @@ public partial class GameProbe : Node
                     $"C5c 影子落在地面高度（{玩家.探针_影子?.GlobalPosition.Y:0.0} ≈ 360）");
                 断言(CharAnim.当前动画名_只读 == "fall-right-b", $"C5d 空中播 fall-B 下落素材（实际 {CharAnim.当前动画名_只读}）");
                 break;
+            case 136:   // —— 失焦表现（主人 2026-09-22）：变淡 + 不响应操作 ——
+                GameHost.单例.探针_强制失焦 = true;
+                _失焦前X = 玩家.Position.X;
+                敲键(Key.D, true);          // 注入真实键（失焦应被无视）
+                break;
+            case 166:
+                断言(Mathf.Abs(玩家.Position.X - _失焦前X) < 2f,
+                    $"C5f 失焦不响应操作（D 按住 30 帧，X 未动 {_失焦前X:0.0} → {玩家.Position.X:0.0}）");
+                断言(Mathf.Abs(GameHost.单例.探针_世界.Modulate.A - 0.30f) < 0.05f,
+                    $"C5g 失焦变淡：世界 α={GameHost.单例.探针_世界.Modulate.A:0.00} ≈ 0.30");
+                {
+                    var 图 = GetWindow().GetTexture()?.GetImage();
+                    var 地 = 图?.GetPixel(960, 900) ?? new Color(1, 1, 1, 1);
+                    // 地面 = 描边层 + 本体层两层叠画：各 0.30 → 合成 1-0.7² = 0.51（全不透明时两层都=1，看不出来）
+                    断言(地.A is > 0.3f and < 0.75f, $"C5h 失焦时地面像素也变淡（alpha={地.A:0.00}，叠层混合 ≈0.51）");
+                }
+                敲键(Key.D, false);
+                GameHost.单例.探针_强制失焦 = false;
+                break;
+            case 182:
+                断言(GameHost.单例.探针_世界.Modulate.A > 0.9f,
+                    $"C5i 聚焦恢复：世界 α={GameHost.单例.探针_世界.Modulate.A:0.00} ≈ 1.0");
+                break;
+
             case 100 + 90:
                 _最高Y = Mathf.Min(_最高Y, 玩家.Position.Y);
                 断言(玩家.IsOnFloor(), "C6 已落回地面");
                 断言(Mathf.Abs(玩家.Position.Y - _跳前Y) < 8f, $"C7 落回原高度（{_跳前Y:0.0} → {玩家.Position.Y:0.0}）");
                 断言(_最高Y < _跳前Y - 80f, $"C8 真的跳起来了（最高 {_最高Y:0.0}，起跳前 {_跳前Y:0.0}）");
-                断言(玩家.Position.DistanceTo(GameHost.单例.探针_相机.GlobalPosition) < 80f,
-                    "C9 相机跟随（与玩家距离 < 80px）");
+                {
+                    var 视口高 = GetViewport().GetVisibleRect().Size.Y / GameHost.单例.探针_相机.Zoom.Y;
+                    var 期望 = 玩家.Position + new Vector2(0f, -(GamePlayer.屏幕纵向比例 - 0.5f) * 视口高);
+                    断言(GameHost.单例.探针_相机.GlobalPosition.DistanceTo(期望) < 80f,
+                        $"C9 相机跟随 + 「人物在屏幕中下」偏置（相机 {GameHost.单例.探针_相机.GlobalPosition:0} vs 期望 {期望:0}）");
+                }
                 截图("game_stand.png");
                 break;
             case 194:
             {
-                // 背板半透明（主人 2026-09-20 要的）：天空区带 alpha、地面区不透明 —— 从窗口画面采样
+                // 背板全透明（主人 2026-09-22 改）：天空区完全透明、地面区不透明 —— 从窗口画面采样
                 var 图 = GetWindow().GetTexture()?.GetImage();
                 if (图 == null) { 断言(false, "C10 取窗口画面失败"); break; }
                 var 天 = 图.GetPixel(960, 120);
                 var 地 = 图.GetPixel(960, 900);   // 别贴地面底缘（倍率变化时容易采样到虚空）
-                断言(天.A is > 0.3f and < 0.8f, $"C10 背板半透明（天空 alpha={天.A:0.00}）");
+                断言(天.A < 0.05f, $"C10 背板全透明（天空 alpha={天.A:0.00}）");
                 断言(地.A > 0.95f, $"C11 地面不透明（alpha={地.A:0.00}）");
+                var vp = GetViewport().GetVisibleRect().Size;
+                var 屏位 = (玩家.GlobalPosition - GameHost.单例.探针_相机.GlobalPosition) * GameHost.单例.探针_相机.Zoom + vp / 2f;
+                断言(Mathf.Abs(屏位.X - vp.X / 2f) < 60f && Mathf.Abs(屏位.Y - vp.Y * GamePlayer.屏幕纵向比例) < 60f,
+                    $"C9b 人物在屏幕中下（屏位 {屏位.X:0},{屏位.Y:0} vs 期望 {vp.X / 2f:0},{vp.Y * GamePlayer.屏幕纵向比例:0}）");
                 break;
             }
             case 198:
@@ -208,6 +250,24 @@ public partial class GameProbe : Node
                 break;
 
             // ===== ④b 手感三件套（F 组，主人 2026-09-20）：土狼 / 缓冲 / 可变跳高 =====
+            // ===== B13~B16 M 键鼠标穿透切换（主人 2026-09-22；写回走探针重定向） =====
+            case 258:
+                敲键(Key.M, true);
+                break;
+            case 264:
+                断言(!GetWindow().GetFlag(Window.Flags.MousePassthrough), "B13 M 键 → 鼠标可点击（穿透关）");
+                断言(ConfigEdit.读文本("config/game.json", "鼠标穿透", "?") == "false", $"B14 选择已写回配置（读到 {ConfigEdit.读文本("config/game.json", "鼠标穿透", "?")}）");
+                敲键(Key.M, false);
+                break;
+            case 268:
+                敲键(Key.M, true);
+                break;
+            case 274:
+                断言(GetWindow().GetFlag(Window.Flags.MousePassthrough), "B15 再按 M → 恢复穿透");
+                断言(ConfigEdit.读文本("config/game.json", "鼠标穿透", "?") == "true", "B16 配置写回 true");
+                敲键(Key.M, false);
+                break;
+
             case 290:
                 断言(玩家.IsOnFloor(), "C14 空中转身后正常落回地面");
                 断言(CharAnim.当前动画名_只读 == "walk-right", $"C14b 落地后回常规姿态（实际 {CharAnim.当前动画名_只读}）");
@@ -314,6 +374,7 @@ public partial class GameProbe : Node
                     断言(System.Math.Abs(cx - _退出前X) < 0.01f, $"D8 退出时检查点已写进存档（{cx:0.00} vs {_退出前X:0.00}）");
                 }
                 catch (System.Exception e) { 断言(false, $"D8 读临时存档失败: {e.Message}"); }
+                断言(!GetWindow().GetFlag(Window.Flags.MousePassthrough), "D9 退出后鼠标交还桌面（穿透关闭）");
                 break;
             }
 
@@ -381,14 +442,27 @@ public partial class GameProbe : Node
                 断言(GameHost.单例.探针_状态文本.Contains("❤ 100"), $"E12 状态行刷新（实际「{GameHost.单例.探针_状态文本}」）");
                 break;
             case 180:
-                断言(ModeManager.CurrentMode == ModeManager.Mode.Office, "E13 玩累了 → 延时自动退出游戏");
-                断言(!GameHost.挂载中, "E14 世界已卸载");
-                断言(DisplayServer.WindowGetSize() == _原尺寸, $"E15 窗口还原（{DisplayServer.WindowGetSize()} vs {_原尺寸}）");
+                断言(ModeManager.CurrentMode == ModeManager.Mode.Game, "E13 玩累了 → **不退出游戏**（仍在游戏模式）");
+                断言(GameHost.挂载中, "E14 世界仍在（死亡只回血、不卸载）");
+                断言(玩家.GlobalPosition.Y < 500f, $"E15 死亡后回到出生点（Y={玩家.GlobalPosition.Y:0}）");
+                break;
+            case 184:
+                敲键(Key.Escape, true);    // 纯键盘退出：Esc
+                break;
+            case 186:
+                敲键(Key.Escape, false);
+                break;
+            case 196:
+                断言(ModeManager.CurrentMode == ModeManager.Mode.Office, "E16 Esc → 退出游戏");
+                断言(!GameHost.挂载中, "E17 世界已卸载");
+                断言(DisplayServer.WindowGetSize() == _原尺寸, $"E18 窗口还原（{DisplayServer.WindowGetSize()} vs {_原尺寸}）");
                 break;
 
-            case 190:
+            case 206:
                 try { System.IO.File.Delete(GameSession.探针_存盘路径); } catch { /* 忽略 */ }
                 GameSession.探针_覆盖存盘路径 = null;
+                try { System.IO.Directory.Delete(ConfigEdit.探针_根目录, true); } catch { /* 忽略 */ }
+                ConfigEdit.探针_根目录 = "";
                 GD.Print($"[GP] ===== 失败数 = {_失败} =====");
                 GD.Print(_失败 == 0 ? "[GP] PASS" : "[GP] FAIL");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
