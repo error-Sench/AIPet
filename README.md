@@ -15,7 +15,7 @@
 
 ## 它现在能做什么
 
-- **会说话**（默认开）：桌宠冒出的气泡会被念出来，默认用 **Edge 在线语音（晓晓）**，声音自然；不想联网就改 `config/tts.json` 的 `引擎` 为 `sapi`（Windows 自带，本机、机械）。装语音：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；没装/断网就**不出声**（不会报错）；想用本机自带声音就把 `config/tts.json` 的 `引擎` 改成 `sapi`。
+- **会说话**（**默认关**，可开）：想让它出声 → ① 装小依赖：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；② 把 `config/tts.json` 的「启用」改成 `true` —— 之后桌宠冒出的气泡会被念出来，默认用 **Edge 在线语音（晓晓）**，声音自然；不想联网就把 `引擎` 改成 `sapi`（Windows 自带，本机、机械）；没装/断网就**不出声**（不会报错、不回退）。
 
 - **网速监测气泡**（桌面气泡样式）：工具栏点「网速监控」→ 桌面右上角出现一行小胶囊 `↓1.2MB/s ↑340KB/s`，左键拖动、右键关闭。嫌大/嫌不透改组件目录里的配置 `mods/toolbar/netspeed/config.json`（字号 8-22、边距 0-3、透明度 0.3-1.0；**配置与数据随组件目录走**，删组件即一并删）。
 
@@ -26,7 +26,7 @@
 | **记忆** | `profile.md` 用户画像 + `memory.jsonl` 记忆流水（**由 Agent 自己写**）+ 事件池 `events.jsonl`（行为日志 + 待 Agent 处理的事件）|
 | **能力** | ACP 协议接外部 Agent（Hermes 实测打通）：流式对话、会话恢复、**指令通道**（Agent 用 MCP 工具 `pet_command` 或 ` ```pet ` 围栏块指挥桌宠：set_state / speak / play_anim / set_mode / queue_chain / set_mood …）|
 | **感知** | 环境感知（**默认关**）：只读「键鼠空闲秒数」与「前台是否全屏」→ 全屏静默、离开/回来打招呼、久坐提醒 |
-| **表达** | 语音输出（默认 **Edge 在线语音（晓晓）**，可切 Windows 自带；不内置模型，`config/tts.json` 可关）+ 气泡 + 动画 |
+| **表达** | 语音输出（**默认关**；开启后默认 **Edge 在线语音（晓晓）**，可切 Windows 自带；不内置模型，`config/tts.json`）+ 气泡 + 动画 |
 | **接口** | **上下文接口** `context.md`：把人格/数值/画像/最近记忆/待办事件组装成一份文件，Agent 读一份就够，不必到处翻文件 |
 
 ## 快速上手
@@ -72,7 +72,7 @@ bash tools/run_probes.sh                            # 一键跑全部 headless �
 | [`document/开发历史记录.md`](document/开发历史记录.md) | 开发历史记录（施工过程 + 已拍板决策与「不做」清单）|
 | [`document/Plan表.md`](document/Plan表.md) | **待办唯一清单**（主人继续补充）|
 | [`document/idea.md`](document/idea.md) | 设计意图（Why / What）|
-| `script/*/README.md` | 各层分册：灵魂 / 状态 / UX / Agent / 音频（细节与踩坑都在这里）|
+| `script/*/README.md` | 各层分册：灵魂 / 状态 / UX / Agent / 模式 / 游戏 / 音频（细节与踩坑都在这里） |
 | [`document/新用户上手.md`](document/新用户上手.md) · [`document/隐私与权限模型.md`](document/隐私与权限模型.md) · [`document/打包审计.md`](document/打包审计.md) | 面向用户与分发 |
 
 ## 可挂载的外部工具链（原有能力，按需保留）

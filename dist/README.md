@@ -3,11 +3,11 @@
 这个目录是 AIPet 桌宠**对外交付**的成果：给用户 Agent 的 **skill**、给用户的**灵魂模板**，外加这份说明。
 
 ## 语音（可选）
-默认用 Edge 在线语音（晓晓，好听，需要网络）。想开：`powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`。不装也没关系——**它就不出声**（不报错）；想用本机声音就把 `config/tts.json` 的 `引擎` 改成 `sapi`（机械）；不想让它说话就把 `启用` 改成 `false`。
+**默认关闭**（`config/tts.json` 的「启用」= false）。想开：① 装小依赖 `powershell -ExecutionPolicy Bypass -File tools\install_edge_tts.ps1`；② 把「启用」改成 `true` —— 之后用 Edge 在线语音（晓晓，好听，需要网络）念气泡。不装也没关系——**它就不出声**（不报错）；想用本机声音就把 `引擎` 改成 `sapi`（机械）。
 
 ## MCP 工具（可选，但推荐）
 
-`aipet-mcp/aipet_mcp.py` 是一个 **stdio MCP 服务**（纯 Python 标准库，无依赖）。注册给你的 Agent 后，它会多出工具 **`pet_context`**：每次调用**当场读盘**，一次拿到最新的人格 / 数值 / 画像 / 记忆 / 事件。
+`aipet-mcp/aipet_mcp.py` 是一个 **stdio MCP 服务**（纯 Python 标准库，无依赖）。注册给你的 Agent 后，它会多出工具 **`pet_context`**：每次调用**当场读盘**，一次拿到最新的数值 / 画像 / 记忆 / 事件（**不含人格**——人格经 Agent 内化）。
 
 注册示例（Hermes）：`hermes mcp add aipet -- python "<交付目录>\aipet-mcp\aipet_mcp.py"`；其它 Agent 按其 MCP 文档添加 stdio server。不注册也没关系 —— Agent 直接读 `context.md` 同样能工作。
 
@@ -22,7 +22,7 @@ AIPet 的产品硬规则：**桌宠不做任何主动注入。**
 
 | 交付物 | 文件 | 给谁 |
 |---|---|---|
-| skill | `skill/SKILL.md` | **给用户 Agent 的一次性内化文档**（读一遍：先给自己取名，再把「桌宠的职责与互动」写进自己的人设；之后不必再读） |
+| skill | `skill/SKILL.md` | **给用户 Agent 的一次性内化文档**（读一遍：把「桌宠的职责与互动」写进自己的人设；之后不必再读） |
 | MCP 工具 | `aipet-mcp/aipet_mcp.py` | 给用户的 Agent（注册后：`pet_context` 拿实时上下文；`pet_command` 下指令——正文保持干净、有真实回执） |
 | 人格内化材料 | `AIPet-SOUL.md` | 给用户的 Agent（人格的结构、写法与成品示例；程序内部不保存人格） |
 

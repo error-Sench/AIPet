@@ -10,7 +10,8 @@
   4. 单目录多序列必须拆开：一个叶子目录里若出现**多于一个文件名前缀**就跳过并告警
      （VPet 常在单目录塞两条序列，如 `1毛笔开心_*` + `2…退出通用_*`、`FLA_*` + `FLB_*`）
   5. 丢弃 1bit/灰度遮罩层（`*_lay` / `front` / `back` 这类不是帧序列）
-  6. info.json 只写 rate（由文件名里的 `_<ms>` 后缀折算，取众数）
+  6. info.json 写 rate（文件名 `_<ms>` 后缀的众数折算基准帧率）+ durations（每帧相对时长，
+     ms÷基准取整——原版定格/慢动作节奏靠它还原；缺字段时加载端全按 1 处理，向后兼容）
   7. **帧切片**：VPet 有的目录里混了不属于该段的帧（实测 `SideHide_Right_Main/Nomal/A` 多粘了
      2 帧「迸出」开头 + 3 帧收尾）。片段写法 `(源, 起帧序号, 止帧序号)`（含端点，None = 全段），
      一个变体可以由**多个片段拼接**（顺序即拼接顺序）。
@@ -92,22 +93,52 @@ SPEC = {
         ("shy-a", [("Say/Shy/A", None, None)]),
         ("shy-c", [("Say/Shy/C", None, None)]),
     ],
-    # 干活：VPet 的 WORK 图共 13 种（直播/学习/写字 已导）—— P10 补齐余下 10 种（Nomal 段，与既有三个同口径）。
-    # 池内随机播 → 干活不再千篇一律。**VPet 的金钱/体力/心情收益一律不抄**（主人 2026-09-19）。
+    # 干活：VPet 的 WORK 图共 13 种—— 2026-09-20 细节打磨：**改为包裹段结构**（A 进入 → B 干活
+    # 循环 → C 收尾）。VPet 语义：干活期间 B 循环、停止时播 `C_End` 回常态（WorkTimer.Stop）。
+    # 原先只导了 A 段 → 实机上「反复做准备动作、永远不干活」。现在：主变体 = B（取环内最多帧的
+    # B 变体——VPet 每圈随机换 B_n，我们固定最丰富那个）；A/C 拆成 `-a`/`-c` 段（StateMachine
+    # 包裹段机制自动按 进入/退出 播放，主段钉死循环；见 `.worktrees` 无关，机制在 StateMachine）。
+    # **VPet 的金钱/体力/心情收益一律不抄**（主人 2026-09-19）。
     "work": [
-        ("pc", [("WORK/WorkTWO/A_Nomal", None, None)]),
-        ("read", [("WORK/Study/A_Nomal", None, None)]),
-        ("write", [("WORK/WorkONE/A_Nomal", None, None)]),
-        ("calligraphy", [("WORK/Calligraphy/Nomal/A", None, None)]),
-        ("paint", [("WORK/StudyPaint/Nomal/A", None, None)]),
-        ("study2", [("WORK/StudyTWO/Nomal/A", None, None)]),
-        ("sausage", [("WORK/GrilledSausage/Nomal/A", None, None)]),
-        ("clean", [("WORK/WorkClean/Nomal/A", None, None)]),
-        ("fixmenu", [("WORK/FixMenu/Nomal/A", None, None)]),
-        ("game", [("WORK/PlayONE/Nomal/A", None, None)]),
-        ("water", [("WORK/PlayWater/Nomal/A", None, None)]),
-        ("remove", [("WORK/RemoveObject/Nomal/A", None, None)]),
-        ("rope", [("WORK/RopeSkipping/Nomal/A", None, None)]),
+        ("pc",          [("WORK/WorkTWO/B_1_Nomal", None, None)]),
+        ("pc-a",        [("WORK/WorkTWO/A_Nomal", None, None)]),
+        ("pc-c",        [("WORK/WorkTWO/C_Nomal", None, None)]),
+        ("read",        [("WORK/Study/B_1_Nomal", None, None)]),
+        ("read-a",      [("WORK/Study/A_Nomal", None, None)]),
+        ("read-c",      [("WORK/Study/C_Nomal", None, None)]),
+        ("write",       [("WORK/WorkONE/B_1_Nomal", None, None)]),
+        ("write-a",     [("WORK/WorkONE/A_Nomal", None, None)]),
+        ("write-c",     [("WORK/WorkONE/C_Nomal", None, None)]),
+        ("calligraphy",   [("WORK/Calligraphy/Nomal/B", None, None)]),
+        ("calligraphy-a", [("WORK/Calligraphy/Nomal/A", None, None)]),
+        ("calligraphy-c", [("WORK/Calligraphy/Nomal/C", None, None)]),
+        ("paint",     [("WORK/StudyPaint/Nomal/B", None, None)]),
+        ("paint-a",   [("WORK/StudyPaint/Nomal/A", None, None)]),
+        ("paint-c",   [("WORK/StudyPaint/Nomal/C", None, None)]),
+        ("study2",    [("WORK/StudyTWO/Nomal/B", None, None)]),
+        ("study2-a",  [("WORK/StudyTWO/Nomal/A", None, None)]),
+        ("study2-c",  [("WORK/StudyTWO/Nomal/C", None, None)]),
+        ("sausage",   [("WORK/GrilledSausage/Nomal/B", None, None)]),
+        ("sausage-a", [("WORK/GrilledSausage/Nomal/A", None, None)]),
+        ("sausage-c", [("WORK/GrilledSausage/Nomal/C", None, None)]),
+        ("clean",     [("WORK/WorkClean/Nomal/B_1", None, None)]),
+        ("clean-a",   [("WORK/WorkClean/Nomal/A", None, None)]),
+        ("clean-c",   [("WORK/WorkClean/Nomal/C", None, None)]),
+        ("fixmenu",   [("WORK/FixMenu/Nomal/B_2", None, None)]),
+        ("fixmenu-a", [("WORK/FixMenu/Nomal/A", None, None)]),
+        ("fixmenu-c", [("WORK/FixMenu/Nomal/C", None, None)]),
+        ("game",      [("WORK/PlayONE/Nomal/B", None, None)]),
+        ("game-a",    [("WORK/PlayONE/Nomal/A", None, None)]),
+        ("game-c",    [("WORK/PlayONE/Nomal/C", None, None)]),
+        ("water",     [("WORK/PlayWater/Nomal/B", None, None)]),
+        ("water-a",   [("WORK/PlayWater/Nomal/A", None, None)]),
+        ("water-c",   [("WORK/PlayWater/Nomal/C", None, None)]),
+        ("remove",    [("WORK/RemoveObject/Nomal/B", None, None)]),
+        ("remove-a",  [("WORK/RemoveObject/Nomal/A", None, None)]),
+        ("remove-c",  [("WORK/RemoveObject/Nomal/C", None, None)]),
+        ("rope",      [("WORK/RopeSkipping/Nomal/B/1", None, None)]),
+        ("rope-a",    [("WORK/RopeSkipping/Nomal/A", None, None)]),
+        ("rope-c",    [("WORK/RopeSkipping/Nomal/C", None, None)]),
     ],
     "interact": [
         # 摸头反应其实是三段：A=进入(中立→抱头) B=保持(抱头) C=退出(抱头→中立)。
@@ -204,12 +235,27 @@ SPEC = {
     # 走路：**快/慢 = 心情档**（VPet 里 `walk.*.faster` 就是 Happy、`walk.*.slow` 就是 PoorCondition 的走法）
     # —— 与我们「三档状态 / 心情择档」天然对齐，不要当成两个独立速度档。
     "walk": [
+        # 2026-09-20 细节打磨：补 A/C 起步/停步段（`-a`/`-c` 结尾 → CharAnim 自动非循环加载，
+        #   状态机走链按 WalkStart/WalkLoop/WalkEnd 三段播；正常/快/慢三档 src 段名不同：
+        #   Nomal / Happy / PoorCondition）。
         ("left",      [("MOVE/walk.left/B_Nomal", None, None)]),
         ("right",     [("MOVE/walk.right/B_Nomal", None, None)]),
         ("left-fast", [("MOVE/walk.left.faster/B_Happy", None, None)]),
         ("right-fast",[("MOVE/walk.right.faster/B_Happy", None, None)]),
         ("left-slow", [("MOVE/walk.left.slow/B_PoorCondition_1", None, None)]),
         ("right-slow",[("MOVE/walk.right.slow/B_PoorCondition_1", None, None)]),
+        ("left-a",       [("MOVE/walk.left/A_Nomal", None, None)]),
+        ("left-c",       [("MOVE/walk.left/C_Nomal", None, None)]),
+        ("right-a",      [("MOVE/walk.right/A_Nomal", None, None)]),
+        ("right-c",      [("MOVE/walk.right/C_Nomal", None, None)]),
+        ("left-fast-a",  [("MOVE/walk.left.faster/A_Happy", None, None)]),
+        ("left-fast-c",  [("MOVE/walk.left.faster/C_Happy", None, None)]),
+        ("right-fast-a", [("MOVE/walk.right.faster/A_Happy", None, None)]),
+        ("right-fast-c", [("MOVE/walk.right.faster/C_Happy", None, None)]),
+        ("left-slow-a",  [("MOVE/walk.left.slow/PoorCondition_A", None, None)]),
+        ("left-slow-c",  [("MOVE/walk.left.slow/PoorCondition_C", None, None)]),
+        ("right-slow-a", [("MOVE/walk.right.slow/PoorCondition_A", None, None)]),
+        ("right-slow-c", [("MOVE/walk.right.slow/PoorCondition_C", None, None)]),
     ],
     # 干活进出场：VPet `Switch_Up`（起身开工）/ `Switch_Down`（收工坐下）—— P10 小件三连之一。
     "switch": [
@@ -237,21 +283,40 @@ SPEC = {
     ],
     # 待机小动作扩充：VPet IDEL 的 蹲 / 网球 / 泡泡 / 打呼噜 / 侧看（我们原有 bubble/doze/meow/meowlook/spin/yawning）
     "fidget+": [
-        ("squat",   [("IDEL/Squat/B_Nomal/1", None, None)]),
-        ("tennis",  [("IDEL/Tennis/Nomal/B", None, None)]),
-        ("bubbles", [("IDEL/Bubbles/B", None, None)]),
-        ("boring",  [("IDEL/Boring/B_Nomal", None, None)]),
-        ("aside",   [("IDEL/aside/Nomal/B", None, None)]),
-        # 2026-09-20 组①：
+        # 2026-09-22 重构#2（B 循环概率退出）：七个 A/B/C 结构变体**拆回三段**（`-a`/主段/`-c`，
+        # 与包裹段同一命名约定）——运行时 fidget 会话 = A → B 循环 × 骰子 → C → idle，
+        # 骰子对齐 VPet MainDisplay.cs:314-320 DisplayBLoopingToNomal：
+        #   每播完第 n 圈掷 Rnd.Next(n+1) > L（L 来自 lps duration 表；我们默认 2 = 最少 3 圈、平均 ~4.6 圈）。
+        # 此前是「A+B+C 拼一条一次过」（B 只播一遍 ~5s 就完）——VPet 原味是 B 循环到骰子命中才退
+        #（squat 蹲一下平均十几秒、间歇性发作），观感「活」的关键。
+        # 单段变体（spin/bubble/doze/meow/meowlook/yawning/happy520 = VPet Single 型，
+        # MainDisplay.cs:291-296 播完直接 DisplayToNomal）**保持一次过**，不上骰子。
+        # 近重复变体只收一次（逐帧实测）：squat 的 B1/B2/B3 互差 0.06、aside 的 B/B_2/B_3/B_4
+        # 互差 0.3~1.0（近重复）；tennis 的 B/B_2 是 B_3 的抽样副本 → 只收 B_3（24 帧完整挥拍循环）。
+        ("squat-a",   [("IDEL/Squat/A_Nomal", None, None)]),
+        ("squat",     [("IDEL/Squat/B_Nomal/1", None, None)]),
+        ("squat-c",   [("IDEL/Squat/C_Nomal", None, None)]),
+        ("tennis-a",  [("IDEL/Tennis/Nomal/A", None, None)]),
+        ("tennis",    [("IDEL/Tennis/Nomal/B_3", None, None)]),
+        ("tennis-c",  [("IDEL/Tennis/Nomal/C", None, None)]),
+        ("bubbles-a", [("IDEL/Bubbles/A", None, None)]),
+        ("bubbles",   [("IDEL/Bubbles/B", None, None)]),
+        ("bubbles-c", [("IDEL/Bubbles/C", None, None)]),
+        ("boring-a",  [("IDEL/Boring/A_Nomal", None, None)]),
+        ("boring",    [("IDEL/Boring/B_Nomal", None, None)]),
+        ("boring-c",  [("IDEL/Boring/C_Nomal", None, None)]),
+        ("aside-a",   [("IDEL/aside/Nomal/A", None, None)]),
+        ("aside",     [("IDEL/aside/Nomal/B", None, None)]),
+        ("aside-c",   [("IDEL/aside/Nomal/C", None, None)]),
         # State 待机变体 —— VPet StateONE=坐下待机 / StateTWO=躺下休息（逐帧看图核对过：
-        # A=进入过渡、B=循环微动、C=退出过渡）。VPet 原件是加权待机链（MainDisplay.cs：B 循环到
-        # looptimes>GetDuration 才退出，还能 ONE↔TWO 互转）——我们简化为**一次过**：
-        # A + B_1 + B_2 + C 顺序拼成一条（B 只走一遍），当 fidget 小动作随机冒一下。
-        ("state-one", [("State/StateONE/A_Nomal", None, None), ("State/StateONE/B_Nomal/1", None, None),
-                       ("State/StateONE/B_Nomal/2", None, None), ("State/StateONE/C_Nomal", None, None)]),
-        ("state-two", [("State/StateTWO/A_Nomal", None, None), ("State/StateTWO/B_Nomal", None, None),
-                       ("State/StateTWO/C_Nomal", None, None)]),
-        # IDEL 彩蛋：一连串比心/爱心（VPet happy_like520）。
+        # A=进入过渡、B=循环微动、C=退出过渡）。state-one 主段 = B/1+B/2 两变体拼一圈（~4.25s）。
+        ("state-one-a", [("State/StateONE/A_Nomal", None, None)]),
+        ("state-one",   [("State/StateONE/B_Nomal/1", None, None), ("State/StateONE/B_Nomal/2", None, None)]),
+        ("state-one-c", [("State/StateONE/C_Nomal", None, None)]),
+        ("state-two-a", [("State/StateTWO/A_Nomal", None, None)]),
+        ("state-two",   [("State/StateTWO/B_Nomal", None, None)]),
+        ("state-two-c", [("State/StateTWO/C_Nomal", None, None)]),
+        # IDEL 彩蛋：一连串比心/爱心（VPet happy_like520，Single 型一次过）。
         ("happy520", [("IDEL/happy_like520", None, None)]),
     ],
     "edge_hide": [
@@ -389,12 +454,20 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
         canvas.alpha_composite(im, (round(off_x), round(off_y)))
         canvas.save(os.path.join(out, f"{i:03d}.png"))
 
-    # 规则 6：rate 取文件名时长档的众数
+    # 规则 6（2026-09-22 逐帧时长版）：rate = 文件名时长档众数的基准帧率；
+    # durations = 每帧相对时长（ms ÷ 基准帧时长，取整；缺失/笔误容错为 1）。
+    # 原版 6181 帧里 125ms 占 92.6%，其余全是 125 的整数倍（250=爬墙慢动作、500=咀嚼停顿、
+    # 1000+=长定格）——统一 rate 会把这些节奏全压平（见 document/VPet动画系统分析.md §3.1）。
     档 = Counter(时长秒(f) for _, f in frames)
     ms = 档.most_common(1)[0][0] or 125
     rate = max(1, round(1000 / ms))
+    基准 = 1000.0 / rate
+    durations = []
+    for _, f in frames:
+        d = 时长秒(f)
+        durations.append(max(1, round(d / 基准)) if d else 1)
     with open(os.path.join(out, "info.json"), "w", encoding="utf-8") as fp:
-        fp.write('{\n    "rate": %d\n}\n' % rate)
+        fp.write('{\n    "rate": %d,\n    "durations": [%s]\n}\n' % (rate, ", ".join(map(str, durations))))
 
     bb = Image.open(os.path.join(out, "000.png")).convert("RGBA").getchannel("A").getbbox()
     报告.append(f"  [完成] {池}/{变体}: {len(frames)}帧 源包围盒={ub[2]-ub[0]}x{ub[3]-ub[1]} scale={scale:.4f} rate={rate} "

@@ -99,7 +99,7 @@ AIPet $VER —— 解压即用
    事件 events.jsonl、画像 soul/profile.md、记忆 soul/memory.jsonl）。
 3) 退出：右键桌宠 → 退出。
 4) 想让它连上你自己的 Agent（推荐）：见 config/agent.json 与「新用户上手.md」。
-5) 语音：默认 Edge 在线语音（晓晓）；不想联网可在 config/tts.json 切「sapi」（Windows 自带）。
+5) 语音：默认关闭（config/tts.json 的「启用」= false）；想开＝先跑 tools/install_edge_tts.ps1 装依赖、再把「启用」改成 true；不想联网可切「sapi」（Windows 自带）。
 6) 交付资料：AIPet-SOUL.md（人格内化材料与写法示例）· skill/（给你的 Agent 读一遍的说明）· aipet-mcp/（MCP 工具，可选）。
    想调配置窗大小：config/panel.json 的「配置窗宽 / 配置窗高」（缺省 500×375）。
 TXTEOF

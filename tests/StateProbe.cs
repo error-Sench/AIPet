@@ -157,8 +157,11 @@ public partial class StateProbe : Node
         StateMachine.探针_推进时间(3f);
 
         // 冲突（用户要求：摸摸可延迟、拖拽必须立刻）：排队中的摸摸必须被拖拽作废
+        // 重构#5 后：interact 序列进行中再摸 = A 段忽略 / B 段续命（不排队，VPet SetContinue 语义，见 TouchProbe F 组）——
+        // 本用例只验「拖拽作废排队项」，先回 idle 再摸，确保走排队路径。
+        StateMachine.标记状态(StateMachine.Idle);
         StateMachine.摸摸();
-        断言(StateMachine.探针_有排队项, "再次摸摸排队");
+        断言(StateMachine.探针_有排队项, "再次摸摸排队（idle 中 → 走排队路径）");
         StateMachine.标记状态(StateMachine.Drag);
         断言(StateMachine.CurrentState == StateMachine.Drag, "拖拽立刻生效（不排队）");
         断言(!StateMachine.探针_有排队项, "拖拽作废排队中的摸摸");

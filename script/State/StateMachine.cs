@@ -108,7 +108,7 @@ public partial class StateMachine : Node
         [Think] = new 状态效果 { 目标池 = "think", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Speak] = new 状态效果 { 目标池 = "say", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Listen] = new 状态效果 { 目标池 = "listen", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },  // 秒值不生效，见字段注释
-        [Working] = new 状态效果 { 目标池 = "work", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0 },
+        [Working] = new 状态效果 { 目标池 = "work", 兼容池 = "fidget", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Sleep] = new 状态效果 { 目标池 = "sleep", 兼容池 = "idle", 持续 = true, 锁定 = true, 秒 = 0, 包裹 = true },
         [Greet] = new 状态效果 { 目标池 = "greet", 兼容池 = "celerate", 持续 = false, 锁定 = false, 秒 = 2.5f },
         // 贴边隐藏：持续 + 锁定；表现不走「池内随机」，由 EdgeHide.应用表现() 按阶段精确播（见应用表现）
@@ -147,6 +147,9 @@ public partial class StateMachine : Node
 
     private static string[] _当前序列;
     private static int _序列序;
+    /// <summary>重构#5（VPet SetContinue）：B 段「续命」标记——序列进行中又摸了一次，
+    /// 则 B 这圈播完从头再来一遍而不进 C（连续摸头不会一直重播进场动作）。</summary>
+    private static bool _序列续命;
 
     // ================= 行为链（原有） =================
 
@@ -161,7 +164,10 @@ public partial class StateMachine : Node
     private static float _空闲秒;
     private static float _保持剩余;      // 非持续态：剩余保持时间
     private static float _兜底剩余;      // 持续态：剩余兜底时间
-    private static float _走动倒计时;    // 空闲达标后，距下一次自主走动的秒数
+    private static float _走动倒计时;    // 空闲达标后，距**首次**自主走动的秒数（重构#3 后只管首次；后续走概率爬坡骰子）
+    private static float _爬坡待机秒;    // 连续待机秒（= VPet CountNomal 的时间版）：走动/互动后清零
+    private static float _爬坡骰子秒;    // 爬坡骰子累计：每满「爬坡秒」掷一次（= VPet EventTimer 15s）
+    private static readonly Random 骰子 = new Random();   // 爬坡骰子专用
     private static float _重播冷却;      // 防止动画极短时疯狂重播
     private static string _排队状态;     // 排队等待「当前动画播完」再切的交互反应
     private static float _排队秒 = -1f;
@@ -232,8 +238,8 @@ public partial class StateMachine : Node
             if (_stepRemaining <= 0f) 完成当前链节();
         }
 
-        // —— 走动位移 ——
-        if (_走动中) 推进走动((float)delta);
+        // —— 走动位移（只在循环段推进；起步/停步段原地演，起停更自然）——
+        if (_走动中 && CurrentState == WalkLoop) 推进走动((float)delta);
 
         // —— 计时器（每帧，精度足够） ——
         _运行秒 += delta;
@@ -344,6 +350,7 @@ public partial class StateMachine : Node
         // 序列由「动画播完」回调逐段推进，不做时长猜测。
         _当前序列 = null;
         _序列序 = 0;
+        _序列续命 = false;
         string[] 序列 = null;
         if (_序列表.TryGetValue(state, out var 候选) && 候选.Length > 0 && CharAnim.有动画(候选[0])) 序列 = 候选;
 
@@ -452,6 +459,17 @@ public partial class StateMachine : Node
     private static void 推进序列()
     {
         if (_当前序列 == null) return;
+        // 重构#5：B 段（中段）续命——期间又摸了一次就从头再演这圈，不进 C（VPet SetContinue 语义）
+        if (_序列续命)
+        {
+            _序列续命 = false;
+            if (_序列序 > 0 && _序列序 < _当前序列.Length - 1)
+            {
+                GD.Print($"[StateMachine] 触摸续命：重播 B 段（第 {_序列序 + 1}/{_当前序列.Length} 段）");
+                播放序列段();
+                return;
+            }
+        }
         _序列序++;
         if (_序列序 >= _当前序列.Length)
         {
@@ -517,6 +535,7 @@ public partial class StateMachine : Node
             GD.Print($"[StateMachine] 打断交互序列（{state} 立即生效）");
             _当前序列 = null;
             _序列序 = 0;
+            _序列续命 = false;
         }
         // 包裹会话同样作废：拖拽/松手立即生效，旧会话不能残留（否则重播会错播上一条会话的主段）
         _包裹主名 = null;
@@ -547,6 +566,7 @@ public partial class StateMachine : Node
         _排队兜底剩余 = 0f;
         _当前序列 = null;
         _序列序 = 0;
+        _序列续命 = false;
     }
 
     // ================= 交互入口（唯一重置空闲的口径） =================
@@ -555,6 +575,7 @@ public partial class StateMachine : Node
     public static void NotifyInteraction(string 来源 = "")
     {
         _空闲秒 = 0f;
+        _爬坡待机秒 = 0f;   // 重构#3：互动后爬坡清零——刚陪过它，不该马上又自主走动（VPet CountNomal = 0）
         _已报可走动 = false;
         DailyRoutine.交互();   // 时间驱动行为：当天首次见面 → 问个好（Plan #11）
         if (CurrentState == Sleep) 唤醒(来源);
@@ -570,12 +591,25 @@ public partial class StateMachine : Node
         NotifyInteraction(部位 == TouchPart.Body ? "摸摸·身体" : "摸摸");
         // 数值不因互动变化（2026-09-20 主人定：数值只影响回复策略、不加入互动）
         if (CurrentState is Drag or Think or Speak or Working or WorkIn or WorkOut) return; // 忙时不当成互动
-        if (CurrentState is InteractBody or Turn) return;   // 已经在对上一次摸做反应了
         if (CurrentState == Sleep) return; // 唤醒流程已接管（会走 greet），让招呼播完
         // 不硬切：等当前这次动画播完再进入对应反应
         var 目标 = 部位 == TouchPart.Body && CharAnim.有动画("interact_body-a")
             ? (Random.Shared.NextDouble() < 0.3 && CharAnim.有动画("turn-a") ? Turn : InteractBody)
             : Interact;
+        // 重构#5（VPet DisplayToTouchHead/Body 语义，MainDisplay.cs:146-165）：同类触摸序列进行中又摸——
+        // A 段忽略（进场动作不打断）；B 段续命（这圈播完重播 B、不进 C——连续摸头不会反复重演进场）；
+        // C 段照常排队（退场播完开新一轮）。
+        if (CurrentState == 目标 && _当前序列 != null)
+        {
+            if (_序列序 == 0) return;                       // A 段：忽略
+            if (_序列序 < _当前序列.Length - 1)             // B 段：续命
+            {
+                _序列续命 = true;
+                GD.Print("[StateMachine] 触摸续命：B 段这圈播完从头再来（VPet SetContinue）");
+                return;
+            }
+        }
+        else if (CurrentState is InteractBody or Turn) return;   // 在对另一种身体反应做反应了：不打断（原语义）
         排队状态(目标);
         // 本地模式（没接 Agent）时，被摸也要有话说 —— 走话语表；接了 Agent 则由 Agent 自己回
         本地说话("被摸", 15f);
@@ -672,22 +706,47 @@ public partial class StateMachine : Node
             return;
         }
 
-        // 自主走动：空闲达标后按随机间隔触发
+        // 自主走动：空闲达标后触发。
+        // 重构#3（2026-09-22）：首次走动仍走短倒计时（首跑体验：启动后 10~25s 内见它走一次）；
+        // 之后的每次走动改用 VPet 式**概率爬坡骰子**（MainLogic.cs:489-494 EventTimer_Elapsed）：
+        //   每「爬坡秒」掷一次 Next(max(爬坡下限, 爬坡周期 - 连续待机秒))，命中前「爬坡移动槽」个值 → 走动。
+        //   连续待机越久窗口越小、走动越勤；互动/走动后清零重新爬坡（= VPet CountNomal 语义）。
+        //   旧「固定 120~300s 均匀倒计时」没有爬坡——互动后和闲置 10 分钟一个频率，机械。
         if (_空闲秒 >= 设置.走动空闲秒 && 允许主动())
         {
             if (!_已报可走动)
             {
                 _已报可走动 = true;
-                GD.Print($"[StateMachine] 空闲达 {_空闲秒:0}s（阈值 {设置.走动空闲秒:0}s），距下次走动 {_走动倒计时:0.0}s");
+                GD.Print($"[StateMachine] 空闲达 {_空闲秒:0}s（阈值 {设置.走动空闲秒:0}s），距首次走动 {_走动倒计时:0.0}s");
             }
-            _走动倒计时 -= 设置.心跳秒;
-            if (_走动倒计时 <= 0f)
+            if (_走动次数 == 0)
             {
-                尝试走动();
-                _走动倒计时 = 随机间隔();
+                // 首次：短倒计时保底（否则要等骰子爬坡几分钟才动，首跑看不到走动）
+                _走动倒计时 -= 设置.心跳秒;
+                if (_走动倒计时 <= 0f) 尝试走动();
+            }
+            else
+            {
+                // 后续：概率爬坡骰子（连续待机秒只在 Idle 累计——走动/爬边期间 允许主动() 本就关门）
+                _爬坡待机秒 += 设置.心跳秒;
+                _爬坡骰子秒 += 设置.心跳秒;
+                if (_爬坡骰子秒 >= 设置.爬坡秒)
+                {
+                    _爬坡骰子秒 = 0f;
+                    if (爬坡掷骰((int)_爬坡待机秒, 骰子)) 尝试走动();
+                }
             }
         }
     }
+
+    /// <summary>重构#3：爬坡骰子的窗口 = max(下限, 周期 - 连续待机秒)——闲置越久窗口越小（VPet `Math.Max(20, InteractionCycle - CountNomal)`）。</summary>
+    public static int 爬坡窗口(int 连续待机秒)
+        => Math.Max(设置.爬坡下限, 设置.爬坡周期 - 连续待机秒);
+
+    /// <summary>重构#3：掷一次爬坡骰子——窗口内命中前「移动槽」个值即走动（VPet `Rnd.Next(rnddisplay)` 的 case 0/1/2 = 移动）。
+    /// 纯函数（不读时钟、不动状态），便于探针直接验证概率分布。</summary>
+    public static bool 爬坡掷骰(int 连续待机秒, Random 随)
+        => 随.Next(爬坡窗口(连续待机秒)) < 设置.爬坡移动槽;
 
     private static void 入睡()
     {
@@ -849,10 +908,17 @@ public partial class StateMachine : Node
     public static void 探针_清久坐冷却() => _久坐冷却剩余 = 0f;
     public static void 探针_重置久坐() { _活跃累计秒 = 0f; _久坐冷却剩余 = 0f; _久坐提醒次数 = 0; _久坐升级已写 = false; _上次主人不在 = false; }
 
+    /// <summary>探针用（重构#3）：爬坡计数器读写——验证「互动/走动后清零、闲置累计」。</summary>
+    public static float 探针_爬坡待机秒 => _爬坡待机秒;
+    public static void 探针_设爬坡待机秒(float 值) => _爬坡待机秒 = 值;
+
+    /// <summary>探针用（重构#5）：触摸序列的当前段序与续命标记——验证 B 段续命（SetContinue 语义）。</summary>
+    public static int 探针_序列序 => _序列序;
+    public static bool 探针_序列续命 => _序列续命;
+
     private static int _走动次数; // 累计走动次数（观测用）
 
-    private static float 随机间隔() =>
-        (float)GD.RandRange(设置.走动间隔最小秒, 设置.走动间隔最大秒);
+    // 重构#3：旧的「随机间隔()」（走动间隔最小/最大秒 均匀倒计时）已删——后续走动由概率爬坡骰子调度（见 心跳()）。
 
     /// <summary>
     /// 按**三档状态**（手动档位，mod 可改）挑动画变体（`think-happy` / `think-poor` …）。
@@ -864,16 +930,41 @@ public partial class StateMachine : Node
     {
         if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle")) return "";
         // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
-        if (设置.三档状态启用)
-            return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "" };
-        return "";
+        // 重构#6：三档关闭 / 档位=普通 → 返回 "nomal"（而非旧的空串）——真正落实主人「默认普通」口径：
+        // 钉普通档演，不再整池随机串到 happy/poor 变体；精确档缺失由 挑主名 的降级链兜（相邻档 → 随机）。
+        if (!设置.三档状态启用) return "nomal";
+        return 设置.状态档位 switch { "开心" => "happy", "不良" => "poor", _ => "nomal" };
     }
+
+    /// <summary>档位降级链（重构#6，VPet GraphCore.FindGraphs 的 ModeType 序号相邻降级：Happy↔Nomal↔PoorCondition）。
+    /// Ill 第 4 档不引入——无生病玩法、Ill 素材也未导入（仅 14/609 目录且全在 Eat/Drink/Gift/Raise 等未导入类）。</summary>
+    public static string[] 降级链(string 档) => 档 switch
+    {
+        "happy" => new[] { "happy", "nomal" },          // VPet Happy(0)：向下兼容 = Nomal(1)
+        "poor" => new[] { "poor", "nomal" },            // VPet PoorCondition(2)：向上兼容 = Nomal(1)（Ill 跳过）
+        "nomal" => new[] { "nomal", "poor", "happy" },  // VPet Nomal(1)：向下 Poor(2) → 向上 Happy(0)
+        _ => new[] { 档 },
+    };
 
     /// <summary>走动画后缀（快/慢 = 心情档；没素材就没后缀 = 常速）。</summary>
     private static string 走动档后缀 => 情绪变体("walk") switch { "happy" => "-fast", "poor" => "-slow", _ => "" };
 
     /// <summary>走动位移倍率（与动画档位同步，避免滑步）。</summary>
     private static float 走动档倍率 => 走动档后缀 switch { "-fast" => 1.35f, "-slow" => 0.72f, _ => 1f };
+
+    /// <summary>走链起步阶段时长（2026-09-20 打磨）：起步 `-a` 素材帧数÷帧率 + 余量；缺素材回退。</summary>
+    private static float 走起步时长() => 走段时长("-a", 0.35f);
+
+    /// <summary>走链停步阶段时长：停步 `-c` 素材帧数÷帧率 + 余量；缺素材回退。</summary>
+    private static float 走停步时长() => 走段时长("-c", 0.25f);
+
+    private static float 走段时长(string 段, float 回退)
+    {
+        var 方向 = _走动目标X >= DisplayServer.WindowGetPosition().X ? "right" : "left";
+        var t = CharAnim.动画时长($"walk-{方向}{走动档后缀}{段}");
+        if (t <= 0f) t = CharAnim.动画时长($"crawl-{方向}{段}");
+        return t > 0f ? t + 0.05f : 回退;
+    }
 
     private static float 首次间隔() =>
         (float)GD.RandRange(设置.首次走动最小秒, 设置.首次走动最大秒);
@@ -882,6 +973,8 @@ public partial class StateMachine : Node
     private static void 尝试走动()
     {
         记一次主动();
+        _爬坡待机秒 = 0f;   // 重构#3：任何主动行为后爬坡清零（= VPet CountNomal = 0）
+        _爬坡骰子秒 = 0f;
 
         // 组②：先有机会改成爬边（走到最近边 → 挂墙上爬一圈）。爬边自带冷却，不占走动节奏。
         if (Climb.可触发() && GD.Randf() < 设置.爬边概率) { Climb.开始(); return; }
@@ -909,9 +1002,9 @@ public partial class StateMachine : Node
         GD.Print($"[StateMachine] 自主走动: {当前X} → {目标}（{时长:0.0}s）");
         _走动次数++;
         EnqueueChain(
-            new ChainStep(WalkStart, 0.35f),
-            new ChainStep(WalkLoop, 时长, () => { if (CurrentState == WalkLoop) SetState(Idle); }),
-            new ChainStep(WalkEnd, 0.25f));
+            new ChainStep(WalkStart, 走起步时长()),
+            new ChainStep(WalkLoop, 时长),
+            new ChainStep(WalkEnd, 走停步时长()));
         _走动中 = true;
     }
 
@@ -925,9 +1018,9 @@ public partial class StateMachine : Node
         var 时长 = Math.Max(0.4f, Math.Abs(目标X - 当前X) / _走动速度);
         GD.Print($"[StateMachine] 爬边走向: {当前X} → {目标X}（{时长:0.0}s）");
         EnqueueChain(
-            new ChainStep(WalkStart, 0.35f),
+            new ChainStep(WalkStart, 走起步时长()),
             new ChainStep(WalkLoop, 时长),
-            new ChainStep(WalkEnd, 0.25f));
+            new ChainStep(WalkEnd, 走停步时长()));
         _走动中 = true;
     }
 
@@ -1122,38 +1215,66 @@ public partial class StateMachine : Node
     }
 
     /// <summary>有 A/C 过渡段的池（包裹段机制）：挑主名从这里挑随机时要把段本身排除掉（别把 sleep-a 当主段）。</summary>
-    private static readonly string[] 包裹池 = { "think", "say", "sleep", "music" };
+    private static readonly string[] 包裹池 = { "think", "say", "sleep", "music", "work" };
 
     /// <summary>是不是 A/C 过渡段变体（`-a` / `-c` 结尾）。</summary>
     private static bool 是段名(string 名)
         => 名.EndsWith("-a", StringComparison.Ordinal) || 名.EndsWith("-c", StringComparison.Ordinal);
 
-    /// <summary>按三档/组变体规则从池里挑一条主段动画名（不播放）；池不存在或为空返回 null。与包裹段共用同一套挑法。</summary>
-    private static string 挑主名(string 池)
+    /// <summary>按三档/组变体规则从池里挑一条主段动画名（不播放）；池不存在或为空返回 null。与包裹段共用同一套挑法。
+    /// 重构#6：择档走 VPet 式降级链（精确档 → 无档基名 → 相邻档），不再「精确档缺失就整池随机」。</summary>
+    public static string 挑主名(string 池)
     {
         try
         {
-            var 排除段 = Array.IndexOf(包裹池, 池) >= 0;
-            // music 池：`single-*` 是「嗨档」专用（MusicSense 显式指定），不进普通随机
-            bool 排除(string n) => (排除段 && 是段名(n)) || (池 == "music" && n.Contains("-single-"));
+            var 列表 = Main.显示人物?.动画池字典.GetValueOrDefault(池);
+            if (列表 is not { Count: > 0 }) return null;
+            // 段变体（-a/-c）不进普通随机：包裹池必然有；fidget/walk 等拆段池同理（按「池里存在段」判定，
+            // 比写死池名更稳——新池拆段后自动生效）。music 的 `single-*` 是「嗨档」专用（MusicSense 显式点播）。
+            bool 排除(string n) => (列表.Exists(x => 是段名(x.name)) && 是段名(n))
+                                   || (池 == "music" && n.Contains("-single-", StringComparison.Ordinal));
+            var 候选 = 列表.FindAll(x => !排除(x.name));
+            if (候选.Count == 0) 候选 = 列表;
+
             var 变体 = 情绪变体(池);
             if (变体.Length > 0)
             {
-                var 精确 = $"{池}-{变体}";
-                if (CharAnim.有动画(精确)) return 精确;
-                // 组变体（如 idle-happy-1/2/3）：该档位对应的是一组时，按 `{池}-{档}-` 前缀随机取一条
-                var 组 = Main.显示人物?.动画池字典.GetValueOrDefault(池)?
-                    .FindAll(x => x.name.StartsWith($"{精确}-", StringComparison.Ordinal) && !排除(x.name));
-                if (组 is { Count: > 0 }) return 组.列表随机项().name;
+                foreach (var 档 in 降级链(变体))
+                {
+                    var 精确 = $"{池}-{档}";
+                    // 单条精确（think-nomal）或组变体（idle-nomal-1/2/3）一并收
+                    var 命中 = 候选.FindAll(x => x.name == 精确
+                        || x.name.StartsWith($"{精确}-", StringComparison.Ordinal));
+                    if (命中.Count > 0) return 命中.列表随机项().name;
+                    // 无档基名（sleep-loop / say-smile：从 Nomal 素材导入、名字里不带档位）——
+                    // 它是「普通档」的实际落点，必须先于升到别的档位试（否则 sleep 会被迫演 sleep-happy）。
+                    if (档 == 变体)
+                    {
+                        var 基 = 候选.FindAll(x => 无档名(x.name, 池));
+                        if (基.Count > 0) return 基.列表随机项().name;
+                    }
+                }
             }
-            var 列表 = Main.显示人物?.动画池字典.GetValueOrDefault(池);
-            if (排除段 || 池 == "music") 列表 = 列表?.FindAll(x => !排除(x.name));
-            return 列表 is { Count: > 0 } ? 列表.列表随机项().name : null;
+            return 候选.列表随机项().name;
         }
         catch (Exception)
         {
             return null;   // 人物数据未就绪（同 选择池 的惯例）：交给应用表现的兜底
         }
+    }
+
+    /// <summary>名字里不带任何档位标记（happy/nomal/poor，以及 walk 的 fast/slow）= 「无档基名」。
+    /// 我们的导入约定：VPet 的 Nomal 档素材多数落成无档名（sleep-loop / say-smile / interact-a），
+    /// 只有部分池显式写了 `-nomal`（think/idle/music）。</summary>
+    private static bool 无档名(string 名, string 池)
+    {
+        var 余 = 名.StartsWith($"{池}-", StringComparison.Ordinal) ? 名[(池.Length + 1)..] : 名;
+        foreach (var 档 in new[] { "happy", "nomal", "poor", "fast", "slow" })
+        {
+            if (余 == 档 || 余.StartsWith($"{档}-", StringComparison.Ordinal) || 余.EndsWith($"-{档}", StringComparison.Ordinal))
+                return false;
+        }
+        return true;
     }
 
     /// <summary>包裹段解析：优先 `{主名}-{段}`（think-nomal-a / sleep-happy-c），没有则退回池级 `{池}-{段}`（sleep-a）；都没有返回 null。</summary>
@@ -1172,14 +1293,17 @@ public partial class StateMachine : Node
     {
         if (state is WalkStart or WalkLoop or WalkEnd)
         {
-            // 走动：按方向播 walk-left / walk-right（VPet 资产、已设为循环）。
-            // 三个链节共用同一段动画 —— 已经是目标动画时不重播，否则会在链节边界重置相位、看起来一顿一顿。
+            // 走动：按方向播 walk 资产。2026-09-20 打磨：三段分播——WalkStart 起步（`-a`）、
+            // WalkLoop 循环、WalkEnd 停步（`-c`）；缺段素材时回退循环段（crawl / 老素材仍可用）。
+            // 链节边界换段时若已是目标动画则不重播，否则会在链节边界重置相位、看起来一顿一顿。
             var 方向 = _走动目标X >= DisplayServer.WindowGetPosition().X ? "right" : "left";
             // P10：**快/慢 = 心情档**（VPet 里 walk.*.faster 就是 Happy、walk.*.slow 就是 PoorCondition）
             //      —— 位移速度也跟着变（走动档倍率），否则快动作配慢位移会滑步。
             // 组②：趴行（crawl）是走动的慢速变体，素材方向直接对应
-            var 期望 = _本次爬行 && CharAnim.有动画($"crawl-{方向}") ? $"crawl-{方向}" : $"walk-{方向}{走动档后缀}";
-            if (!CharAnim.有动画(期望)) 期望 = $"walk-{方向}";
+            var 基础 = _本次爬行 && CharAnim.有动画($"crawl-{方向}") ? $"crawl-{方向}" : $"walk-{方向}{走动档后缀}";
+            if (!CharAnim.有动画(基础)) 基础 = $"walk-{方向}";
+            var 段 = state switch { WalkStart => "-a", WalkEnd => "-c", _ => "" };
+            var 期望 = 段 != "" && CharAnim.有动画(基础 + 段) ? 基础 + 段 : 基础;
             if (CharAnim.有动画(期望))
             {
                 if (CharAnim.当前动画名_只读 != 期望) CharAnim.PlayNamed(期望);
@@ -1221,14 +1345,25 @@ public partial class StateMachine : Node
         public static float 走动空闲秒 = 30f;
         public static float 首次走动最小秒 = 10f;
         public static float 首次走动最大秒 = 25f;
-        public static float 走动间隔最小秒 = 120f;
-        public static float 走动间隔最大秒 = 300f;
+        // ── 重构#3（2026-09-22）走动概率爬坡（VPet MainLogic EventTimer 同款机制，数值按我们观感重定标）──
+        // 每「爬坡秒」掷一次 Next(max(爬坡下限, 爬坡周期 - 连续待机秒))，命中前「爬坡移动槽」个值 → 走动。
+        // VPet 原值：15s 一掷 / 周期 200（intercycle 默认）/ 下限 20 / 移动占 3 槽——我们照抄这套默认。
+        // 模拟：中位 ~210s、P75 ~270s（与旧固定 120~300s 均匀倒计时量级一致，但闲置越久越走得勤、互动后重新爬坡）。
+        public static float 爬坡秒 = 15f;
+        public static int 爬坡周期 = 200;
+        public static int 爬坡下限 = 20;
+        public static int 爬坡移动槽 = 3;
         public static int 走动距离最小像素 = 60;
         public static int 走动距离最大像素 = 160;
         public static float 走动速度像素每秒 = 90f;
         public static int 每小时主动上限 = 8;
         public static float 持续态兜底秒 = 120f;
         public static float 排队兜底秒 = 3f;
+        /// <summary>重构#2：fidget 待机小动作 B 循环的骰子阈值 L（VPet DisplayBLoopingToNomal 的 loopLength）。
+        /// 每播完第 n 圈掷 Rnd.Next(n) > L 决定退场（首圈恒不过线）：L=1 平均 ~4.2 圈、L=2 平均 ~5.6 圈、L=5 平均 ~9.5 圈。
+        /// VPet lps 的 duration 表是 10~20（平均 15~27 圈 ≈ 分钟级蹲坐）——我们的 fidget 是几十秒一冒的小动作，
+        /// 按观感重定标为 2（一次会话 ≈ 8~16s），**不抄数值只抄机制**。</summary>
+        public static int fidget循环L = 2;
 
         // —— P6 环境感知（**默认关**：主人不开，它就一次也不查） ——
         public static bool 环境感知启用 = false;
@@ -1315,13 +1450,16 @@ public partial class StateMachine : Node
                     走动空闲秒 = 取浮点(根, "走动空闲秒", 走动空闲秒);
                     首次走动最小秒 = 取浮点(根, "首次走动最小秒", 首次走动最小秒);
                     首次走动最大秒 = 取浮点(根, "首次走动最大秒", 首次走动最大秒);
-                    走动间隔最小秒 = 取浮点(根, "走动间隔最小秒", 走动间隔最小秒);
-                    走动间隔最大秒 = 取浮点(根, "走动间隔最大秒", 走动间隔最大秒);
+                    爬坡秒 = Math.Max(1f, 取浮点(根, "爬坡秒", 爬坡秒));
+                    爬坡下限 = Math.Max(1, 取整数(根, "爬坡下限", 爬坡下限));
+                    爬坡移动槽 = Math.Max(1, 取整数(根, "爬坡移动槽", 爬坡移动槽));
+                    爬坡周期 = Math.Max(爬坡下限 + 爬坡移动槽, 取整数(根, "爬坡周期", 爬坡周期));
                     走动距离最小像素 = 取整数(根, "走动距离最小像素", 走动距离最小像素);
                     走动距离最大像素 = 取整数(根, "走动距离最大像素", 走动距离最大像素);
                     走动速度像素每秒 = Math.Max(1f, 取浮点(根, "走动速度像素每秒", 走动速度像素每秒));
                     每小时主动上限 = 取整数(根, "每小时主动上限", 每小时主动上限);
                     持续态兜底秒 = 取浮点(根, "持续态兜底秒", 持续态兜底秒);
+                    fidget循环L = Math.Clamp(取整数(根, "fidget循环L", fidget循环L), 0, 20);
                     环境感知启用 = 取布尔(根, "环境感知启用", 环境感知启用);
                     离开阈值秒 = 取浮点(根, "离开阈值秒", 离开阈值秒);
                     全屏静默 = 取布尔(根, "全屏静默", 全屏静默);
@@ -1374,7 +1512,6 @@ public partial class StateMachine : Node
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
             }
 
-            if (走动间隔最大秒 < 走动间隔最小秒) 走动间隔最大秒 = 走动间隔最小秒;
             if (首次走动最大秒 < 首次走动最小秒) 首次走动最大秒 = 首次走动最小秒;
             if (走动距离最大像素 < 走动距离最小像素) 走动距离最大像素 = 走动距离最小像素;
 

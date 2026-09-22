@@ -17,6 +17,13 @@ public partial class CharAnim : AnimatedSprite2D
     private const int Idle循环上限 = 16;
     private static int _fidget触发次数;
     private static int _idle循环次数;
+    // ── 重构#2（2026-09-22）fidget 会话：A → B循环×骰子 → C → idle ──
+    // 对齐 VPet MainDisplay.cs:314-320 DisplayBLoopingToNomal：每播完一圈 B，
+    // 掷 Rnd.Next(++looptimes) > L 决定「播 C 退出」还是「再来一圈」。
+    // 单段变体（VPet Single 型：spin/bubble/doze/…）不开会话，播完直接回 idle（DisplayToNomal 语义）。
+    private static string _fidget主名;   // 当前会话主段名（如 fidget-squat）；null = 无会话/单段
+    private static int _fidget圈数;      // 已播 B 圈数（= VPet looptimes）
+    private static readonly Random _骰子 = new Random();   // fidget 骰子专用（与 工具库.DefaultRand 分开，互不扰流）
     private static readonly List<string> 内置动画组 =
         ["idle", "celerate", "drag", "dragup", "dragdown", "fidget",
          // 语义池（P2 导入资产后即自动生效；池目录不存在时加载管线自动跳过，无副作用）
@@ -126,7 +133,37 @@ public partial class CharAnim : AnimatedSprite2D
                 break;
             case "celerate":
             case "dragdown":
+                _idle循环次数 = 0;
+                进入状态("idle");
+                break;
             case "fidget":
+                // 重构#2：三段会话 A → B循环×骰子 → C → idle（VPet DisplayBLoopingToNomal 同款）。
+                // 单段变体（无会话，_fidget主名 = null）走 else 分支一次过回 idle（Single 型语义）。
+                if (_fidget主名 != null)
+                {
+                    var 当前 = Animation.ToString();
+                    if (当前 == _fidget主名 + "-a")
+                    {
+                        // A 播完 → B 第一圈（首掷 Next(1)=0 恒不过线，见下）
+                        Play(_fidget主名);
+                    }
+                    else if (当前 == _fidget主名)
+                    {
+                        // 每播完一圈 B 掷一次骰子（VPet 原样：Rnd.Next(++looptimes) > L）：
+                        // 第 n 圈掷 Next(n)——首圈 Next(1)=0 恒不过线（保证至少播一圈），
+                        // 圈数越多退出概率越高。命中 → C 退场。
+                        _fidget圈数++;
+                        if (_骰子.Next(_fidget圈数) > StateMachine.设置.fidget循环L && 有动画(_fidget主名 + "-c"))
+                            Play(_fidget主名 + "-c");
+                        else
+                            Play(_fidget主名);
+                    }
+                    else
+                    {
+                        结束fidget会话();   // C 播完 → 落地回 idle
+                    }
+                    break;
+                }
                 _idle循环次数 = 0;
                 进入状态("idle");
                 break;
@@ -162,12 +199,43 @@ public partial class CharAnim : AnimatedSprite2D
     public static bool 有动画(string 动画名) =>
         !string.IsNullOrEmpty(动画名) && _单例?.SpriteFrames?.HasAnimation(动画名) == true;
 
+    /// <summary>动画时长（秒）= Σ每帧相对时长 ÷ 帧率；未载入返回 0（状态机走链用它对齐起步/停步阶段时长）。
+    /// 2026-09-22：按逐帧 duration 求和（有定格帧的动画时长不再被低估）。</summary>
+    public static float 动画时长(string 动画名)
+    {
+        var sf = _单例?.SpriteFrames;
+        if (sf == null || !sf.HasAnimation(动画名)) return 0f;
+        var 帧率 = Math.Max(1.0, sf.GetAnimationSpeed(动画名));
+        double 总时长 = 0;
+        for (var i = 0; i < sf.GetFrameCount(动画名); i++) 总时长 += sf.GetFrameDuration(动画名, i);
+        return (float)(总时长 / 帧率);
+    }
+
     /// <summary>当前正在播的动画名（只读，供状态机避免重复重播导致相位重置）。</summary>
     public static string 当前动画名_只读 => _单例?.Animation.ToString() ?? "";
 
     /// <summary>探针用：查询某动画是否按循环模式加载（包裹段 A/C 必须非循环——循环动画不回「播完」信号）。</summary>
     public static bool 动画循环_只读(string 名)
         => _单例 != null && _单例.SpriteFrames.HasAnimation(名) && _单例.SpriteFrames.GetAnimationLoop(名);
+
+    /// <summary>探针用：当前 fidget 会话主段名（null = 无会话/单段一次过）与已播 B 圈数——验证骰子循环推进。</summary>
+    public static string fidget会话_只读 => _fidget主名;
+    public static int fidget圈数_只读 => _fidget圈数;
+
+    /// <summary>探针用：模拟「当前动画播完」信号（驱动 fidget 会话/状态机段推进，不靠实时等待）。</summary>
+    public static void 探针_模拟播完() => _单例?.OnAnimationFinished();
+
+    /// <summary>探针用：以指定主段开 fidget 会话（绕过池内随机——FidgetProbe 要钉死 squat 验证段推进）。</summary>
+    public static void 探针_fidget会话(string 主段名) { if (_单例 != null) 开始fidget会话(主段名); }
+
+    /// <summary>探针用：某动画的帧数（未载入返回 0）——BufferProbe 验证「切换风暴下当前动画始终立即可渲染」。</summary>
+    public static int 帧数_只读(string 名)
+        => _单例 != null && _单例.SpriteFrames.HasAnimation(名) ? _单例.SpriteFrames.GetFrameCount(名) : 0;
+
+    /// <summary>探针用：某动画第 i 帧的相对时长（单位 1/帧率 秒；未载入/越界返回 -1）。验证 durations 逐帧时长生效。</summary>
+    public static float 帧时长_只读(string 名, int i)
+        => _单例 != null && _单例.SpriteFrames.HasAnimation(名) && i < _单例.SpriteFrames.GetFrameCount(名)
+            ? _单例.SpriteFrames.GetFrameDuration(名, i) : -1f;
 
     /// <summary>按动画名精确播放（区别于 PlayState 的「按池随机取一项」）。可跨线程调用。</summary>
     public static void PlayNamed(string 动画名)
@@ -196,19 +264,37 @@ public partial class CharAnim : AnimatedSprite2D
 
     private static void 进入状态(string id)
     {
-        if (显示人物.动画池字典.TryGetValue(id,out var list) && list.Count>0)
+        // 换到别的状态：作废未完成的 fidget 会话（拖拽/气泡等硬切时不留脏状态）
+        if (id != "fidget") _fidget主名 = null;
+        if (!显示人物.动画池字典.TryGetValue(id, out var list) || list.Count == 0)
         {
-
-            _单例.Play(list.列表随机项().name);
+            if (id != "idle") 进入状态("idle");   // ReSharper disable once TailRecursiveCall
+            return;
         }
-        else
-        {
-            if (id!="idle")
-            {
-                // ReSharper disable once TailRecursiveCall
-                进入状态("idle");
-            }
-        }   
+        // 重构#6：择档统一走 StateMachine.挑主名（VPet 式降级链 + 段排除）——
+        // idle 不再整池随机串到 happy/poor（默认钉 nomal，落实「默认普通」口径）；
+        // fidget 自动排除 -a/-c 过渡段。挑主名 返回 null（数据未就绪）时退回旧的整池随机。
+        var 主名 = StateMachine.挑主名(id) ?? list.列表随机项()?.name;
+        if (string.IsNullOrEmpty(主名)) { if (id != "idle") 进入状态("idle"); return; }
+        // 重构#2：fidget 主段带 -a = 三段结构 → 开会话（A 进场 → B 循环掷骰 → C 退场），否则单段一次过。
+        if (id == "fidget" && 有动画(主名 + "-a")) { 开始fidget会话(主名); return; }
+        _单例.Play(主名);
+    }
+
+    /// <summary>开 fidget 会话：钉死主段、圈数清零、先播 A 进场段（播完由 OnAnimationFinished 接 B 循环）。</summary>
+    private static void 开始fidget会话(string 主名)
+    {
+        _fidget主名 = 主名;
+        _fidget圈数 = 0;
+        _单例.Play(主名 + "-a");
+    }
+
+    /// <summary>fidget 会话收尾：清会话、重置 idle 计数、回 idle（C 播完 / 无 C 段时骰子命中 直接落地）。</summary>
+    private static void 结束fidget会话()
+    {
+        _fidget主名 = null;
+        _idle循环次数 = 0;
+        进入状态("idle");
     }
     public static void 载入人物动画()
     {
@@ -236,8 +322,8 @@ public partial class CharAnim : AnimatedSprite2D
             }
         }
     }
-    private static void 加载动画(SpriteFrames 状态机, 动画信息 动画信息) => 加载动画(状态机,动画信息.name,动画信息.Path,动画信息.rate,动画信息.Type);
-    private static void 加载动画(SpriteFrames 状态机, string 动画名, string 目录, int 帧率, string 池 = null)
+    private static void 加载动画(SpriteFrames 状态机, 动画信息 动画信息) => 加载动画(状态机,动画信息.name,动画信息.Path,动画信息.rate,动画信息.Type,动画信息.durations);
+    private static void 加载动画(SpriteFrames 状态机, string 动画名, string 目录, int 帧率, string 池 = null, List<int> 帧时长 = null)
     {
         // 1. 检查目录是否存在 (使用绝对路径)
         if (!DirAccess.DirExistsAbsolute(目录))
@@ -278,11 +364,15 @@ public partial class CharAnim : AnimatedSprite2D
         filePaths.Sort();
 
         // 5. 循环加载外部文件并转为 Texture
+        //    2026-09-22 逐帧时长：info.json 的 durations（相对时长，单位 1/帧率 秒）逐帧带上——
+        //    还原原版「定格/慢动作」节奏（VPet 每帧自带 ms：250=爬墙、500=咀嚼、1000+=长定格）。
+        //    无 durations（旧素材/手写 mod）= 每帧 1，行为与从前一致。
+        var 帧序 = 0;
         foreach (var path in filePaths)
         {
             // 从磁盘读取字节数据
             var buffer = FileAccess.GetFileAsBytes(path);
-            if (buffer == null || buffer.Length == 0) continue;
+            if (buffer == null || buffer.Length == 0) { 帧序++; continue; }
 
             // 创建 Image 并加载数据
             var img = new Image();
@@ -292,12 +382,14 @@ public partial class CharAnim : AnimatedSprite2D
             {
                 // 将 Image 转为 Godot 渲染可用的 ImageTexture
                 var texture = ImageTexture.CreateFromImage(img);
-                状态机.AddFrame(动画名, texture);
+                var 时长 = 帧时长 != null && 帧序 < 帧时长.Count && 帧时长[帧序] > 0 ? 帧时长[帧序] : 1f;
+                状态机.AddFrame(动画名, texture, 时长);
             }
             else
             {
                 GD.PrintErr($"[解析失败] 无法加载图片: {path}, 错误代码: {err}");
             }
+            帧序++;
         }
     }
 }

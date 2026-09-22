@@ -1,0 +1,123 @@
+using System;
+using desktop.script.logic;
+using desktop.script.State;
+using desktop.script.UX;
+using Godot;
+
+namespace desktop.tests;
+
+/// <summary>
+/// 档位降级链探针（headless，重构#6）：验证 VPet GraphCore.FindGraphs 式的择档降级——
+/// ① 默认（三档关）钉 nomal 档：idle 不再整池随机串到 happy/poor（落实「默认普通」口径）；
+/// ② 精确档命中（开心→think-happy、不良→think-poor）；
+/// ③ 降级链：档位素材缺失 → 相邻档兜底（say 池无档位素材 → 无档基名；walk poor→nomal 方向）；
+/// ④ 段排除：拆段池（fidget/sleep）择档不挑 -a/-c 过渡段；
+/// ⑤ Ill 不引入：降级链里没有任何 ill 档。
+/// Godot_v4.7.2-stable_mono_win64_console.exe --headless --path D:/Games/Github/AIPet res://tests/GradeProbe.tscn
+/// </summary>
+public partial class GradeProbe : Node
+{
+    private int _帧;
+    private int _失败;
+
+    public override void _Ready()
+    {
+        Main.探针_禁首启提示 = true;
+        MusicSense.启用 = false;
+        StateMachine.设置.问候启用 = false;
+        DailyRoutine.问候启用 = false;
+        StateMachine.设置.磁盘提醒启用 = false;
+        DailyRoutine.磁盘提醒启用 = false;
+        var ps = GD.Load<PackedScene>("res://game.tscn");
+        if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
+        AddChild(ps.Instantiate());
+        GD.Print("=== GradeProbe: 场景已实例化 ===");
+    }
+
+    private void 断言(bool 条件, string 描述)
+    {
+        if (条件) GD.Print($"[GRADE] PASS  {描述}");
+        else { _失败++; GD.PrintErr($"[GRADE] FAIL  {描述}"); }
+    }
+
+    public override void _Process(double delta)
+    {
+        _帧++;
+        switch (_帧)
+        {
+            case 4:
+                StateMachine.入场完成();
+                break;
+
+            // ── ① 默认（三档关）：idle 钉 nomal，不串档 ──
+            case 8:
+                StateMachine.设置.三档状态启用 = false;
+                StateMachine.设置.状态档位 = "普通";
+                var 串档 = 0;
+                for (var i = 0; i < 200; i++)
+                {
+                    var 名 = StateMachine.挑主名("idle");
+                    if (名 != null && (名.Contains("-happy-", StringComparison.Ordinal) || 名.Contains("-poor-", StringComparison.Ordinal)))
+                        串档++;
+                }
+                断言(串档 == 0, $"三档关：idle 200 次择档零串档（全落 nomal 组；实际串档 {串档}）");
+                break;
+
+            // ── ② 精确档命中 ──
+            case 12:
+                StateMachine.设置.三档状态启用 = true;
+                StateMachine.设置.状态档位 = "开心";
+                断言(StateMachine.挑主名("think") == "think-happy", $"开心档 → think-happy（实际 {StateMachine.挑主名("think")}）");
+                StateMachine.设置.状态档位 = "不良";
+                断言(StateMachine.挑主名("think") == "think-poor", $"不良档 → think-poor（实际 {StateMachine.挑主名("think")}）");
+                StateMachine.设置.状态档位 = "普通";
+                断言(StateMachine.挑主名("think") == "think-nomal", $"普通档 → think-nomal（实际 {StateMachine.挑主名("think")}）");
+                break;
+
+            // ── ③ 降级：say 池没有档位素材 → 无档基名（self/serious/shy/smile）兜底 ──
+            case 16:
+                StateMachine.设置.状态档位 = "开心";   // 要 happy，但 say 只有无档名
+                var say名 = StateMachine.挑主名("say");
+                断言(say名 != null && !say名.EndsWith("-a") && !say名.EndsWith("-c")
+                        && !say名.Contains("-happy", StringComparison.Ordinal),
+                    $"say 无档位素材 → 降级到无档基名（实际 {say名}）");
+                // sleep：有 loop（无档）与 happy 组——普通档应落 sleep-loop 而不是升到 sleep-happy
+                StateMachine.设置.状态档位 = "普通";
+                StateMachine.设置.三档状态启用 = false;
+                var sleep名 = StateMachine.挑主名("sleep");
+                断言(sleep名 == "sleep-loop", $"sleep 普通档 → 无档基名 sleep-loop（实际 {sleep名}）");
+                break;
+
+            // ── ④ 段排除：sleep/fidget 择档不挑 -a/-c ──
+            case 20:
+                var 段漏 = 0;
+                for (var i = 0; i < 200; i++)
+                {
+                    foreach (var 池 in new[] { "sleep", "fidget", "walk", "work" })
+                    {
+                        var 名 = StateMachine.挑主名(池);
+                        if (名 != null && (名.EndsWith("-a", StringComparison.Ordinal) || 名.EndsWith("-c", StringComparison.Ordinal)))
+                            段漏++;
+                    }
+                }
+                断言(段漏 == 0, $"拆段池 800 次择档零段漏（-a/-c 全排除；实际 {段漏}）");
+                break;
+
+            // ── ⑤ 降级链无 Ill（VPet 有第 4 档，我们刻意不引入） ──
+            case 24:
+                var 有ill = false;
+                foreach (var 档 in new[] { "happy", "nomal", "poor" })
+                    foreach (var 降 in StateMachine.降级链(档))
+                        if (降.Contains("ill", StringComparison.OrdinalIgnoreCase)) 有ill = true;
+                断言(!有ill, "降级链不含 ill 档（无生病玩法，Ill 素材未导入——决策记录见 VPet分析 §7.6）");
+                // 链顺序对齐 VPet ModeType 序号（Happy0↔Nomal1↔Poor2 相邻降级）
+                断言(StateMachine.降级链("happy")[1] == "nomal" && StateMachine.降级链("poor")[1] == "nomal"
+                        && StateMachine.降级链("nomal")[1] == "poor" && StateMachine.降级链("nomal")[2] == "happy",
+                    "降级链顺序 = VPet 相邻档（happy→nomal、poor→nomal、nomal→poor→happy）");
+                GD.Print($"[GRADE] ===== 失败数 = {_失败} =====");
+                GD.Print(_失败 == 0 ? "[GRADE] PASS" : "[GRADE] FAIL");
+                GetTree().Quit(_失败 == 0 ? 0 : 1);
+                break;
+        }
+    }
+}

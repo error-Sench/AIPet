@@ -1,7 +1,7 @@
 # AIPet-Agent.md — AIPet
 
 > 给 AI 代理（及协作者）的项目指南。本文件是**契约**：改动前先读，改完遵守。
-> 仓库语言：中文（注释与文档用中文，代码标识符用沿用旧仓库，见「开发约定」）。
+> 仓库语言：中文（注释与文档用中文，代码标识符沿用旧仓库，见「开发约定」）。
 > **文件名说明（2026-09-20）**：本文件原名 `AGENTS.md`——Hermes 等工具对「指令文件」设有写入保护门（不受审批开关影响），
 > 为让开发期改动不再被反复拦截而更名；根目录的 `AGENTS.md` 是**占位指路文件**（保自动发现），内容以本文件为准。
 
@@ -26,6 +26,8 @@
 | 界面层：面板群（聊天/工具栏/配置/状态窗）、窗口铁律、动画池机制、云母样式 | `script/UX/README.md` |
 | 能力层：ACP 客户端、AgentBridge、指令通道协议、白名单与安全边界、人格与数据的获取方式（**Agent 自主读取，不做注入**） | `script/Agent/README.md` |
 | 模式层：办公 / 游戏切换接口 | `script/Mode/README.md` |
+| 游戏模式：横板动作玩法（开发区，游戏模式本体） | `script/Game/README.md` |
+| 语音层：语音输出 TTS（双引擎 / 默认关）、语音输入 KWS（按需启动） | `script/Audio/README.md` |
 | 回归探针：有哪些、怎么跑、探针方法论（怎么写出不骗自己的断言） | `tests/README.md` |
 | 资产导入：VPet → mods 的导入器规则与踩坑 | `tools/README.md`（见该文件） |
 | 设计补充（Why/What）、施工记录、待办 | `document/idea.md`、`document/开发历史记录.md`、`document/Plan表.md`（待办）|
@@ -152,13 +154,13 @@ dotnet build D:/Games/Github/AIPet/desktop.csproj
 > **文档关系**：`AIPet-Agent.md` 是**主文档**（工程契约，How）。`idea.md` 是**对项目的设计补充**（意图，Why/What），两者**解耦**——本文件不引用 idea 的具体小节，只描述工程约束。
 
 - `desktop.csproj` 的 SDK 已由 Godot 4.7.2 编辑器自动从 `4.5.1` 升级为 `4.7.2`（用户无手动改动；编辑器打开即自动改写）。**保留**该改动——本地引擎是 4.7.2，还原后打开又会被升回。
-- 架构图参考：`D:/Games/Github/ACPPet-架构图.html`（旧名文件，内容对应本项目）。
-- 骨架文件（`script/Soul/`、`script/State/`、`script/Agent/`、`script/Mode/`）已建，均为桩/TODO，待按此文档实现。
+- 架构图参考：`D:/Games/Github/ACPPet-架构图.html`（旧名文件，内容对应本项目；**在仓库外**——迁移/分享时需一并带走）。
+- 骨架文件（`script/Soul/`、`script/State/`、`script/Agent/`、`script/Mode/`）已按本文件实现为各层本体（细节与踩坑见各层 README）；`script/Game/` 为游戏模式开发区（`script/Game/README.md`）。
 - 灵魂职责已重新定义为「人格 prompt 资产」，且**人格不落程序**（主人四次强调，2026-09-20 定稿）：人格经 skill **一次性内化**进 Agent 自己；程序只存动态数据——数值归 `state/stats.json`、画像归 `soul/profile.md`、记忆流水归 `soul/memory.jsonl`；显示名是配置值（`config/config.json` 的「名字」，缺省「萝莉丝」）。
 - **数值语义（2026-09-20 主人定）**：`mood` = 主人情绪读数（LLM 判断 → `set_mood` 写入；程序只做衰减与存储，每 30s 向中性 50 回 5 点），**只影响回复策略、不加入互动**；精力/亲密属 mod 扩展（亲密归空置的关系层）。
 - **人格与数据的获取方式（硬规则；主人 2026-09-16 三次强调 + 2026-09-20 第四次补充）**：桌宠**不做任何主动注入**——
   不拼进消息、不写插件钩子、不碰 Agent 的 system prompt、也不注入本机 Agent。交付物 = **人格内化材料**（结构 + 示例）+ **skill**（用户提交给自己的 Agent），
-  **skill 是一次性内化文档**：Agent 读一次 → 先问主人「我叫什么？」→ 把「桌宠的职责与互动」写进自己的人设（自主注入），之后不必再读 skill、按需读**动态数据**文件。
+  **skill 是一次性内化文档**：Agent 读一次 → 把「桌宠的职责与互动」写进自己的人设（自主注入），之后不必再读 skill、按需读**动态数据**文件。
   **人格不落程序**：程序侧不保存、不供读人格文件（`SoulTable` 已删除）；显示名 = 配置值（`config/config.json`）。skill 与材料**在项目完工时定稿**（P8）。
 - **上下文组装照做，形态是接口**：`ContextTable` 把「数值 + 名字 + 画像 + 最近记忆 + 待处理事件 + 指令通道 + 动态文件路径」组装成 `user://context.md`（**只在启动 + 事件池变动时**刷新——数值漂移不触发；文件头标只读）；
   另有 **MCP 工具 `pet_context`**（`dist/aipet-mcp/`，Agent 调用即当场读盘、永远最新）。
