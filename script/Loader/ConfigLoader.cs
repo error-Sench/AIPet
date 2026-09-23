@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.Util;
 using Godot;
 using FileAccess = Godot.FileAccess;

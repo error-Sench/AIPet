@@ -7,7 +7,7 @@ using System.Text;
 using CsvHelper;
 using CsvHelper.Configuration;
 using desktop.script.Loader;
-using desktop.script.logic;
+using desktop.script.Logic;
 using Godot;
 using Newtonsoft.Json;
 using Environment = System.Environment;

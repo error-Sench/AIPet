@@ -1,5 +1,5 @@
 using System.IO;
-using desktop.script.logic;
+using desktop.script.Logic;
 using Godot;
 
 namespace desktop.script.Loader;

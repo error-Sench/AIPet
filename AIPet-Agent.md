@@ -92,7 +92,7 @@ D:/Games/Github/AIPet/
 │   ├── main_command/ main_txt/ main_file/ main_anim/ workshop/   # 原项目
 │   └── toolbar/           #   工具栏小组件（删目录即移除、`_` 前缀即禁用；**组件自带 config/state**，自包含）
 ├── script/                # ★ C# 源码（按层）
-│   ├── Logic/             #   总控与数据流（Main / IO / FileDrop / ClipboardRead…）
+│   ├── Logic/             #   总控与数据流（Main 引导+全局表 / IO 数据总线 / ScriptRunner 脚本执行 / FileInput 拖放·剪贴板 / ModModels 协议模型）
 │   ├── Loader/            #   加载管线（ModLoader / AnimLoader / CommandLoader…）
 │   ├── State/             #   身体层：状态机 + 环境感知
 │   ├── Soul/              #   灵魂层：数据接口（数值/名字/上下文）

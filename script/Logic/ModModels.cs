@@ -12,7 +12,10 @@ using Newtonsoft.Json;
 // ReSharper disable FieldCanBeMadeReadOnly.Global
 // ReSharper disable UnassignedField.Global
 // ReSharper disable CollectionNeverUpdated.Global
-namespace desktop.script.logic;
+namespace desktop.script.Logic;
+
+// mod 协议数据模型（2026-09-24 由 Date.cs 改名——原名实不符，里面没有日期逻辑）。
+// 消费方：Loader/*（info.json / group.json / index.json 反序列化）、UX（脚本选项菜单）、Audio/Kws（关键词）、StateMachine/CharAnim（人物/动画）。
 //对外暴露的字段统一用小驼峰敖
 public class 脚本组信息
 {

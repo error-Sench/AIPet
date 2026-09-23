@@ -7,7 +7,7 @@ using desktop.script.Agent;
 using desktop.script.Asset;
 using desktop.script.Loader;
 using desktop.script.Mode;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.State;
 using Godot;
 
@@ -204,7 +204,7 @@ public partial class ChatBox : Window
             var 捕获 = 脚本;
             var b = 新命令按钮(Tr(脚本.name), 脚本.IconImg);
             b.TooltipText = "执行：" + Tr(脚本.name);
-            b.Pressed += () => { 隐藏(); Main.选择脚本(捕获); };
+            b.Pressed += () => { 隐藏(); ScriptRunner.选择脚本(捕获); };
             _命令栏.AddChild(b);
         }
 
@@ -278,7 +278,7 @@ public partial class ChatBox : Window
             {
                 if (隐藏表.Contains(脚本.name)) continue;
                 var 捕获 = 脚本;
-                _选项项.Add((Tr(脚本.name), () => { 返回命令栏(); Main.选择脚本(捕获); }));
+                _选项项.Add((Tr(脚本.name), () => { 返回命令栏(); ScriptRunner.选择脚本(捕获); }));
             }
         }
 

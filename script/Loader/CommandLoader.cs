@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.Util;
 using Godot;
 
@@ -67,7 +67,7 @@ public static class CommandLoader
                     if(info.excute && !File.Exists(脚本文件路径))continue;
                     info.Path = 脚本目录;
                     info.ModPath = ModLoader.模组路径;
-                    Main.注册脚本信息(info);
+                    ScriptRunner.注册脚本信息(info);
                     if (info is 可见脚本信息 可见脚本)
                     {
                         if (string.IsNullOrEmpty(可见脚本.group))

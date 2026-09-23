@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 // 用于内存操作
-using desktop.script.logic;
+using desktop.script.Logic;
 using Godot;
 using SherpaOnnx; // 确保引用了 SherpaOnnx 命名空间
 
@@ -155,7 +155,7 @@ public partial class Kws : Node
                     IO.单例.set(k,v);
                 }
             }
-            Main.选择脚本(关键词信息.对应脚本);
+            ScriptRunner.选择脚本(关键词信息.对应脚本);
         }
         //_ = Dialogue.显示临时标题("我在");
         // 示例：调用 Main 中的逻辑

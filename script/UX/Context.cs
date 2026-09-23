@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using desktop.script.Asset;
 using desktop.script.Loader;
 using desktop.script.State;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.Util;
 using Godot;
 
@@ -128,7 +128,7 @@ public partial class Context : Node
         var index = (int)id - 1;
         if (index < 直接指令列表.Count)
         {
-            Main.选择脚本(直接指令列表[index]);
+            ScriptRunner.选择脚本(直接指令列表[index]);
             return;
         }
         index -= 直接指令列表.Count;

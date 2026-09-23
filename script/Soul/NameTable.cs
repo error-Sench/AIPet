@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using desktop.script.logic;
+using desktop.script.Logic;
 
 namespace desktop.script.Soul;
 

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using desktop.script.Asset;
 using desktop.script.Loader;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.State;
 using desktop.script.Util;
 using DialogueManagerRuntime;
@@ -150,13 +150,6 @@ public partial class Dialogue : Node
     }
 
     #endregion
-    public static void 关闭指定标题(string text)
-    {
-        if (_当前文本 == text)
-        {
-            关闭标题();
-        }
-    }
     private void 底部居中显示()
     {
         选项菜单.AddIconItem(IconResource.取消图标,Tr("cancel"),114514);//固定取消,防止退出bug
@@ -244,11 +237,11 @@ public partial class Dialogue : Node
                         {
                             if (id < 脚本列表.Count)
                             {
-                                Main.选择脚本(脚本列表[(int)id]);
+                                ScriptRunner.选择脚本(脚本列表[(int)id]);
                             }
                             else
                             {
-                                Main.打开配置((int)id-脚本列表.Count);
+                                ScriptRunner.打开配置((int)id-脚本列表.Count);
                             }
                         }
                         break;
@@ -294,7 +287,7 @@ public partial class Dialogue : Node
         
         关闭标题(); // 对话结束
         _选项类型 = E选项类型.无;
-        Main.对话结束();
+        ScriptRunner.对话结束();
     }
     private static async void 进行对话(string 节点)
     {
@@ -319,7 +312,7 @@ public partial class Dialogue : Node
     private void 处理对话行(DialogueLine line)
     {
         _选项类型 = E选项类型.对话;
-        var 脚本 = Main.当前脚本;
+        var 脚本 = ScriptRunner.当前脚本;
         显示标题(line.Text);
         选项菜单.Clear();
         _当前回复列表 = line.Responses;
@@ -378,7 +371,7 @@ public partial class Dialogue : Node
         IO.单例.set("in",IO.单例.get("result"));
         if (id <= CommandLoader.展示指令列表.Count)
         {
-            Main.选择脚本( CommandLoader.展示指令列表[id-1]);
+            ScriptRunner.选择脚本( CommandLoader.展示指令列表[id-1]);
         }
     }
     #endregion

@@ -4,7 +4,7 @@ using System.IO;
 using System.Text.Json;
 using desktop.script.Loader;
 using desktop.script.Util;
-using desktop.script.logic;
+using desktop.script.Logic;
 using Godot;
 
 namespace desktop.script.UX;
@@ -193,7 +193,7 @@ public partial class ToolBar : Window
                 }
                 GD.Print($"[ToolBar] 派发旧指令: {名}");
                 隐藏();                 // 启动器语义：点完收起
-                Main.选择脚本(脚本);
+                ScriptRunner.选择脚本(脚本);
                 return;
             }
             // mod 只声明了目录、没有可执行动作：占位提示

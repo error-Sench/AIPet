@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.Agent;
 using desktop.script.UX;
 using desktop.script.Game;

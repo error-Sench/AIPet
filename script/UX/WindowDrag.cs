@@ -1,5 +1,4 @@
 using desktop.script.State;
-using desktop.script.logic;
 using Godot;
 
 namespace desktop.script.UX;
@@ -110,7 +109,6 @@ public partial class WindowDrag : Node
         StateMachine.NotifyInteraction("drag");
         Dialogue.关闭标题();
         ChatBox.隐藏(); // 拖动时不带着面板走
-        IO.单例.stopAudio();
     }
 
     public override void _Process(double delta)

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using desktop.script.Audio;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.State;
 using desktop.script.Util;
 using Godot;

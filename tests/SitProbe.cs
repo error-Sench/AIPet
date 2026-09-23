@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using desktop.script.logic;
+using desktop.script.Logic;
 using desktop.script.State;
 using desktop.script.UX;
 using Godot;
