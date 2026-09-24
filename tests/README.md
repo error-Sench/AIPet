@@ -96,8 +96,8 @@
 | `DegradeProbe` | headless | 降级路径：配了 Agent 起不来 → 提醒主人（气泡人话+事件池）；没配 Agent = 本地模式不打扰 |
 | `NetSpeedProbe` | headless（`-- hold` 可保持显示供外部截屏）| 网速桌面气泡：格式化/采样差分/文本与历史/位置+开关状态持久化/懒创建（位置断言在 headless 下跳过；配置走临时文件）|
 | `TtsProbe` | headless | 语音输出：配置/清洗/门控/系统语音枚举与挑选/**真合成到 WAV**/与气泡联动（探针不发声）|
-| `EventProbe` | headless | 行为事件：事件池读写/ack/保留策略/隐私字段 + 久坐提醒触发与冷却 + 升级为 Agent 事件 + 进上下文接口 |
-| `EnvProbe` | headless | 环境感知：默认关得住、真实 Win32 读数（活的时钟）、全屏闸门、离开/回来边沿与节流 |
+| `EventProbe` | headless | 行为事件：事件池读写/ack/保留策略/隐私字段 + 久坐提醒触发与冷却 + 升级为 Agent 事件 + 进上下文接口 + 记录开关（Plan #20：关=不写/开=写） |
+| `EnvProbe` | headless | 环境感知：默认关得住、真实 Win32 读数（活的时钟）、全屏闸门、离开/回来边沿与节流、配置接线（behavior.json → 感知层/事件池） |
 | `StatsWindowProbe` | **非 headless** | 状态窗（现为隐藏界面、无入口）：命令栏入口已撤（反向断言）+「游戏模式」入口在位 → 程序唤出 → **一个数字都不出现** → 文字状态随 mood 变化（并截图供视觉复核）|
 | `RoutineProbe` | headless | 时间驱动主动行为：启动问候（每次启动一次 / 忙态等回 idle / 不占预算 / 关掉开关不吭声）|
 | `PhraseProbe` | headless | 本地话语表 `config/phrases.json`：分类齐全（含「磁盘已删」反向断言）/ 随机不连重 / 占位符替换（合成表）/ 坏数据内置兜底 |

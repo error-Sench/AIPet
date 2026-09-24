@@ -78,5 +78,5 @@ C:\Users\<你的用户名>\AppData\Roaming\Godot\app_userdata\AIPet\
 - `soul_get` / `soul_set` 在白名单里但**未实现**，会被跳过并记日志（人格在 Agent 自己的人设里）。
 - `open_url` 仅在 `config/agent.json` 的 `aggressiveMode=true` 时可用；默认关闭。项目**刻意不提供**任何「执行本地命令」能力。
 - 事件池 500 行为上限（自动裁最旧）；ack 是否算数取决于 `ref` 与事件的 `t` **完全一致**。
-- 隐私边界：事件池只记桌宠自己的观察（时间 / 时长 / 状态机事件），**不记**窗口标题、进程名、键鼠内容、屏幕内容。
+- 隐私边界：事件池只记桌宠自己的观察（时间 / 时长 / 状态机事件），**不记**窗口标题、进程名、键鼠内容、屏幕内容；**记录开关在配置窗「行为」页**（默认开；关掉 = 一条也不写）。
 - 本包内容与代码同步于：`script/Agent/PetCommands.cs`（白名单 / 上限）、`script/Soul/ContextTable.cs`（路径 / 上下文结构 / 画像与记忆模板）、`script/State/EventPool.cs`（事件格式 / ack）、`script/State/StateMachine.cs`（合法状态）、`script/Soul/StatsTable.cs`（主人情绪读数 / 心情词）。
