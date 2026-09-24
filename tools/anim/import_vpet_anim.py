@@ -26,6 +26,10 @@ from PIL import Image
 
 VPET = r"D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup"
 DST_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "mods", "main_anim", "anim", "loris")
+# 本地新画素材根目录（非 VPet 来源）：`@本地/<相对路径>` 的源在这里找。
+# 素材**已是最终比例/画布**（scale=1，只做对齐 + 重编号），帧名沿用 `<前缀>_<序号>_<时长ms>.png` 规范
+# （rate/durations 的推导与 VPet 口径完全一致）。
+本地根 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "new_assets")
 REF = os.path.join(DST_ROOT, "idle/happy-1/000.png")   # 2026-09-20：idle 变体重命名 {档}-{n} 后跟着更新；注意帧名是 3 位（%03d），重导后会覆盖旧 2 位文件
 基线快照 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "baseline.json")   # 站位锚点快照（防漂移，见 基线()）
 CANVAS = 512
@@ -442,6 +446,17 @@ SPEC = {
         ("b", [("BDay/B", None, None)]),
         ("c", [("BDay/C", None, None)]),
     ],
+    # ── 游戏 P0 新画（2026-09-22；@本地 = tools/anim/new_assets/）：素材已是最终比例（导入只对齐+重编号）──
+    # 攻击：网球挥拍帧像素改绘（去锅/红球/速度线改空手），序列 = 起手→上举→蓄力→挥出→收势（收势=起手，闭环接 idle）。
+    "attack": [
+        ("left",  [("@本地/attack/left",  None, None)]),
+        ("right", [("@本地/attack/right", None, None)]),
+    ],
+    # 起跳：edge_hide 蹲压 + climb 拉伸蹬地（+6%）+ climb 收腿腾空；播完由最高点自动切 fall-b。
+    "jump": [
+        ("left",  [("@本地/jump/left",  None, None)]),
+        ("right", [("@本地/jump/right", None, None)]),
+    ],
 }
 
 
@@ -502,7 +517,11 @@ def 收集片段(片段列表, 报告):
         else:
             源, 起, 止 = 片段
             前缀 = None
-        源叶子 = os.path.join(VPET, 源.replace("\\", "/"))
+        # `@本地/...` = 本地新画素材（见 本地根），其余 = VPet 源（见 VPET）
+        if 源.startswith("@本地/"):
+            源叶子 = os.path.join(本地根, 源[len("@本地/"):].replace("\\", "/"))
+        else:
+            源叶子 = os.path.join(VPET, 源.replace("\\", "/"))
         if not os.path.isdir(源叶子):
             报告.append(f"  [跳过] {源}: 源目录不存在")
             continue
@@ -556,7 +575,8 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
     if ub[2] < 0:
         报告.append(f"  [跳过] {池}/{变体}: 全透明，无有效包围盒")
         return 0
-    scale = 固定缩放
+    # 本地新画素材已是最终比例：scale=1（只对齐，不缩放）；VPet 源用固定缩放。
+    scale = 1.0 if all(片段[0].startswith("@本地/") for 片段 in 片段列表) else 固定缩放
     off_x = 基线值["cx"] - ((ub[0] + ub[2]) / 2) * scale
     off_y = 基线值["bottom"] - ub[3] * scale
 

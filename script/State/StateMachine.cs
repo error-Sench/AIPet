@@ -1376,8 +1376,8 @@ public partial class StateMachine : Node
         public static int 爬边右偏移像素;
         public static int 顶挂偏移像素;
         public static int 脚底余量像素 = 6;
-        public static float 掉落初速 = 240f;
-        public static float 掉落加速度 = 1600f;
+        public static float 掉落初速 = 24f;
+        public static float 掉落加速度 = 160f;
         public static float 掉落终端速度 = 1400f;
 
         // —— 组③ 音乐反应（MusicSense.cs）：系统在放声音就跳舞，安静就收场 ——

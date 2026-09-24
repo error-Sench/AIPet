@@ -23,9 +23,9 @@ public static class MusicSense
     // —— 配置（StateMachine.设置 注入） ——
     public static bool 启用 = true;
     public static float 音量阈值 = 0.02f;    // 峰值超过算「有声音」
-    public static float 刺激阈值 = 0.25f;    // 识别期平均超过算「嗨」→ 换 Single 舞（官方 MusicMax）
+    public static float 刺激阈值 = 0.5f;    // 识别期平均超过算「嗨」→ 换 Single 舞（官方 MusicMax）
     public static float 识别秒 = 3f;         // 连续有声多久才开跳（官方 3s）
-    public static float 静音秒 = 6f;         // 安静多久收场
+    public static float 静音秒 = 2f;         // 安静多久收场
     public static float 采样间隔 = 0.5f;
 
     /// <summary>探针：注入假峰值（0~1；null = 读真实系统音量）。</summary>
