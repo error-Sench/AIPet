@@ -86,7 +86,7 @@ D:/Games/Github/AIPet/
 │   ├── pet.json           #   外观（缩放）
 │   ├── panel.json         #   面板（隐藏指令名单 / 配置窗尺寸）
 │   ├── bubble.json        #   ★ 气泡（显示时长 + 字号/风格/位置微调；时长也在配置窗「行为」页）
-│   ├── phrases.json       #   ★ 本地话语表（桌宠自己说的话：问候/被摸/久坐/磁盘/降级）
+│   ├── phrases.json       #   ★ 本地话语表（桌宠自己说的话：问候/被摸/久坐/降级）
 │   └── tts.json           #   语音输出（引擎/声音/语速/音量）
 ├── mods/                  # ★ 行为层内容（mod 协议：每个子目录 = 一个 mod；只加不改）
 │   ├── main_command/ main_txt/ main_file/ main_anim/ workshop/   # 原项目
