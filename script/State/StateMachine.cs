@@ -1322,8 +1322,28 @@ public partial class StateMachine : Node
         /// <summary>重构#2：fidget 待机小动作 B 循环的骰子阈值 L（VPet DisplayBLoopingToNomal 的 loopLength）。
         /// 每播完第 n 圈掷 Rnd.Next(n) > L 决定退场（首圈恒不过线）：L=1 平均 ~4.2 圈、L=2 平均 ~5.6 圈、L=5 平均 ~9.5 圈。
         /// VPet lps 的 duration 表是 10~20（平均 15~27 圈 ≈ 分钟级蹲坐）——我们的 fidget 是几十秒一冒的小动作，
-        /// 按观感重定标为 2（一次会话 ≈ 8~16s），**不抄数值只抄机制**。</summary>
+        /// 按观感重定标为 2（一次会话 ≈ 8~16s），**不抄数值只抄机制**。
+        /// 个别变体可单独调长/调短（如 squat）→ 见「fidget循环L覆盖」。</summary>
         public static int fidget循环L = 2;
+
+        // —— 动画组B（2026-09-24）fidget 循环节奏修正（主人口径见 document/VPet动画系统分析.md §9/§9.1）——
+        /// <summary>B 循环 L 的「每变体覆盖表」（变体短名 → L；缺省空表 = 全部用全局 fidget循环L）。
+        /// 主人口径（§9.1 Squat 行）：「蹲下看着主人，B 段循环可以做久一点，增加萌点」——squat 单独调长。
+        /// 机制不变（VPet DisplayBLoopingToNomal 概率递减退出），只换每变体的 L 取值。</summary>
+        public static Dictionary<string, int> fidget循环L覆盖 = new();
+
+        /// <summary>单段变体的「循环次数表」（变体短名 → [最小, 最大]；缺省无条目 = [1,1] 一次过，向后兼容）。
+        /// 主人口径（§9.1 amusement_B 行）：「一组循环动画：退出帧是第一帧不是最后一帧，每次可以循环 2-5 次」——
+        /// 每次触发在区间里随机取次数 N，播完直接重播同名（末帧≈首帧，接得无缝），N 遍后回 idle。
+        /// 其余单段变体（spin/bubble/doze/happy520/meowlook/yawning）无条目 → 仍一次过。</summary>
+        public static Dictionary<string, int[]> fidget单段循环 = new();
+
+        /// <summary>取某变体的有效 B 循环 L：覆盖表优先，缺省全局 fidget循环L（动画组B：squat 调长用）。</summary>
+        public static int fidgetL(string 变体) => fidget循环L覆盖.TryGetValue(变体, out var l) ? l : fidget循环L;
+
+        /// <summary>取单段变体的循环次数区间（缺省 [1,1] = 一次过）。</summary>
+        public static (int 最小, int 最大) fidget单段区间(string 变体)
+            => fidget单段循环.TryGetValue(变体, out var v) && v is { Length: 2 } ? (v[0], v[1]) : (1, 1);
 
         // —— P6 环境感知（**默认关**：主人不开，它就一次也不查） ——
         public static bool 环境感知启用 = false;
@@ -1423,6 +1443,8 @@ public partial class StateMachine : Node
                     每小时主动上限 = 取整数(根, "每小时主动上限", 每小时主动上限);
                     持续态兜底秒 = 取浮点(根, "持续态兜底秒", 持续态兜底秒);
                     fidget循环L = Math.Clamp(取整数(根, "fidget循环L", fidget循环L), 0, 20);
+                    fidget循环L覆盖 = 取整数表(根, "fidget循环L覆盖", fidget循环L覆盖);
+                    fidget单段循环 = 取区间表(根, "fidget单段循环", fidget单段循环);
                     环境感知启用 = 取布尔(根, "环境感知启用", 环境感知启用);
                     离开阈值秒 = 取浮点(根, "离开阈值秒", 离开阈值秒);
                     全屏静默 = 取布尔(根, "全屏静默", 全屏静默);
@@ -1553,6 +1575,41 @@ public partial class StateMachine : Node
 
         private static string 取文本(JsonElement 根, string 键, string 兜底) =>
             根.TryGetProperty(键, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? 兜底 : 兜底;
+
+        /// <summary>读「变体 → 整数」表（动画组B：fidget循环L覆盖）。逐项 clamp 0..20（与全局 fidget循环L 同域）；
+        /// 键缺失/不是对象 → 用兜底；坏项（非整数）跳过不整表作废。</summary>
+        private static Dictionary<string, int> 取整数表(JsonElement 根, string 键, Dictionary<string, int> 兜底)
+        {
+            if (!根.TryGetProperty(键, out var v) || v.ValueKind != JsonValueKind.Object) return 兜底;
+            var 表 = new Dictionary<string, int>();
+            foreach (var 项 in v.EnumerateObject())
+                if (项.Value.TryGetInt32(out var i)) 表[项.Name] = Math.Clamp(i, 0, 20);
+            return 表;
+        }
+
+        /// <summary>读「变体 → [最小, 最大]」表（动画组B：fidget单段循环）。逐值 clamp 1..20（至少播一遍）；
+        /// 写反了（最小>最大）按最小算；坏项（非 2 元整数数组）跳过不整表作废。</summary>
+        private static Dictionary<string, int[]> 取区间表(JsonElement 根, string 键, Dictionary<string, int[]> 兜底)
+        {
+            if (!根.TryGetProperty(键, out var v) || v.ValueKind != JsonValueKind.Object) return 兜底;
+            var 表 = new Dictionary<string, int[]>();
+            foreach (var 项 in v.EnumerateObject())
+            {
+                if (项.Value.ValueKind != JsonValueKind.Array || 项.Value.GetArrayLength() != 2) continue;
+                var 值 = new int[2];
+                var 下标 = 0;
+                var 都是整数 = true;
+                foreach (var e in 项.Value.EnumerateArray())
+                {
+                    if (!e.TryGetInt32(out var i)) { 都是整数 = false; break; }
+                    值[下标++] = Math.Clamp(i, 1, 20);
+                }
+                if (!都是整数) continue;
+                if (值[0] > 值[1]) 值[1] = 值[0];
+                表[项.Name] = 值;
+            }
+            return 表;
+        }
     }
 
     // ================= 供探针读取（只读） =================

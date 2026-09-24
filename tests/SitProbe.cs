@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using desktop.script.Logic;
 using desktop.script.State;
 using desktop.script.UX;
@@ -15,7 +16,8 @@ namespace desktop.tests;
 /// ④ sit 收场：C 播完 → 会话清空、回 idle；
 /// ⑤ 别的状态接管 → 会话作废；
 /// ⑥ 爬坡槽位：纯函数分布（移动 3 / 坐卧 2 / 其余无效）+ 与心跳同一条分派路径（探针_掷爬坡一次）；
-/// ⑦ behavior.json 四个新键加载到位（坐卧启用/坐卧槽/坐卧循环L/躺下基数）。
+/// ⑦ behavior.json 坐卧四键加载到位（**读配置比对**——主人会调值：动画组B 已把 坐卧循环L 2→4，
+///    硬编码数字会随调值假红；存在 user:// 覆盖时 SKIP，覆盖优先是设计行为，见 tests/README.md 踩坑#27）。
 /// 两个覆盖钩子（探针_坐卧退出覆盖 / 探针_坐卧躺下覆盖）让「退/不退」「躺/不躺」全流程可复现。
 /// 注意：断言一律**实时**读 当前动画名_只读（帧初快照在 模拟播完 之后就是过期值）。用法：
 /// Godot_v4.7.2-stable_mono_win64_console.exe --headless --path D:/Games/Github/AIPet res://tests/SitProbe.tscn
@@ -25,9 +27,32 @@ public partial class SitProbe : Node
     private int _帧;
     private int _失败;
     private readonly List<string> _播过的B = new();
+    private bool _有用户覆盖;   // user:// 有 behavior.json 覆盖 → 配置值断言 SKIP（踩坑#27）
 
     /// <summary>实时读当前动画名（不要缓存到帧初）。</summary>
     private static string 现 => CharAnim.当前动画名_只读;
+
+    /// <summary>读生效的 behavior.json（候选顺序同 StateMachine.设置.加载：「behavior.json」→「config/behavior.json」，
+    /// 每档按 user:// → exe 同目录 → res:// 找第一个存在的）。返回 (路径, 根元素)；找不到/坏 JSON 返回 (null, default)。</summary>
+    private static (string 路径, JsonElement 根) 读生效配置()
+    {
+        var 候选 = new List<string>();
+        候选.AddRange(desktop.script.Util.ConfigFile.候选("behavior.json"));
+        候选.AddRange(desktop.script.Util.ConfigFile.候选("config/behavior.json"));
+        foreach (var 路径 in 候选)
+        {
+            if (!System.IO.File.Exists(路径)) continue;
+            try
+            {
+                var 文本 = System.IO.File.ReadAllText(路径);
+                if (string.IsNullOrWhiteSpace(文本)) continue;
+                using var 文档 = JsonDocument.Parse(文本);
+                return (路径, 文档.RootElement.Clone());
+            }
+            catch { }
+        }
+        return (null, default);
+    }
 
     public override void _Ready()
     {
@@ -35,6 +60,7 @@ public partial class SitProbe : Node
         MusicSense.启用 = false;
         // 探针隔离：冻结时间驱动（问候/磁盘/音乐），避免全量回归里被别的日程抢状态（顺序相关抖动）
         StateMachine.设置.探针_冻结时间驱动开关 = true;
+        _有用户覆盖 = Godot.FileAccess.FileExists("user://behavior.json") || Godot.FileAccess.FileExists("user://config/behavior.json");
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
@@ -76,9 +102,42 @@ public partial class SitProbe : Node
                     $"sit-nomal 两个 B 变体（实际 [{string.Join(",", 变体)}]）");
                 var 单变 = CharAnim.探针_坐卧B变体列表("lie-nomal");
                 断言(单变.Count == 1 && 单变[0] == "lie-nomal-b1", $"lie-nomal 单变体列表退化为 b1（实际 [{string.Join(",", 单变)}]）");
-                断言(StateMachine.设置.坐卧启用 && StateMachine.设置.坐卧槽 == 2
-                    && StateMachine.设置.坐卧循环L == 2 && StateMachine.设置.躺下基数 == 2,
-                    $"behavior.json 坐卧四键加载（启用={StateMachine.设置.坐卧启用} 槽={StateMachine.设置.坐卧槽} L={StateMachine.设置.坐卧循环L} 基数={StateMachine.设置.躺下基数}）");
+                // ⑦ 坐卧四键加载：**读配置比对**（动画组B：主人会调值——坐卧循环L 已 2→4；硬编码数字会随调值假红）。
+                //    存在 user:// 覆盖时 SKIP（覆盖优先是设计行为，不是故障——tests/README.md 踩坑#27）。
+                if (_有用户覆盖)
+                {
+                    GD.Print("[SIT] SKIP  behavior.json 坐卧四键断言：存在 user:// 覆盖（覆盖优先是设计行为，不是故障）");
+                }
+                else
+                {
+                    // 小工具：读键并取值（键缺失/类型不对 → false，值保持兜底）
+                    static bool 取整(JsonElement 根, string 键, out int 值)
+                    {
+                        值 = 0;
+                        return 根.TryGetProperty(键, out var e) && e.TryGetInt32(out 值);
+                    }
+                    static bool 取真值(JsonElement 根, string 键, out bool 值)
+                    {
+                        值 = false;
+                        if (!根.TryGetProperty(键, out var e) || e.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return false;
+                        值 = e.GetBoolean();
+                        return true;
+                    }
+                    var (配置路径, 配置根) = 读生效配置();
+                    var 启用值 = false;
+                    var 槽 = 0;
+                    var L = 0;
+                    var 基数 = 0;
+                    var 有键 = 配置路径 != null
+                        && 取真值(配置根, "坐卧启用", out 启用值)
+                        && 取整(配置根, "坐卧槽", out 槽)
+                        && 取整(配置根, "坐卧循环L", out L)
+                        && 取整(配置根, "躺下基数", out 基数);
+                    if (!有键) 断言(false, $"behavior.json 坐卧四键缺失/类型不对（{配置路径 ?? "找不到生效配置"}）");
+                    else 断言(StateMachine.设置.坐卧启用 == 启用值 && StateMachine.设置.坐卧槽 == 槽
+                        && StateMachine.设置.坐卧循环L == L && StateMachine.设置.躺下基数 == 基数,
+                        $"behavior.json 坐卧四键加载 = 文件值（文件 {配置路径}：启用={启用值} 槽={槽} L={L} 基数={基数}；内存：启用={StateMachine.设置.坐卧启用} 槽={StateMachine.设置.坐卧槽} L={StateMachine.设置.坐卧循环L} 基数={StateMachine.设置.躺下基数}）");
+                }
                 断言(!CharAnim.动画循环_只读("sit-nomal-b1") && !CharAnim.动画循环_只读("lie-nomal-a"),
                     "sit/lie 段非循环加载（循环动画不回「播完」→ 会话卡死）");
                 break;

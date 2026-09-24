@@ -20,9 +20,15 @@ public partial class CharAnim : AnimatedSprite2D
     // ── 重构#2（2026-09-22）fidget 会话：A → B循环×骰子 → C → idle ──
     // 对齐 VPet MainDisplay.cs:314-320 DisplayBLoopingToNomal：每播完一圈 B，
     // 掷 Rnd.Next(++looptimes) > L 决定「播 C 退出」还是「再来一圈」。
-    // 单段变体（VPet Single 型：spin/bubble/doze/…）不开会话，播完直接回 idle（DisplayToNomal 语义）。
+    // 单段变体（VPet Single 型：spin/bubble/doze/…）不开会话，播完直接回 idle（DisplayToNomal 语义）；
+    // 例外 = 带「fidget单段循环」配置的（amuse）→ 走单段循环会话（动画组B，见下）。
     private static string _fidget主名;   // 当前会话主段名（如 fidget-squat）；null = 无会话/单段
     private static int _fidget圈数;      // 已播 B 圈数（= VPet looptimes）
+    // ── 动画组B（2026-09-24）单段变体循环会话：amusement_B 是循环动画（退出帧=首帧，直接重播同名即无缝）──
+    // 主人审视（document/VPet动画系统分析.md §9.1）：「一组循环动画……每次可以循环 2-5 次」。
+    // 次数表在 behavior.json「fidget单段循环」（变体 → [最小,最大]；缺省无条目 = 一次过，向后兼容）。
+    private static string _fidget单段名;   // 当前单段循环会话名（如 fidget-amuse）；null = 无会话（一次过）
+    private static int _fidget单段剩余;    // 还需重播的次数（0 = 本遍播完即回 idle）
     private static readonly Random _骰子 = new Random();   // fidget 骰子专用（与 工具库.DefaultRand 分开，互不扰流）
     private static readonly List<string> 内置动画组 =
         ["idle", "celerate", "drag", "dragup", "dragdown", "fidget",
@@ -145,7 +151,8 @@ public partial class CharAnim : AnimatedSprite2D
                 break;
             case "fidget":
                 // 重构#2：三段会话 A → B循环×骰子 → C → idle（VPet DisplayBLoopingToNomal 同款）。
-                // 单段变体（无会话，_fidget主名 = null）走 else 分支一次过回 idle（Single 型语义）。
+                // 单段变体（无会话）默认一次过回 idle（Single 型语义）；
+                // 动画组B：带「fidget单段循环」配置的（amuse）走单段循环会话——播完直接重播同名，次数用尽回 idle。
                 if (_fidget主名 != null)
                 {
                     var 当前 = Animation.ToString();
@@ -159,8 +166,9 @@ public partial class CharAnim : AnimatedSprite2D
                         // 每播完一圈 B 掷一次骰子（VPet 原样：Rnd.Next(++looptimes) > L）：
                         // 第 n 圈掷 Next(n)——首圈 Next(1)=0 恒不过线（保证至少播一圈），
                         // 圈数越多退出概率越高。命中 → C 退场。
+                        // 动画组B：L 按变体取（「fidget循环L覆盖」优先，缺省全局 fidget循环L）。
                         _fidget圈数++;
-                        if (_骰子.Next(_fidget圈数) > StateMachine.设置.fidget循环L && 有动画(_fidget主名 + "-c"))
+                        if (_骰子.Next(_fidget圈数) > StateMachine.设置.fidgetL(变体键(_fidget主名)) && 有动画(_fidget主名 + "-c"))
                             Play(_fidget主名 + "-c");
                         else
                             Play(_fidget主名);
@@ -168,6 +176,20 @@ public partial class CharAnim : AnimatedSprite2D
                     else
                     {
                         结束fidget会话();   // C 播完 → 落地回 idle
+                    }
+                    break;
+                }
+                if (_fidget单段名 != null)
+                {
+                    // 单段循环会话（amuse）：退出帧=首帧 → 直接重播同名即无缝；次数用尽（或状态脏了）→ 收尾。
+                    if (Animation.ToString() == _fidget单段名 && _fidget单段剩余 > 0)
+                    {
+                        _fidget单段剩余--;
+                        Play(_fidget单段名);
+                    }
+                    else
+                    {
+                        结束fidget单段会话();
                     }
                     break;
                 }
@@ -240,6 +262,25 @@ public partial class CharAnim : AnimatedSprite2D
     /// <summary>探针用：以指定主段开 fidget 会话（绕过池内随机——FidgetProbe 要钉死 squat 验证段推进）。</summary>
     public static void 探针_fidget会话(string 主段名) { if (_单例 != null) 开始fidget会话(主段名); }
 
+    /// <summary>探针用：以指定单段变体开循环会话（绕过池内随机——FidgetProbe 要钉死 amuse/spin 验证重播与一次过）。</summary>
+    public static void 探针_fidget单段(string 主段名) { if (_单例 != null) 开始fidget单段会话(主段名); }
+
+    /// <summary>探针用：单段循环会话名（null = 无会话/一次过）与剩余重播次数——验证 amuse 重播会话。</summary>
+    public static string fidget单段会话_只读 => _fidget单段名;
+    public static int fidget单段剩余_只读 => _fidget单段剩余;
+
+    /// <summary>探针用：以指定随机源掷单段次数（大样本验证区间 [2,5]）。</summary>
+    public static int 探针_掷单段次数(string 主段名, Random 随机) => 掷单段次数(主段名, 随机);
+
+    /// <summary>探针用：模拟「B 循环掷骰」到退出的圈数（与运行时同式 Rnd.Next(++n) > L；L 按变体取，覆盖表优先）——
+    /// FidgetProbe 大样本验证「squat 覆盖 L 的平均圈数 &gt; 全局」。</summary>
+    public static int 探针_模拟fidget圈数(string 主段名, Random 随机)
+    {
+        var l = StateMachine.设置.fidgetL(变体键(主段名));
+        var n = 0;
+        while (true) { n++; if (随机.Next(n) > l) return n; }
+    }
+
     /// <summary>探针用：某动画的帧数（未载入返回 0）——BufferProbe 验证「切换风暴下当前动画始终立即可渲染」。</summary>
     public static int 帧数_只读(string 名)
         => _单例 != null && _单例.SpriteFrames.HasAnimation(名) ? _单例.SpriteFrames.GetFrameCount(名) : 0;
@@ -277,7 +318,7 @@ public partial class CharAnim : AnimatedSprite2D
     private static void 进入状态(string id)
     {
         // 换到别的状态：作废未完成的 fidget 会话（拖拽/气泡等硬切时不留脏状态）
-        if (id != "fidget") _fidget主名 = null;
+        if (id != "fidget") { _fidget主名 = null; _fidget单段名 = null; _fidget单段剩余 = 0; }
         // 重构#9：坐卧会话同理——任何「按池进入」的状态都代表别人接管了表现（sit/lie 段是直接 Play 的，
         // 不会走到这里；会话本身只在 结束坐卧会话 里回 idle）
         _坐卧主名 = null; _坐卧场 = null; _坐卧圈数 = 0; _坐卧次数 = 0;
@@ -291,8 +332,14 @@ public partial class CharAnim : AnimatedSprite2D
         // fidget 自动排除 -a/-c 过渡段。挑主名 返回 null（数据未就绪）时退回旧的整池随机。
         var 主名 = StateMachine.挑主名(id) ?? list.列表随机项()?.name;
         if (string.IsNullOrEmpty(主名)) { if (id != "idle") 进入状态("idle"); return; }
-        // 重构#2：fidget 主段带 -a = 三段结构 → 开会话（A 进场 → B 循环掷骰 → C 退场），否则单段一次过。
-        if (id == "fidget" && 有动画(主名 + "-a")) { 开始fidget会话(主名); return; }
+        // 重构#2：fidget 主段带 -a = 三段结构 → 开会话（A 进场 → B 循环掷骰 → C 退场）。
+        // 动画组B：单段变体统一走 开始fidget单段会话（带「fidget单段循环」配置的重播 N 次，缺省一次过）。
+        if (id == "fidget")
+        {
+            if (有动画(主名 + "-a")) 开始fidget会话(主名);
+            else 开始fidget单段会话(主名);
+            return;
+        }
         _单例.Play(主名);
     }
 
@@ -301,13 +348,48 @@ public partial class CharAnim : AnimatedSprite2D
     {
         _fidget主名 = 主名;
         _fidget圈数 = 0;
+        _fidget单段名 = null; _fidget单段剩余 = 0;   // 两类会话互斥（新会话开工即作废旧的单段会话）
         _单例.Play(主名 + "-a");
+    }
+
+    /// <summary>开单段循环会话（动画组B：amuse 等「一组循环动画」）——按「fidget单段循环」掷次数 N：
+    /// N&gt;1 时播完直接重播同名（退出帧=首帧，接得无缝），N 遍后回 idle；N=1（缺省）不开会话 = 一次过。</summary>
+    private static void 开始fidget单段会话(string 主名)
+    {
+        var 次数 = 掷单段次数(主名);
+        _fidget主名 = null; _fidget圈数 = 0;         // 两类会话互斥
+        _fidget单段名 = 次数 > 1 ? 主名 : null;
+        _fidget单段剩余 = 次数 - 1;
+        _单例.Play(主名);
+    }
+
+    /// <summary>掷单段循环次数（区间表缺省 [1,1] = 一次过；随机源可注入供探针大样本）。</summary>
+    private static int 掷单段次数(string 主名, Random 随机 = null)
+    {
+        var (最小, 最大) = StateMachine.设置.fidget单段区间(变体键(主名));
+        return 最大 <= 最小 ? 最小 : (随机 ?? _骰子).Next(最小, 最大 + 1);
+    }
+
+    /// <summary>配置表键 = 主段名去掉池前缀（fidget-squat → squat；「fidget循环L覆盖」「fidget单段循环」用它查表）。</summary>
+    private static string 变体键(string 主名)
+    {
+        const string 前缀 = "fidget-";
+        return 主名.StartsWith(前缀, StringComparison.Ordinal) ? 主名[前缀.Length..] : 主名;
     }
 
     /// <summary>fidget 会话收尾：清会话、重置 idle 计数、回 idle（C 播完 / 无 C 段时骰子命中 直接落地）。</summary>
     private static void 结束fidget会话()
     {
         _fidget主名 = null;
+        _fidget单段名 = null; _fidget单段剩余 = 0;
+        _idle循环次数 = 0;
+        进入状态("idle");
+    }
+
+    /// <summary>单段循环会话收尾（动画组B）：清会话、重置 idle 计数、回 idle。</summary>
+    private static void 结束fidget单段会话()
+    {
+        _fidget单段名 = null; _fidget单段剩余 = 0;
         _idle循环次数 = 0;
         进入状态("idle");
     }
