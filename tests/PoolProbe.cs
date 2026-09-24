@@ -63,11 +63,27 @@ public partial class PoolProbe : Node
         "say-smile-a", "say-smile-c", "say-self-a", "say-self-c",
         "say-serious-a", "say-serious-c", "say-shy-a", "say-shy-c",
         "sleep-a", "sleep-c", "sleep-happy-a", "sleep-happy-c",
+        // 2026-09-24 动画组A：greet 整池换 VPet `IDEL/Meow`（手敲屏幕）9 变体三档
+        // （主人口径见 document/VPet动画系统分析.md §9.1「非常适合做问候语动画（因此最好不做空闲动画）」）
+        "greet-happy-1", "greet-happy-2", "greet-happy-3",
+        "greet-nomal-1", "greet-nomal-2", "greet-nomal-3",
+        "greet-poor-1", "greet-poor-2", "greet-poor-3",
+        // 2026-09-24：amusement_B 回归 fidget 池（原先被借去当 greet）
+        "fidget-amuse",
         // 2026-09-20 组②·爬边（Climb.cs 按名精确播；缺一段就断链）
         "climb-left-a", "climb-left-b", "climb-left-c", "climb-right-a", "climb-right-b", "climb-right-c",
         "climb_top-left-a", "climb_top-left-b", "climb_top-left-c", "climb_top-right-a", "climb_top-right-b", "climb_top-right-c",
         "crawl-left", "crawl-right",
         "fall-left-a", "fall-left-b", "fall-left-c", "fall-right-a", "fall-right-b", "fall-right-c",
+    ];
+
+    /// <summary>已删素材必须真的不在（2026-09-24 动画组A）——还在 = 池目录没删干净，
+    /// 「池内随机」会把退役动画悄悄串出来（fidget 池是随机挑一条播的，混着旧变体看不出来）。</summary>
+    private static readonly string[] 必不存在动画 =
+    [
+        "fidget-meow",   // Meow 归 greet（主人：不做空闲动画）——从 fidget 移除
+        "greet-amuse",   // 旧 greet 变体（amusement_B 改作 fidget 的 amuse）
+        "greet-meow",    // 旧 greet 变体（Meow/Happy/1 单条 → 整池 9 变体三档）
     ];
 
     public override void _Ready()
@@ -91,6 +107,12 @@ public partial class PoolProbe : Node
             foreach (var 名 in 必存在动画) if (!CharAnim.有动画(名)) 缺.Add(名);
             if (缺.Count == 0) GD.Print($"[PL] PASS  P10 新素材齐全（{必存在动画.Length} 个动画）");
             else { _失败++; GD.PrintErr($"[PL] FAIL  缺素材：{string.Join(", ", 缺)}"); }
+
+            // 2026-09-24 动画组A：退役素材反向断言（删了就该真不在——防「池目录没清干净」）
+            var 残留 = new System.Collections.Generic.List<string>();
+            foreach (var 名 in 必不存在动画) if (CharAnim.有动画(名)) 残留.Add(名);
+            if (残留.Count == 0) GD.Print($"[PL] PASS  已删素材确实不在（{必不存在动画.Length} 个）");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  应删素材仍在：{string.Join(", ", 残留)}"); }
 
             // 2026-09-22 逐帧时长：info.json 的 durations 必须真的进了 SpriteFrames——
             // fidget-squat（重构#2 拆段后主段 = 纯 B 段 8 帧）源带 1000ms/875ms 长定格（相对时长 8/7），

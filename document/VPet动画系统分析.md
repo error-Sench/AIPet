@@ -12,7 +12,7 @@
 |---|---|---|---|
 | 素材规模 | **609 个帧目录 / 6181 帧 / 25 大类** | 26 池 / 191 变体 / 2099 帧 | 帧数只有 1/3 |
 | 状态档 | **4 档**（Happy/Nomal/PoorCondition/**Ill 生病**；WORK 素材只有前 3 档） | 3 档（无 Ill） | 少一档 |
-| 待机场 | Idel 类 **10 种动画名 / 73 目录 849 帧**（Tennis/Meow/aside/Squat/meowlook/Bubbles/yawning/happy_like520/Boring/amusement_B——**10 种我们全导了**，amusement_B 用作 greet） | fidget 14 变体 340 帧 | 种数齐；缺 Happy/Poor 档位变体与冗余 B 变体（849→340 帧） |
+| 待机场 | Idel 类 **10 种动画名 / 73 目录 849 帧**（Tennis/Meow/aside/Squat/meowlook/Bubbles/yawning/happy_like520/Boring/amusement_B——**10 种我们全导了**：Meow → `greet`（9 变体三档，2026-09-24 动画组A）、amusement_B → fidget 的 `amuse`，其余作 fidget 变体） | fidget 14 变体 340 帧 | 种数齐；缺 Happy/Poor 档位变体与冗余 B 变体（849→340 帧） |
 | 干活 | WORK **13 种 × A/B/C × 3 档（Happy 58/Nomal 49/Poor 57 目录）× 多 B 变体 = 180 目录 2214 帧** | **107 变体 1369 帧**（3 档全；每类型每档取单个 B） | 档位齐（重构#7）；余「多 B 变体」维度 |
 | 帧时长 | **每帧独立 ms**（文件名尾数），主力 125ms=8fps，但 250/375/500 大量存在 | 每池统一 rate（8fps） | 节奏细节丢失 |
 | B 循环圈数 | lps `duration:` 表（squat#20 boring#20 sleep#20，默认 10）+ **概率递减退出** | 状态机定时/包裹段播完即切 | 机制不同 |

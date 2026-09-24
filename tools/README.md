@@ -74,13 +74,13 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `say` | smile / self / serious / shy（+各感情 a/c 过渡段） | 7/15/4/5 + 段共 41 帧 | 说话（P10 补 VPet `Say/Shy` 害羞档；组①·过渡段：`say-{感情}-a/c` 与站姿衔接）|
 | `work` | pc / read / write / calligraphy / paint / study2 / sausage / clean / fixmenu / game / water / remove / rope（Nomal）＋ happy-\* / poor-\*{同类型}（Happy/PoorCondition 档）| 共 1369 | 干活（VPet `WORK` 全部 13 种：书法/画画/研究/烤肠/清屏/修屏幕/玩游戏/玩水/删错误/跳绳）。**2026-09-20 打磨**：改为**包裹段结构**（主段 = B 干活循环、取环内最丰富变体；A/C 拆 `-a`/`-c` 段）——原先只导 A 段，实机上「反复做准备动作、永远不干活」。**2026-09-22 重构#7**：补 Happy/PoorCondition 档（`{档}-{类型}` 命名，12/13 种有源；WorkTWO 无 Happy、Study 无档位 → 降级链兜底）。金钱/体力收益等玩法数值不抄）|
 | `sleep` | loop / happy（+ a/c 与 happy-a/c 过渡段） | 6+6 + 4/7/4/7 | 睡觉（循环）。2026-09-20 组①·过渡段：A=躺下入睡、C=醒来起身（首尾与站姿衔接）；主段 `sleep-loop` 的段用池级回退名 `sleep-a`/`sleep-c` |
-| `greet` | amuse / meow | 11/20 | 打招呼（VPet 无专用动作，用开心姿势） |
+| `greet` | {happy,nomal,poor}-1..3 | 共 157 | 打招呼（2026-09-24 动画组A **整池重构**：VPet `IDEL/Meow` 手敲屏幕 9 变体三档——主人口径「非常适合做问候语动画（因此最好不做空闲动画）」，命名 `{档}-{n}` 对齐 idle 池口径；旧 `amuse`/`meow` 两条已删，amusement_B 回归 fidget） |
 | `interact` | a / b / c | 2/11/2 | 摸头反应**三段序列**（进入→保持→退出）|
 | `interact` | happy-a / happy-b / happy-c | 3/12/2 | 摸头的高兴档（P10，VPet `Touch_Head/Happy`）—— 三档/心情=开心时序列**换档**（`interact-a` → `interact-happy-a`）|
 | `interact_body` | a / b / c | 15/14/3 | **摸身体**反应三段（P10，VPet `Touch_Body/{A,B,C}_Happy/tb1`；官方只有 Happy/ill 两档，取 Happy）|
 | `turn` | a / b / c | 3/15/4 | **被摸转身**（P10，VPet `Touch_Body/Happy_Turn`）—— 摸身体时 30% 概率改成她转身躲一下 |
 | `switch` | up / down | 13/14 | **干活进出场过渡**（P10，VPet `Switch/Up·Down/Nomal`）—— `switch-up` 起身开工、`switch-down` 收工坐下 |
-| `fidget` | 原项目 6（bubble/doze/meow/meowlook/spin/yawning）+ VPet 5（squat/tennis/bubbles/boring/aside）+ 组① 1（happy520）| 共 296 | 待机小动作（P10 加 VPet 的 蹲/网球/泡泡/打呼噜/侧看；组①加比心彩蛋；**2026-09-20 打磨**：五个 VPet 变体补全 A（进入）/C（退出）段——原先只导单个 B 段、尾巴卡顿；tennis 8→44 帧（含「收拍放下站直」收尾）；`+` 追加模式导入，不清空原有变体。**重构#9**：State 坐下/躺下两个拼接变体删除 → 独立 `sit`/`lie` 池 + 嵌套会话）|
+| `fidget` | 原项目 5（bubble/doze/meowlook/spin/yawning）+ VPet 6（squat/tennis/bubbles/boring/aside/amuse）+ 组① 1（happy520）| 共 287 | 待机小动作（P10 加 VPet 的 蹲/网球/泡泡/打呼噜/侧看；组①加比心彩蛋；**2026-09-20 打磨**：五个 VPet 变体补全 A（进入）/C（退出）段——原先只导单个 B 段、尾巴卡顿；tennis 8→44 帧（含「收拍放下站直」收尾）；`+` 追加模式导入，不清空原有变体。**重构#9**：State 坐下/躺下两个拼接变体删除 → 独立 `sit`/`lie` 池 + 嵌套会话。**2026-09-24 动画组A**：`meow` 移出（Meow 归 `greet`，不做空闲动画）、`IDEL/amusement_B` 回归作 `amuse`——它是循环动画，循环播放修正见后续卡）|
 | `sit` | {happy,nomal,poor}-a / -b1..b2 / -c | 共 75 | **坐卧长待机·坐下**（VPet `StateONE`，重构#9）：A 进入 → B 循环（每圈随机换一个 B 变体）→ C 起身；运行时由 CharAnim 的**坐卧嵌套会话**驱动（逻辑态仍在 idle，不是状态机状态）|
 | `lie` | {happy,nomal,poor}-a / -b1..b2 / -c | 共 41 | **坐卧长待机·躺下**（VPet `StateTWO`，重构#9）：以 `1/(2+已躺次数)` 概率从 sit 嵌套进入，起身 C 播完**回 sit 的 B 判定**（可再躺）；素材含长停顿帧（单帧 1.5s 级）|
 | `edge_hide` | {left,right}-{in,keep,hold,out,peek,rise,unpeek} | 共 76 | 贴边隐藏：`Main`=隐藏姿态序列（in/keep/hold/out），`Rise`=探出（A 弹出 → **B 探出后微动循环** → C 缩回）。左右**逐段一一对应**（每侧 in9/keep4/hold1/out7/peek4/rise10/unpeek3） |

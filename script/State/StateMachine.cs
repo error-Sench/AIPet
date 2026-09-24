@@ -937,10 +937,13 @@ public partial class StateMachine : Node
     /// 返回 "" = 用池内随机（该池没有这个变体）。
     /// <para>**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」；
     /// 原先按心情自动择档的耦合已移除）。</para>
+    /// <para>**白名单 = 有档位素材的池**。`greet` 2026-09-24 入列（动画组A：整池换 `IDEL/Meow` 9 变体三档，
+    /// 命名 `{档}-{n}` 对齐 idle 口径——主人口径见 document/VPet动画系统分析.md §9.1「Meow：手敲屏幕，
+    /// 非常适合做问候语动画」）；不入列 = 整池随机串档，违背「默认普通」。</para>
     /// </summary>
     private static string 情绪变体(string 池)
     {
-        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle" or "sit" or "lie")) return "";
+        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle" or "sit" or "lie" or "greet")) return "";
         // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
         // 重构#6：三档关闭 / 档位=普通 → 返回 "nomal"（而非旧的空串）——真正落实主人「默认普通」口径：
         // 钉普通档演，不再整池随机串到 happy/poor 变体；精确档缺失由 挑主名 的降级链兜（相邻档 → 随机）。

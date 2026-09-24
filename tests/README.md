@@ -78,7 +78,7 @@
 | `SettingsProbe` | **非 headless** | 配置窗真实几何 + 把窗口画面存 PNG 供视觉复核 |
 | `EnterProbe` | **非 headless** | 抓启动头几秒的窗口画面，核实「登场动画有没有播、有没有被抢断」 |
 | `WalkProbe` | **非 headless** | 自主走动是否真的触发、窗口 X 是否真的移动（**必须非 headless**：headless 下屏幕/窗口尺寸为 0，`尝试走动` 会直接放弃） |
-| `PoolProbe` | headless | 6 个语义池是否真的播出对应动画（断言没有回退到兼容池 fidget/idle/celerate）+ 新素材存在性核对（P10 + 2026-09-20 组①，共 40 个动画） |
+| `PoolProbe` | headless | 6 个语义池是否真的播出对应动画（断言没有回退到兼容池 fidget/idle/celerate）+ 素材存在性核对（P10 + 组① + 各重构补录，共 120 个动画；另反向核对 3 个已删素材确实不在） |
 | `BirthdayProbe` | headless | 生日彩蛋全链路：把「生日」覆写成今天（不碰真实 config）→ 入场完成后自动进 `bday` 三段序列 → 逐段推进（模拟播完）→ 回 idle |
 | `WrapProbe` | headless | 包裹段机制（组①）：think/sleep/说话 进入先播 A → 主段钉死不换 → 退出先播 C、状态延迟落地；硬接管（拖拽）跳过 C 立刻生效 |
 | `MoveProbe` | headless | 智能移动（重构#4，VPet Move 模型）：纯函数几何（挂边/顶挂/落地 X/Y、距、距离骰/接力骰）+ 移动表加载/档位过滤 + 触发·检查近远门 + 冷却只挡爬边族 + 兼容接力方向评分 + 全流程（上墙→吸附 X=-123→爬→顶爬 Y=-116→角上接力→下落→落地 Y=790→回位 X=1664→收势→idle+冷却）+ 下爬 junction（近底 240）+ 「屏外让位拉回」 |

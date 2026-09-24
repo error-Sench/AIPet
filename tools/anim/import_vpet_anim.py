@@ -42,7 +42,7 @@ CANVAS = 512
 固定缩放 = 485 / 948
 
 # 池 -> [(变体, [片段, ...]), ...]；片段 = (源叶子相对路径, 起帧序号|None, 止帧序号|None)
-# 语义说明：Touch_Head/Touch_Body 是「被摸的反应」→ interact；greet 用开心姿势（VPet 无专门打招呼动作）
+# 语义说明：Touch_Head/Touch_Body 是「被摸的反应」→ interact；greet 用 `IDEL/Meow`（手敲屏幕＝问候姿态）
 SPEC = {
     # 待机（核心池）：VPet Default 三档 —— 1/2/3 = Happy 档三条（原来导入为 idle/1..3）。
     # 2026-09-20 组①：补 Nomal/Poor 档并对齐三档系统 —— 变体命名 `{档}-{n}`（idle-happy-1 / idle-nomal-1 / idle-poor-1 …），
@@ -80,9 +80,20 @@ SPEC = {
         ("happy-a", [("Sleep/A_Happy", None, None)]),
         ("happy-c", [("Sleep/C_Happy", None, None)]),
     ],
+    # 打招呼：**整池重构**（2026-09-24 主人逐素材审视，document/VPet动画系统分析.md §9 / §9.1）——
+    # 主人口径：「Meow：手敲屏幕，非常适合做问候语动画（因此最好不做空闲动画）」→ 整池换 VPet `IDEL/Meow` 9 变体三档；
+    # 旧的 amuse（IDEL/amusement_B）/ meow（IDEL/Meow/Happy/1 单条）已删（amusement_B 回归 fidget 池作 `amuse` 变体）。
+    # 命名 `{档}-{n}` 对齐 idle 池口径：三档状态开时 StateMachine.挑主名 按 `greet-{档}-` 前缀收组，默认档=普通。
     "greet": [
-        ("amuse", [("IDEL/amusement_B", None, None)]),
-        ("meow", [("IDEL/Meow/Happy/1", None, None)]),
+        ("happy-1", [("IDEL/Meow/Happy/1", None, None)]),
+        ("happy-2", [("IDEL/Meow/Happy/2", None, None)]),
+        ("happy-3", [("IDEL/Meow/Happy/3", None, None)]),
+        ("nomal-1", [("IDEL/Meow/Nomal/1", None, None)]),
+        ("nomal-2", [("IDEL/Meow/Nomal/2", None, None)]),
+        ("nomal-3", [("IDEL/Meow/Nomal/3", None, None)]),
+        ("poor-1", [("IDEL/Meow/PoorCondition/1", None, None)]),
+        ("poor-2", [("IDEL/Meow/PoorCondition/2", None, None)]),
+        ("poor-3", [("IDEL/Meow/PoorCondition/3", None, None)]),
     ],
     "say": [
         ("smile", [("Say/Shining/B_2", None, None)]),
@@ -361,7 +372,8 @@ SPEC = {
         ("happy-b", [("Touch_Head/Happy/B", None, None)]),
         ("happy-c", [("Touch_Head/Happy/C", None, None)]),
     ],
-    # 待机小动作扩充：VPet IDEL 的 蹲 / 网球 / 泡泡 / 打呼噜 / 侧看（我们原有 bubble/doze/meow/meowlook/spin/yawning）
+    # 待机小动作扩充：VPet IDEL 的 蹲 / 网球 / 泡泡 / 打呼噜 / 侧看（我们原有 bubble/doze/meowlook/spin/yawning；
+    # meow 已于 2026-09-24 移除——主人审视：Meow 归 greet，不做空闲动画）
     "fidget+": [
         # 2026-09-22 重构#2（B 循环概率退出）：七个 A/B/C 结构变体**拆回三段**（`-a`/主段/`-c`，
         # 与包裹段同一命名约定）——运行时 fidget 会话 = A → B 循环 × 骰子 → C → idle，
@@ -369,7 +381,7 @@ SPEC = {
         #   每播完第 n 圈掷 Rnd.Next(n+1) > L（L 来自 lps duration 表；我们默认 2 = 最少 3 圈、平均 ~4.6 圈）。
         # 此前是「A+B+C 拼一条一次过」（B 只播一遍 ~5s 就完）——VPet 原味是 B 循环到骰子命中才退
         #（squat 蹲一下平均十几秒、间歇性发作），观感「活」的关键。
-        # 单段变体（spin/bubble/doze/meow/meowlook/yawning/happy520 = VPet Single 型，
+        # 单段变体（spin/bubble/doze/meowlook/yawning/happy520/amuse = VPet Single 型，
         # MainDisplay.cs:291-296 播完直接 DisplayToNomal）**保持一次过**，不上骰子。
         # 近重复变体只收一次（逐帧实测）：squat 的 B1/B2/B3 互差 0.06、aside 的 B/B_2/B_3/B_4
         # 互差 0.3~1.0（近重复）；tennis 的 B/B_2 是 B_3 的抽样副本 → 只收 B_3（24 帧完整挥拍循环）。
@@ -392,6 +404,10 @@ SPEC = {
         # 注：旧的 fidget-state-one/state-two（Nomal 一次过简化版）已被 sit/lie 池取代（2026-09-22）。
         # IDEL 彩蛋：一连串比心/爱心（VPet happy_like520，Single 型一次过）。
         ("happy520", [("IDEL/happy_like520", None, None)]),
+        # 2026-09-24 主人审视（§9.1）：amusement_B（左右扭身循环）回归 fidget 池——它原先被借去当 greet，
+        # 现 greet 换 Meow（见 greet 池）。**注意**：它是循环动画（退出帧=首帧非尾帧），
+        # 「循环播 2-5 次」的修正由后续卡片做，本卡只落素材（现走单段一次过路径）。
+        ("amuse", [("IDEL/amusement_B", None, None)]),
     ],
     # 坐卧长待机会话（重构#9：VPet StateONE / StateTWO 嵌套待机场，素材 State 22 目录 116 帧全量）。
     # 与 IDEL 小动作的区别：**嵌套会话 + B 多变体**——sit 的 B 每圈随机换（B/1 或 B/2），

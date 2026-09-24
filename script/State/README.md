@@ -83,7 +83,7 @@ StateMachine.EnqueueChain(
 | `say` | smile / self / serious / shy | 7/15/4/5 | VPet `Say/Shining·Self·Serious·Shy`（P10 补害羞档）|
 | `work` | 13 种 × {Nomal + happy/poor 档} + 每项 `-a`/`-c` 段（包裹段）| 共 1369 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`；**2026-09-22 重构#7**：补 Happy/PoorCondition 档素材（`{档}-{类型}` 命名，`挑主名` 按前缀收组；12/13 种有源，降级链兜底）|
 | `sleep` | loop / happy | 6+6 | VPet `Sleep/B_Nomal·B_Happy`；**循环** |
-| `greet` | amuse / meow | 11/20 | VPet `IDEL/amusement_B·Meow/Happy/1`（VPet 无专门打招呼动作，取开心姿势） |
+| `greet` | {happy,nomal,poor}-1..3 | 共 157 | VPet `IDEL/Meow`（手敲屏幕）9 变体三档——2026-09-24 动画组A **整池重构**（主人口径：非常适合做问候语动画、不做空闲动画；命名 `{档}-{n}` 对齐 idle 口径，旧 amuse/meow 已删） |
 | `interact` | a / b / c + happy-a / happy-b / happy-c | 2/11/2 + 3/12/2 | VPet `Touch_Head/{Nomal,Happy}/{A,B,C}`（**三段序列**；P10 补高兴档）|
 | `interact_body` | a / b / c | 15/14/3 | VPet `Touch_Body/{A,B,C}_Happy/tb1`（P10 摸身体反应；官方只有 Happy/ill 档 → 取 Happy）|
 | `turn` | a / b / c | 3/15/4 | VPet `Touch_Body/Happy_Turn`（P10 被摸转身）|
@@ -360,7 +360,7 @@ StateMachine.EnqueueChain(
 | 项 | 做法 |
 |---|---|
 | **摸身体** | 单击部位分流：**脸区优先**（捏脸那套）→ 身体区（`HitRegion` 公共命中判定；比例由官方 `.lps` 的 `touchbody: px166 py206 sw163 sh136` 换算）→ 都不中当摸头。头 = `interact` 序列；身体 = `interact_body` 序列；**30% 概率**改成 `turn`（转身躲一下）|
-| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。`情绪变体()` 手动档位生效（开心→happy / 不良→poor / **普通或关闭→nomal**——重构#6 起普通档钉住 nomal 组，不再整池随机串档）。择档走**降级链**（VPet `GraphCore.FindGraphs` 语义）：精确档 → **无档基名**（Nomal 素材落点）→ 相邻档（happy↔nomal↔poor）→ 候选随机；**Ill 档刻意不引入**（无生病玩法）。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）。**2026-09-20 组①：`idle` 也纳入择档**（`idle-happy-1..3` / `idle-nomal-1..3` / `idle-poor-1..2`——档位对应一组时按 `{池}-{档}-` 前缀随机取一条）|
+| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。`情绪变体()` 手动档位生效（开心→happy / 不良→poor / **普通或关闭→nomal**——重构#6 起普通档钉住 nomal 组，不再整池随机串档）。择档走**降级链**（VPet `GraphCore.FindGraphs` 语义）：精确档 → **无档基名**（Nomal 素材落点）→ 相邻档（happy↔nomal↔poor）→ 候选随机；**Ill 档刻意不引入**（无生病玩法）。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）。**2026-09-20 组①：`idle` 也纳入择档**（`idle-happy-1..3` / `idle-nomal-1..3` / `idle-poor-1..2`——档位对应一组时按 `{池}-{档}-` 前缀随机取一条）。**2026-09-24 动画组A：`greet` 也纳入择档**（整池换 `IDEL/Meow` 9 变体 `{档}-{n}`，与 idle 同口径）|
 | **走路快慢** | 快/慢 = 三档档位（VPet 里 faster=Happy、slow=PoorCondition）：动画 `walk-{方向}[-fast|-slow]` + 位移速度 ×1.35 / ×0.72（同步，避免滑步；三档默认关 = 常速）|
 | **干活进出场** | `开始干活()` → `work_in`（`switch-up`）→ **自动回落** working；`结束干活()` → `work_out`（`switch-down`）→ idle。`状态效果` 新增两个字段：`具体动画`（一个池服务多个状态时钉死播哪个）与 `回落`（非持续态到点回落到哪，默认 idle）|
 | **摸头高兴档** | 序列也支持换档：`播放序列段()` 会用 `情绪变体(池)` 把 `interact-a` 换成 `interact-happy-a`（素材在才换，不硬造）|

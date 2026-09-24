@@ -138,6 +138,29 @@ public partial class GradeProbe : Node
                     "档位段缺失 → 同类无档降级（study2 Happy 无 C 源 → Nomal C）");
                 断言(StateMachine.探针_段名("sleep-happy", "a") == "sleep-happy-a",
                     "既有段解析不受新降级影响（sleep-happy-a）");
+                break;
+
+            // ── ⑦ greet 池三档（2026-09-24 动画组A：整池换 Meow 9 变体 `{档}-{n}`，与 idle 同口径）──
+            case 28:
+                StateMachine.设置.三档状态启用 = false;   // 默认 = 普通档
+                var g串档 = 0;
+                for (var i = 0; i < 100; i++)
+                {
+                    var 名 = StateMachine.挑主名("greet");
+                    if (名 == null || !名.StartsWith("greet-nomal-", StringComparison.Ordinal)) g串档++;
+                }
+                断言(g串档 == 0, $"三档关：greet 100 次择档全落 nomal 组（实际串档 {g串档}）");
+                StateMachine.设置.三档状态启用 = true;
+                StateMachine.设置.状态档位 = "开心";
+                var g名 = StateMachine.挑主名("greet");
+                断言(g名 != null && g名.StartsWith("greet-happy-", StringComparison.Ordinal),
+                    $"开心档 greet → greet-happy-*（实际 {g名}）");
+                StateMachine.设置.状态档位 = "不良";
+                var g名2 = StateMachine.挑主名("greet");
+                断言(g名2 != null && g名2.StartsWith("greet-poor-", StringComparison.Ordinal),
+                    $"不良档 greet → greet-poor-*（实际 {g名2}）");
+                StateMachine.设置.三档状态启用 = false;
+                StateMachine.设置.状态档位 = "普通";
                 GD.Print($"[GRADE] ===== 失败数 = {_失败} =====");
                 GD.Print(_失败 == 0 ? "[GRADE] PASS" : "[GRADE] FAIL");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
