@@ -25,7 +25,8 @@ namespace desktop.script.State;
 /// - 边距阈值 ≈ VPet 值 × 0.5（它 500px 窗 / 我们 256px 窗）：walk 触发 200→100、检查 100→50；climb 近边 100→64（略放宽）；
 /// - 速度用 px/s（VPet 每 125ms 的像素 ×8 同量级）；几何（挂边/顶挂/偏移/脚底余量）与掉落物理沿用我们 2026-09-20 调过的值；
 /// - 接力概率可调（VPet 40%；默认 0.8 让整条路线更常一气呵成）；距离骰按我们的观感重定标（走 3 → 单程 ≈4s）；
-/// - 档位过滤保留我们的三档（happy/nomal/poor），映射照既定口径：走快=happy、走慢=poor（不抄 VPet 变体映射）。
+/// - 档位过滤保留我们的三档（happy/nomal/poor）：walk 只做普通档、档位三档通用（2026-09-24 Plan #22——不按 happy/poor 分快慢，快/慢变体已删）；
+///   crawl/climb/fall 照 VPet ModeType 限 nomal|poor（开心档不爬，VPet 同款）。
 /// - 定义表见 `config/moves.json`（缺失用内置默认）——**加新移动方式 = 加一条数据，不用改代码**。
 /// </para>
 /// <para>
@@ -40,7 +41,7 @@ public static class MoveRunner
     public sealed class 移动定义
     {
         public string 名 = "";
-        public string 动画 = "";            // 资产前缀：walk-left / walk-left-fast / crawl-left / climb-left / climb_top-right / fall-left
+        public string 动画 = "";            // 资产前缀：walk-left / crawl-left / climb-left / climb_top-right / fall-left
         public string[] 档位 = { "nomal" }; // 允许的情绪档（happy/nomal/poor）；三档关闭时恒为 nomal
         /// <summary>触发「近边」：距该边 ≤ 值 才可开跑（VPet 方向位）；空 = 不检查。</summary>
         public Dictionary<string, int> 触发近 = new();
@@ -476,15 +477,11 @@ public static class MoveRunner
     /// <summary>内置默认表（= `config/moves.json` 同内容；文件缺失/损坏时用它）。</summary>
     public static List<移动定义> 默认表()
     {
-        // 走（VPet walk.left/right 系；档位映射照我们既定：快=happy、慢=poor）——边距阈值 ≈ VPet×0.5
+        // 走（VPet walk.left/right 系；#22：只做普通档——快/慢变体已删、档位三档通用，不按心情分快慢）——边距阈值 ≈ VPet×0.5
         var 表 = new List<移动定义>
         {
-            new() { 名 = "walk-left", 动画 = "walk-left", 档位 = ["nomal"], 触发远 = 条(("左", 100)), 检查远 = 条(("左", 50)), 速度X = -90, 距离 = 3 },
-            new() { 名 = "walk-right", 动画 = "walk-right", 档位 = ["nomal"], 触发远 = 条(("右", 100)), 检查远 = 条(("右", 50)), 速度X = 90, 距离 = 3 },
-            new() { 名 = "walk-left-fast", 动画 = "walk-left-fast", 档位 = ["happy"], 触发远 = 条(("左", 100)), 检查远 = 条(("左", 50)), 速度X = -122, 距离 = 3 },
-            new() { 名 = "walk-right-fast", 动画 = "walk-right-fast", 档位 = ["happy"], 触发远 = 条(("右", 100)), 检查远 = 条(("右", 50)), 速度X = 122, 距离 = 3 },
-            new() { 名 = "walk-left-slow", 动画 = "walk-left-slow", 档位 = ["poor"], 触发远 = 条(("左", 100)), 检查远 = 条(("左", 50)), 速度X = -65, 距离 = 3 },
-            new() { 名 = "walk-right-slow", 动画 = "walk-right-slow", 档位 = ["poor"], 触发远 = 条(("右", 100)), 检查远 = 条(("右", 50)), 速度X = 65, 距离 = 3 },
+            new() { 名 = "walk-left", 动画 = "walk-left", 档位 = ["nomal", "happy", "poor"], 触发远 = 条(("左", 100)), 检查远 = 条(("左", 50)), 速度X = -90, 距离 = 3 },
+            new() { 名 = "walk-right", 动画 = "walk-right", 档位 = ["nomal", "happy", "poor"], 触发远 = 条(("右", 100)), 检查远 = 条(("右", 50)), 速度X = 90, 距离 = 3 },
             // 趴行（慢速走；nomal|poor）
             new() { 名 = "crawl-left", 动画 = "crawl-left", 档位 = ["nomal", "poor"], 触发远 = 条(("左", 100)), 检查远 = 条(("左", 50)), 速度X = -65, 距离 = 3 },
             new() { 名 = "crawl-right", 动画 = "crawl-right", 档位 = ["nomal", "poor"], 触发远 = 条(("右", 100)), 检查远 = 条(("右", 50)), 速度X = 65, 距离 = 3 },

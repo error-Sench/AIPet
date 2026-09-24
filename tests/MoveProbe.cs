@@ -85,12 +85,16 @@ public partial class MoveProbe : Node
                 断言(!MoveRunner.接力掷骰(骰), "接力骰：概率 0 → 必不中");
                 MoveRunner.接力概率 = 0.8f;
                 // —— 表加载 + 档位过滤 ——
-                断言(MoveRunner.表.Count >= 16 && MoveRunner.探针_定义("walk-left") != null && MoveRunner.探针_定义("fall-right") != null,
-                    $"移动表加载（{MoveRunner.表.Count} 条 ≥ 16，含 walk-left / fall-right）");
+                断言(MoveRunner.表.Count >= 12 && MoveRunner.探针_定义("walk-left") != null && MoveRunner.探针_定义("fall-right") != null,
+                    $"移动表加载（{MoveRunner.表.Count} 条 ≥ 12，含 walk-left / fall-right）");
                 断言(MoveRunner.探针_定义("climb_top-right").吸附 == "top" && MoveRunner.探针_定义("fall-left").重力,
                     "表字段解析：climb_top 吸附=top / fall 重力=true");
-                断言(StateMachine.当前情绪档 == "nomal" && MoveRunner.探针_定义("walk-left-slow") != null,
+                断言(StateMachine.当前情绪档 == "nomal" && MoveRunner.探针_定义("walk-left") != null,
                     "当前情绪档 = nomal（三档默认）");
+                // —— #22：walk 只做普通档（fast/slow 变体删除，不按 happy/poor 分快慢）——
+                断言(MoveRunner.探针_定义("walk-left-fast") == null && MoveRunner.探针_定义("walk-right-fast") == null
+                        && MoveRunner.探针_定义("walk-left-slow") == null && MoveRunner.探针_定义("walk-right-slow") == null,
+                    "walk fast/slow 条目已删（Plan #22）");
                 // —— 覆盖 + 触发/检查（近/远门） ——
                 MoveRunner.探针_位置覆盖 = new Vector2I(40, 500);
                 MoveRunner.探针_屏幕覆盖 = 屏幕; MoveRunner.探针_尺寸覆盖 = 尺寸;
@@ -100,7 +104,15 @@ public partial class MoveProbe : Node
                 断言(!MoveRunner.探针_触发("walk-left"), "远左不满足：walk-left 不触发（左距 40 < 100）");
                 断言(!MoveRunner.探针_触发("climb-right-up") && !MoveRunner.探针_触发("climb_top-right"), "近右/近上不满足 → 不触发");
                 断言(MoveRunner.探针_触发("fall-left"), "fall-left 触发（近左 + 下距 284 ≥ 100，VPet TriggerDown 语义）");
-                断言(!MoveRunner.探针_触发("walk-right-slow"), "档位过滤：poor 档的 walk-right-slow 在 nomal 下不触发");
+                // 档位过滤（剩余消费者 = crawl/climb/fall 的 nomal|poor）：开心档下走照常（walk 三档通用）、爬/趴/落不触发
+                StateMachine.设置.三档状态启用 = true;
+                StateMachine.设置.状态档位 = "开心";
+                断言(StateMachine.当前情绪档 == "happy" && MoveRunner.探针_触发("walk-right"),
+                    "开心档：walk 三档通用——普通走照常触发（#22：走路与心情解耦）");
+                断言(!MoveRunner.探针_触发("crawl-right") && !MoveRunner.探针_触发("climb-left-up") && !MoveRunner.探针_触发("fall-left"),
+                    "开心档：crawl/climb/fall 照 VPet ModeType 限 nomal|poor → 不触发");
+                StateMachine.设置.三档状态启用 = false;
+                StateMachine.设置.状态档位 = "普通";
                 断言(MoveRunner.探针_检查("climb-left-up"), "检查通过：climb-left-up（上距 500 ≥ 50）");
                 // —— 冷却只挡爬边族 ——
                 MoveRunner.探针_设冷却(100f);

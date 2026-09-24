@@ -17,7 +17,7 @@ public partial class AnimShot : Node
     private static readonly string 输出目录 =
         Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "Temp", "aipet-anim");
 
-    /// <summary>要截的动画（P10 新素材的代表：摸身体 / 转身 / 干活过渡 / 新干活种类 / 新待机 / 快慢走 / 害羞 / 高兴档摸头）。</summary>
+    /// <summary>要截的动画（P10 新素材的代表：摸身体 / 转身 / 干活过渡 / 新干活种类 / 新待机 / 害羞 / 高兴档摸头）。</summary>
     private static readonly string[] 名单 =
     [
         "interact_body-a", "interact_body-b", "interact_body-c",
@@ -25,7 +25,6 @@ public partial class AnimShot : Node
         "switch-up", "switch-down",
         "work-calligraphy", "work-paint", "work-rope", "work-water", "work-clean", "work-sausage",
         "fidget-squat", "fidget-tennis", "fidget-bubbles", "fidget-boring", "fidget-aside",
-        "walk-left-fast", "walk-left-slow",
         "say-shy", "interact-happy-a",
     ];
 

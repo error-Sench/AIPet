@@ -1230,13 +1230,13 @@ public partial class StateMachine : Node
         }
     }
 
-    /// <summary>名字里不带任何档位标记（happy/nomal/poor，以及 walk 的 fast/slow）= 「无档基名」。
+    /// <summary>名字里不带任何档位标记（happy/nomal/poor）= 「无档基名」。
     /// 我们的导入约定：VPet 的 Nomal 档素材多数落成无档名（sleep-loop / say-smile / interact-a），
-    /// 只有部分池显式写了 `-nomal`（think/idle/music）。</summary>
+    /// 只有部分池显式写了 `-nomal`（think/idle/music）。（2026-09-24 Plan #22：walk 的 fast/slow 变体已删，标记表不再含它们。）</summary>
     private static bool 无档名(string 名, string 池)
     {
         var 余 = 名.StartsWith($"{池}-", StringComparison.Ordinal) ? 名[(池.Length + 1)..] : 名;
-        foreach (var 档 in new[] { "happy", "nomal", "poor", "fast", "slow" })
+        foreach (var 档 in new[] { "happy", "nomal", "poor" })
         {
             if (余 == 档 || 余.StartsWith($"{档}-", StringComparison.Ordinal) || 余.EndsWith($"-{档}", StringComparison.Ordinal))
                 return false;

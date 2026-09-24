@@ -41,7 +41,6 @@ public partial class PoolProbe : Node
         "work-happy-write", "work-poor-write", "work-poor-write-c",
         "work-happy-study2", "work-happy-study2-a",
         "work-poor-pc", "work-poor-pc-c",
-        "walk-left-fast", "walk-right-fast", "walk-left-slow", "walk-right-slow",
         "fidget-squat", "fidget-tennis", "fidget-bubbles", "fidget-boring", "fidget-aside",
         "interact_body-a", "interact_body-b", "interact_body-c",
         "turn-a", "turn-b", "turn-c",
@@ -84,6 +83,10 @@ public partial class PoolProbe : Node
         "fidget-meow",   // Meow 归 greet（主人：不做空闲动画）——从 fidget 移除
         "greet-amuse",   // 旧 greet 变体（amusement_B 改作 fidget 的 amuse）
         "greet-meow",    // 旧 greet 变体（Meow/Happy/1 单条 → 整池 9 变体三档）
+        // 2026-09-24 动画组C（Plan #22）：walk 快/慢变体整删——走路只做普通档（不按 happy/poor 分快慢）
+        "walk-left-fast", "walk-right-fast", "walk-left-slow", "walk-right-slow",
+        "walk-left-fast-a", "walk-left-fast-c", "walk-right-fast-a", "walk-right-fast-c",
+        "walk-left-slow-a", "walk-left-slow-c", "walk-right-slow-a", "walk-right-slow-c",
     ];
 
     public override void _Ready()
