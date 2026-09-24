@@ -28,7 +28,8 @@ public partial class Context : Node
     }
     public override void _UnhandledInput(InputEvent @event)
     {
-        // 右键 -> 直接唤出桌宠面板（聊天记录 + 输入行 + 底部横排命令栏）
+        // 右键 -> 唤出/重绘桌宠面板（聊天记录 + 输入行 + 底部横排命令栏）
+        // 主人 2026-09-24（Plan #17）：面板已存在时右键 = 重绘（刷新内容 + 提前置顶 + 抢焦点），始终有反馈 —— 见 ChatBox.显示()
         if (@event is InputEventMouseButton { Pressed: true } mouseEvent)
         {
             switch (mouseEvent.ButtonIndex)

@@ -195,6 +195,10 @@ public partial class NetSpeedBubble : Window
         if (_上行 != null) _上行.Text = $"↑{格式化(上行)}";
         _历史[_历史下一位] = 下行 + 上行;
         _历史下一位 = (_历史下一位 + 1) % 采样数;   // 历史保留（探针断言 + 以后要画曲线可用）
+        // 主人 2026-09-24（Plan #18）：长数字被裁 —— 窗口尺寸原来只在 构建界面()/显示() 时校准过一次，
+        // 按占位文本「↓——」算的小窗装不下真实速度（如「↓12.3MB/s」）→ 文本被窗口边缘截断。
+        // 每次刷新文本后按内容重新校准（尺寸没变时是无操作，见 按内容定尺寸）。
+        if (Visible) 按内容定尺寸();
     }
 
     // ================= 采样与格式化（纯函数，探针可断言） =================
@@ -253,14 +257,17 @@ public partial class NetSpeedBubble : Window
 
     // ================= 位置持久化 =================
 
-    /// <summary>保证气泡在可见屏幕区内：偏出去就夹回来（换显示器/分辨率变了也不会丢在屏外）。</summary>
+    /// <summary>保证气泡在可见屏幕区内：偏出去就夹回来（换显示器/分辨率变了也不会丢在屏外）。
+    /// 用**实际窗口尺寸**夹（不是常量 宽/高）—— 内容变长后窗口会跟着长大（见 按内容定尺寸），常量夹不全。</summary>
     private void 确保在屏内()
     {
         var 屏 = DisplayServer.ScreenGetUsableRect(DisplayServer.WindowGetCurrentScreen());
         if (屏.Size.X <= 0 || 屏.Size.Y <= 0) return;   // headless/无屏幕信息：别瞎动
         var 位 = Position;   // ★ 气泡自己的位置（DisplayServer.WindowGetPosition() 读的是当前窗口=桌宠，别用）
-        var 目标X = Math.Clamp(位.X, 屏.Position.X, Math.Max(屏.Position.X, 屏.End.X - 宽));
-        var 目标Y = Math.Clamp(位.Y, 屏.Position.Y, Math.Max(屏.Position.Y, 屏.End.Y - 高));
+        var 宽实际 = Size.X > 0 ? Size.X : 宽;
+        var 高实际 = Size.Y > 0 ? Size.Y : 高;
+        var 目标X = Math.Clamp(位.X, 屏.Position.X, Math.Max(屏.Position.X, 屏.End.X - 宽实际));
+        var 目标Y = Math.Clamp(位.Y, 屏.Position.Y, Math.Max(屏.Position.Y, 屏.End.Y - 高实际));
         if (目标X != 位.X || 目标Y != 位.Y) Position = new Vector2I(目标X, 目标Y);
     }
 
@@ -354,7 +361,8 @@ public partial class NetSpeedBubble : Window
         CallDeferred(nameof(按内容定尺寸));
     }
 
-    /// <summary>按内容最小尺寸校准窗口大小（多留 2px 给描边与抗锯齿，避免圆角被裁）。</summary>
+    /// <summary>按内容最小尺寸校准窗口大小（多留 2px 给描边与抗锯齿，避免圆角被裁）。
+    /// 尺寸没变时提前返回 —— 每秒采样都会调，别做无谓的原生窗口 resize。</summary>
     public void 按内容定尺寸()
     {
         try
@@ -362,8 +370,10 @@ public partial class NetSpeedBubble : Window
             var 内容 = GetChildOrNull<MarginContainer>(0)?.GetCombinedMinimumSize() ?? Vector2.Zero;
             if (内容.X <= 0 || 内容.Y <= 0) return;
             var 目标 = new Vector2I(Mathf.CeilToInt(内容.X) + 2, Mathf.CeilToInt(内容.Y) + 2);
+            if (目标 == MinSize && 目标 == Size) return;
             MinSize = 目标;
             Size = 目标;
+            确保在屏内();   // 窗口长大后可能伸出屏幕（默认位贴右上角）→ 夹回来
         }
         catch { /* 忽略：保持默认尺寸 */ }
     }
