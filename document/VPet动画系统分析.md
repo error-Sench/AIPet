@@ -1,6 +1,7 @@
 # VPet 原版动画系统分析（重构参考 · 给自己看的）
 
-> 2026-09-22 逐行读源码整理。源码快照在 `%TEMP%/vpet_cs/`（117 个 .cs），素材底本
+> 2026-09-22 逐行读源码整理；**2026-09-24 按主人逐素材目检审视（`VPet动画主人审视.md`）全面校正**——新增 §9 审视对照表（24 类逐一：用/不用/怎么用），§2/§5 相关行同步修正。
+> 源码快照在 `%TEMP%/vpet_cs/`（117 个 .cs），素材底本
 > `D:/SteamLibrary/steamapps/common/VPet/mod/0000_core/pet/vup/`。
 > 引用格式 `文件:行号` 均指源码快照里的文件名。
 > 素材盘点：`%TEMP%/vpet_anim_inventory.json`（子代理产出）+ `vpet_leaf_summary.json`。
@@ -80,15 +81,15 @@ FindGraphs(...) 同逻辑但返回整个 List（调用方自己再随机/过滤 
 | **Work** * | `WORK/` | 工作/学习/玩（13 种）| A/B/C |
 | **Sleep** * | `Sleep/` | 睡觉 | A/B/C |
 | **Say** * | `Say/` | 说话（4 感情 × 档位）| A/B/C |
-| Think | `Think/` | 思考（3 档）| A/B/C |
+| Think | `Think/` | 思考（3 档）。主人目检：**全都是挠头动画，当思考动画使用也行**（2026-09-24 改口，维持现状）；源里每档还有 B_2..B_5 未导 | A/B/C |
 | **Touch_Head** | `Touch_Head/` | 摸头 | A/B/C |
 | **Touch_Body** | `Touch_Body/` | 摸身体（+Happy_Turn 转身躲）| A/B/C |
-| **Raised_Dynamic** * | `Raise/` | 被提起·动态（甩来甩去）| Single |
-| **Raised_Static** * | `Raise/` | 被提起·静态（拎着不动）| A/B/C |
+| **Raised_Dynamic** * | `Raise/` | 被提起·动态（甩来甩去）。主人目检：**刚拖拽 = 动态；一直挂着 4 秒 → 进静态循环**（Happy 22 帧 / Nomal 摇晃 8+狗刨 11 / Poor 11 / ill 不用）| Single |
+| **Raised_Static** * | `Raise/` | 被提起·静态（拎着不动）= 挂起 4 秒后的落点；C 段有 FLA+FLB 双前缀混装（导入需拆片拼接，参照 fall 池先例）| A/B/C |
 | Pinch | `Pinch/` | 捏脸 | A/B/C |
-| **StartUP** * | `StartUP/` | 开机 | Single |
-| Shutdown | `Shutdown/` | 关机 | Single |
-| Switch_Up / Switch_Down | `Switch/` | 坐起/坐下（进出工作状态）| Single |
+| **StartUP** * | `StartUP/` | 开机。主人目检：**除 Ill 外全可用，心情分档作用不明显**（Happy/Happy_1/Nomal/PoorCondition 可导 57 帧；newyear 节日皮肤暂缓）| Single |
+| Shutdown | `Shutdown/` | 关机。主人目检：**除 Ill 外全可用**（2/{Happy,Nomal,Poor} + Happy_1/Nomal_1/Nomal_2/Poor 可导 151 帧）| Single |
+| Switch_Up / Switch_Down | `Switch/` | 坐起/坐下（进出工作状态）——我们已用作 WorkIn/WorkOut 的固定动画（`switch-up`/`switch-down`）；主人对源 Switch 类整体评价「没想到太好的使用方式」（另含饿了/口渴切换，我们不引入）| Single |
 | Switch_Thirsty / Switch_Hunger | `Switch/` | 口渴/饥饿切换 | Single |
 | SideHide_Left_Main / _Rise | `SideHide_Left_*` | 左侧贴边躲藏 / 探头 | A/B/C |
 | SideHide_Right_Main / _Rise | `SideHide_Right_*` | 右侧同上 | A/B/C |
@@ -318,6 +319,79 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 7. ✅ **档位补全：WORK Happy/Poor**（2026-09-22 完成）：13 类型里 12 个补 Happy/PoorCondition（WorkTWO 无 Happy 源、Study 无档位源 → 降级链兜底，开心/不良档里不出现）；命名 `{档}-{类型}`（与 idle/music 的 `{档}-{n}` 同口径，`挑主名` 按 `-happy-`/`-poor-` 前缀收组）；新增 **876 帧 / 68 变体**（work 池 39→107 变体、493→1369 帧；B 取与 Nomal 同名的那条 = 跨档「同一动作换表情」）。`段名` 加「**同类无档**」降级（`work-happy-study2-c` → `work-study2-c`——study2 的 Happy 源就没有 C 段，VPet 自己留白；对齐 VPet「每段动画各自找档」语义，不补假素材）。验证：PoolProbe 新增 12 必存在 + GradeProbe ⑥ 组 6 断言（档位择档/精确段命中/同类降级/既有段不受影响）全 PASS。余下：IDEL 各 B 变体维度（原版每圈换花样，我们钉死一个——低优先，见 #9 行下注）。
 8. ✅ **双缓冲渲染——判定：不需要**（2026-09-22，BufferProbe 实证）。VPet 的双 Grid 交替（MainDisplay.cs:556-608 `petgridcrlf` 翻转）是给 WPF 打的补丁：新动画要**运行时异步读盘+拼图**（cache/），加载期间旧 Grid 已 Stop → 不交替就会黑帧。我们启动时把全部纹理预载进 SpriteFrames（AddFrame(ImageTexture)），`Play(新名)` 同帧生效、不存在加载空窗。实证：BufferProbe 模拟段切换风暴（每 3 帧跨池换名 ~136 次），390+ 帧全程断言「当前动画存在且帧数 ≥1」——**零空窗帧**。单节点架构已覆盖该问题，不引入第二个 AnimatedSprite2D（省一半 draw call 与状态同步复杂度）。
 9. ✅ **StateONE/TWO 嵌套待机场**（2026-09-22 完成，重构#9）：State 素材 22 目录 116 帧导入为 `sit`/`lie` 两池（旧 `fidget-state-one/two` 拼接变体删除）；CharAnim 加**嵌套会话**——`sit.A → sit.B 每圈随机换 B 变体 + 掷 Rnd.Next(圈数) > 坐卧循环L → 1/(躺下基数+已躺次数) 进 lie → lie.A→B 同款 → lie.C 起身回 sit 的 B 判定（可再躺）→ …→ sit.C → idle`（`MainDisplay.cs:207-266` 照抄：looptimes 三处清零、CountNomal 进 sit 清零/进 lie +1、A 只播一次）。调度 = 爬坡骰子从「移动 3 槽」扩成「移动 3 槽 + 坐卧 2 槽 + 其余无操作」（`爬坡掷槽`/`掷爬坡一次`，心跳与探针同一路径；VPet 1 槽/200 = 分钟级，我们 2 槽按观感重定标）。闸门 = 会话期间不入睡/不掷移动骰子（原版 IsIdel=false → 显示骰子整块跳过）、别的状态接管 → 会话作废。配置 = `坐卧启用/坐卧槽/坐卧循环L/躺下基数`。验证：SitProbe 36 断言（嵌套全流程 + 接管作废 + 分派集成 + 槽位分布）全 PASS；FidgetProbe/PoolProbe 随素材迁移更新。（导入器顺带修一处 rate 退化 bug：时长档无真众数 → 退回 125ms 基准，否则 rate=1 时长塌缩；影响面 7 个变体重写。）
+
+## 9. 主人逐素材审视对照表（2026-09-24，重构施工依据）
+
+> 来源：`VPet动画主人审视.md`（主人用眼睛逐一看过 VPet 全部素材后的分类判断）。
+> **这是「用不用 / 怎么用」的权威口径**——与源码机制（§1-§6）冲突时，机制照源码、取舍照本表。
+> 字母 = 动画阶段（A 起始 / B 循环 / C 结束），数字 = 变体，Single = 顺序动画只放一次；每类基本有心情档，个别有 Ill 生病档（我们一律不引入 Ill）。
+
+| VPet 类 | 主人判断 | 序列 | 我们的处置（重构口径） |
+|---|---|---|---|
+| **BDay** | 名义生日，**看着很适合做 music 动画** | A/B/C | 已导入 `bday` 池作生日彩蛋；**music 池另用 `Music/`**（见下）——BDay 不挪用为 music |
+| **Default** | 待机呼吸，全循环帧，数字=循环变体；**默认普通级，切换要留** | 循环 | `idle` 池已对齐（happy/nomal/poor × 1-3）；**#24：idle 变体改加权随机**（nomal 晃头为主、其他低频），不再均匀概览 |
+| **Drink / Eat / Gift** | 循环 back_lay+front_lay 与物品同贴图；**暂不引入，不拟人** | 双层 | **不导入**（吃喝送礼玩法不在范围；引入需处理前后双图层合成） |
+| **IDEL** | 空闲小动作场（10 种）；逐一点评见下 | A/B/C + Single | `fidget` 池；**#23：amusement_B 是循环动画**（退出帧=首帧非尾帧，循环 2-5 次）需修正 |
+| **LevelUP** | 升级动画；**不引入** | Single | 不导入 |
+| **MOVE** | 各位移（垂直爬/横爬/就地爬/行走，前三不受边框限制）；**行走快慢原版由心情决定，我们只做普通档** | A/B/C | `move` 池 + MoveRunner；**#22：删 walk 的 fast/slow 变体**（不按 happy/poor 分快慢，变体只跟配置心情档） |
+| **Music** | 音乐动画；**暂定随机抽取，后续考虑按音量变动画** | A/B/C + Single | `music` 池已对齐（happy/nomal/poor × B 变体 + single 高潮 + a/c）；音量驱动列后续 |
+| **Pinch** | 捏脸，萌点十足；**我们没接入玩法系统** | A/B/C | `pinch` 池已导入（FacePinch 三段自管）；玩法不接 |
+| **Raise** | 拖拽；**动态+静态两种：刚拖=动态，挂 4 秒→静止态循环** | 动态 Single / 静态 A/B/C | `drag/dragup/dragdown` 仅 Happy；**补：动态 3 档 + 新建 `draghold` 静态挂起池 + 代码接「拖拽满 4 秒切静态循环」** |
+| **Say** | 说话，4 感情细分（见下） | A/B/C，数字=B 变体 | `say` 池已导 4 主变体+a/c；**补 5 条 B 变体**：self-smile(B_2)/self-tease(B_3)/shining-excited(B_1)/shining-calm(B_3)/shy-wry(B_3) |
+| **Shutdown** | 退出；**除 Ill 外全可用，心情分档作用不明显** | Single | **新建 `exit` 池**（7 条：2/{Happy,Nomal,Poor}+Happy_1/Nomal_1/Nomal_2/Poor，除 Ill） |
+| **SideHide_Left/Right_Main** | 左/右贴边隐藏 | A/B/C | `edge_hide` 池已导入 |
+| **SideHide_Left/Right_Rise** | 左/右隐藏鼠标悬浮探头 | A/B/C | 探头表现（EdgeHide 自管）；素材随 edge_hide |
+| **Sleep** | 睡觉 | A/B/C | `sleep` 池已对齐 |
+| **StartUP** | 启动；**除 Ill 外全可用，心情分档作用不明显** | A/B/C（实为 Single 顺序） | **新建 `enter` 池**（4 条：Happy/Happy_1/Nomal/PoorCondition，除 Ill；newyear 节日皮肤暂缓） |
+| **State** | 坐下/躺下；**状态1坐、状态2躺，躺只能从坐的 B 进；可定义为空闲态，B 循环可久一点** | A/B/C，数字=循环变体 | `sit/lie` 池 + 嵌套会话（重构#9 已实现）；**B 循环调长**（`坐卧循环L`↑，符合「空闲态可久一点」） |
+| **Switch** | 心情档切换 + 饿了/口渴；**没想到太好的使用方式** | Single | 我们已借 `switch-up/down` 作 WorkIn/WorkOut 固定动画；饿了/口渴切换**不引入** |
+| **Think** | **全是挠头动画，当思考动画使用也行**（2026-09-24 改口） | A/B/C，数字=变体 | `think` 池维持现状（挠头当思考用）；源里 B_2..B_5 未导，本次不扩 |
+| **Touch_Body** | 身体互动；**开心档和普通档共用 happy**；Happy_Turn=转圈圈 | A/B/C，数字=线程 | `interact_body`（取 Happy）+ `turn`（Happy_Turn）已导入 |
+| **Touch_Head** | 摸头；**除 Ill 档都能用** | A/B/C | `interact` 池已对齐 |
+| **WORK** | 13 种，逐一点评见下（语义映射到工作类型） | A/B/C，数字=变体 | `work` 池 107 变体（3 档全）；**补：按主人语义把 13 类映射到「工作类型」**（Agent 指定类型→选对应动画） |
+
+### 9.1 IDEL 10 种逐一点评（主人目检）
+
+| 种 | 主人判断 | 处置 |
+|---|---|---|
+| amusement_B | 左右扭身循环 | fidget 变体；**#23 循环修正**（退出帧=首帧、循环 2-5 次） |
+| aside | happy 时手按屏幕＝「想接触主人」 | fidget 变体（保留） |
+| Nomal | 左右晃头 | ＝ Default 呼吸承担（IDEL 下无独立 Nomal 目录） |
+| Boring | **实则是打瞌睡动画** | fidget 变体（doze 语义） |
+| Bubbles | 迪斯科舞动 | fidget 变体 |
+| happy_like520 | 卖萌送爱心 | fidget 变体（happy520） |
+| **Meow** | **手敲屏幕，非常适合做问候语动画（因此最好不做空闲动画）** | **改作 `greet` 池**（整池换 Meow 9 变体三档）；**从 fidget 移除**（不做空闲动画） |
+| meowlook | 傲娇害羞的偷瞄 | fidget 变体 |
+| Squat | 蹲下看主人，**B 段循环可做久一点增萌点** | fidget 变体；B 循环可单独调长 |
+| Tennis | 打网球 | fidget 变体 |
+| yawning | 打哈欠 | fidget 变体 |
+
+### 9.2 Say 4 感情细分（主人目检）
+
+| 感情 | 变体细分 |
+|---|---|
+| **Self**（侧耳说） | 变体1 普通 / 变体2 微笑侧耳（高兴）/ 变体3 眯眼侧耳（吐槽态） |
+| **Serious**（双手交叉说） | 警示、教育意味（仅 B） |
+| **Shining**（手指舞动说） | 变体1 兴奋 / 变体2 普通略高兴 / 变体3 眯眼平静 |
+| **Shy**（托腮说） | 变体1、2 相同＝普通可爱 / 变体3 略无奈 |
+
+### 9.3 WORK 13 种 → 工作类型语义映射（主人目检，供 Agent 选动画）
+
+| WORK 素材 | 动作 | 映射工作类型 |
+|---|---|---|
+| Calligraphy | 书法写字 | 创作类 |
+| FixMenu | 修理屏幕线路 | 计算机类 |
+| GrilledSausage | 烧烤香肠 | 美食/烹饪类 |
+| PlayONE | 玩手柄游戏 | 游戏类 |
+| PlayWater | 游泳圈泡水 | （无合适场景，不映射） |
+| RemoveObject | 钢笔写字 | 写正文 |
+| RopeSkipping | 跳绳 | 其他工作 |
+| Study | 读书 | 浏览网页/资料收集整理 |
+| StudyPaint | 绘画 | 素材/图片生成 |
+| StudyTWO | 读书 | 同 Study |
+| WorkClean | 屏幕清洁 | 清理类 |
+| WorkONE | 写字 | 同 RemoveObject |
+| WorkTWO | 连麦互动 | 声音类 |
 
 ## 8. 索引（源码快照文件名速查）
 
