@@ -83,6 +83,12 @@ public partial class PoolProbe : Node
         // enter 4 条 / exit 7 条；选名走 挑主名/降级链（见下方选名断言）。
         "enter-happy-1", "enter-happy-2", "enter-nomal", "enter-poor",
         "exit-happy-1", "exit-nomal-1", "exit-poor-1", "exit-happy-2", "exit-nomal-2", "exit-nomal-3", "exit-poor-2",
+        // 2026-09-24 动画组H：Raise 拖拽全套——动态三档补齐（drag/1=Happy 旧变体保留；nomal-1/nomal-2/poor 新增）
+        // + 静态挂起 draghold 三档 A/B/C 三段（happy 另有 -c2 英雄落地；缺一段 = 挂起会话断链）
+        "drag-nomal-1", "drag-nomal-2", "drag-poor",
+        "draghold-happy-a", "draghold-happy-b", "draghold-happy-c", "draghold-happy-c2",
+        "draghold-nomal-a", "draghold-nomal-b", "draghold-nomal-c",
+        "draghold-poor-a", "draghold-poor-b", "draghold-poor-c",
     ];
 
     /// <summary>已删素材必须真的不在（2026-09-24 动画组A）——还在 = 池目录没删干净，
@@ -101,6 +107,9 @@ public partial class PoolProbe : Node
         // 2026-09-24 动画组G：enter/exit 整池重导——旧变体名（enter-1/2、exit-1..4）必须真不在
         // （还在 = 池目录没删干净/重导没生效，`列表随机项` 或降级链会把退役动画悄悄串出来）
         "enter-1", "enter-2", "exit-1", "exit-2", "exit-3", "exit-4",
+        // 2026-09-24 动画组H：C_Happy_2 迁移（dragdown/2 → draghold/happy-c2）——旧变体名必须真不在
+        // （还在 = 迁移没生效，dragdown 池会多出第三条与 draghold/happy-c2 重复的内容）
+        "dragdown-2",
     ];
 
     public override void _Ready()

@@ -55,7 +55,10 @@ public partial class CharAnim : AnimatedSprite2D
          "music",
          // 登场/退场（2026-09-22 登记全变体；2026-09-24 动画组G 整池重导为 StartUP/Shutdown 三档素材——
          // 选名走 挑主名/降级链（挑登场退场），游戏起跳占位用 `enter-happy-2`）
-         "enter", "exit"];
+         "enter", "exit",
+         // 静态挂起（2026-09-24 动画组H：Raise 拖拽系——拖满 4 秒 → draghold A 拎定 → B 循环；
+         // 松手 C 放下落地。表现由 CharAnim 挂起会话 + WindowDrag 计时自管）
+         "draghold"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。
     /// fall 同理：`-b`（横着下落）在智能移动与游戏模式的空中段都当持续姿态用（`-a`/`-c` 段仍被排除，见加载处）。</summary>

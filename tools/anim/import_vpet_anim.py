@@ -51,6 +51,15 @@ CANVAS = 512
 固定映射池 = {"enter", "exit"}
 参考画布源 = "Default/Happy/1"   # 与 idle 池同源：union 中心 x=500 / 底边 y=970 = 画布基准站位
 
+# ── 原画布池（2026-09-24 动画组H：Raise 拖拽系）──────────────────────────────────
+# 这些池走**原项目旧导入口径**：整张 1000 画布缩到 512（512/1000、BILINEAR）、零偏移 ——
+# **不**按角色包围盒对齐基线。为什么：拖拽/拎起姿态在 VPet 画布里的位置就是「被拎起来」的站位
+# （作者按 raisepoint 抓握点画的）；基线对齐会把角色整体下拉 ~81px（实测 drag 系），与旧
+# dragup/drag 变体切换时跳位。2026-09-24 实测旧产物与该口径**像素级一致**（alpha 平均差 ≤0.07），
+# 即旧 drag/dragup/dragdown 就是这么导的。**重导/新增这些池必须沿用此口径（别改成 union 对齐）。**
+原画布池 = {"drag", "dragup", "dragdown", "draghold"}
+原画布缩放 = 512 / 1000   # 1000 画布 → 512 画布，原样缩
+
 # 池 -> [(变体, [片段, ...]), ...]；片段 = (源叶子相对路径, 起帧序号|None, 止帧序号|None)
 # 语义说明：Touch_Head/Touch_Body 是「被摸的反应」→ interact；greet 用 `IDEL/Meow`（手敲屏幕＝问候姿态）
 SPEC = {
@@ -505,6 +514,38 @@ SPEC = {
         ("nomal-3", [("Shutdown/Nomal_2", None, None)]),
         ("poor-2",  [("Shutdown/PoorCondition", None, None)]),
     ],
+    # ── 动画组H（2026-09-24）：Raise 拖拽全套 —— 动态三档补齐 + `draghold` 静态挂起池 ──
+    # 主人口径（§9 Raise 行）：拖起来=动态（摇晃/狗刨）；**挂 4 秒 → 静止态**（拎着不动）；
+    # 松手 → C 放下落地回 idle。动态段由 WindowDrag 计时 4s（config/behavior.json「拖拽静止秒」）触发挂起。
+    # 命名对齐档位口径：变体 `{档}-{n}`（无档基名 = 该档单条时可不带 n）。三档关闭/普通 → nomal 组。
+    # **追加模式**：`drag/1`（= Raised_Dynamic/Happy 22 帧狗刨，原项目旧导）保留原名不清空——
+    # 三档=开心时 挑主名 走「无档基名」兜底正好落到它（happy 档没有 `drag-happy-*` 变体）。
+    # ⚠ 本池走**原画布口径**（见 原画布池）：拖拽姿态的画布站位 = VPet 拎起时的站位，不做基线对齐。
+    "drag+": [
+        ("nomal-1", [("Raise/Raised_Dynamic/Nomal/1", None, None)]),           # 摇晃（8 帧）
+        ("nomal-2", [("Raise/Raised_Dynamic/Nomal/2", None, None)]),           # 狗刨（11 帧）
+        ("poor",    [("Raise/Raised_Dynamic/PoorCondition", None, None)]),     # 挣扎（11 帧）
+    ],
+    # `draghold` 静态挂起（VPet `Raise/Raised_Static`，A/B/C 三段）：
+    #   A = 拎定过渡（非循环）、B = 挂起循环（循环动画组，见 CharAnim）、C = 放下落地（非循环 → 回 idle）。
+    # C 段源为 FLA+FLB 双前缀混装（触地 + 起身两条序列）→ 按前缀拆片顺序拼接（fall 池先例）；
+    # 变体 `-c2` = 同一档的第二条落地（happy 的 C_Happy_2「英雄落地」，原 dragdown/2 迁移——
+    # 迁移后 dragdown 只留 C_Happy 一条走「未满 4 秒快速松手」旧路径，不再两池重复一份内容）。
+    "draghold": [
+        ("happy-a",  [("Raise/Raised_Static/A_Happy", None, None)]),
+        ("happy-b",  [("Raise/Raised_Static/B_Happy", None, None)]),
+        ("happy-c",  [("Raise/Raised_Static/C_Happy", None, None, "FLA"),
+                      ("Raise/Raised_Static/C_Happy", None, None, "FLB")]),
+        ("happy-c2", [("Raise/Raised_Static/C_Happy_2", None, None)]),
+        ("nomal-a",  [("Raise/Raised_Static/A_Nomal", None, None)]),
+        ("nomal-b",  [("Raise/Raised_Static/B_Nomal", None, None)]),
+        ("nomal-c",  [("Raise/Raised_Static/C_Nomal", None, None, "FLA"),
+                      ("Raise/Raised_Static/C_Nomal", None, None, "FLB")]),
+        ("poor-a",   [("Raise/Raised_Static/A_PoorCondition", None, None)]),
+        ("poor-b",   [("Raise/Raised_Static/B_PoorCondition", None, None)]),
+        ("poor-c",   [("Raise/Raised_Static/C_PoorCondition", None, None, "FLA"),
+                      ("Raise/Raised_Static/C_PoorCondition", None, None, "FLB")]),
+    ],
 }
 
 
@@ -635,9 +676,16 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告, 锚定=None
     # 本地新画素材已是最终比例：scale=1（只对齐，不缩放）；VPet 源用固定缩放。
     scale = 1.0 if all(片段[0].startswith("@本地/") for 片段 in 片段列表) else 固定缩放
     # 对齐锚点：默认 = 本段 union；固定映射池（enter/exit）传 锚定 = 参考画布站位（见 固定映射池）。
-    锚 = 锚定 if 锚定 is not None else ub
-    off_x = 基线值["cx"] - ((锚[0] + 锚[2]) / 2) * scale
-    off_y = 基线值["bottom"] - 锚[3] * scale
+    if 池 in 原画布池:
+        # 原画布池（Raise 拖拽系）：整张画布原样缩、零偏移（见 原画布池 的说明）。
+        scale = 原画布缩放
+        off_x = off_y = 0
+        滤镜 = Image.BILINEAR
+    else:
+        锚 = 锚定 if 锚定 is not None else ub
+        off_x = 基线值["cx"] - ((锚[0] + 锚[2]) / 2) * scale
+        off_y = 基线值["bottom"] - 锚[3] * scale
+        滤镜 = Image.LANCZOS
 
     out = os.path.join(DST_ROOT, 池, 变体)
     os.makedirs(out, exist_ok=True)
@@ -646,7 +694,7 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告, 锚定=None
     for i, p in enumerate(paths):
         im = Image.open(p).convert("RGBA")
         w, h = im.size
-        im = im.resize((round(w * scale), round(h * scale)), Image.LANCZOS)
+        im = im.resize((round(w * scale), round(h * scale)), 滤镜)
         canvas = Image.new("RGBA", (CANVAS, CANVAS), (0, 0, 0, 0))
         canvas.alpha_composite(im, (round(off_x), round(off_y)))
         canvas.save(os.path.join(out, f"{i:03d}.png"))
