@@ -46,7 +46,8 @@ CANVAS = 512
 SPEC = {
     # 待机（核心池）：VPet Default 三档 —— 1/2/3 = Happy 档三条（原来导入为 idle/1..3）。
     # 2026-09-20 组①：补 Nomal/Poor 档并对齐三档系统 —— 变体命名 `{档}-{n}`（idle-happy-1 / idle-nomal-1 / idle-poor-1 …），
-    # 三档=开心/不良时 StateMachine 按 `idle-{档}-` 前缀随机取一条（普通/关闭 = 池内随机混演，与 think 等池同口径）。
+    # 三档=开心/不良时 StateMachine 按 `idle-{档}-` 前缀取一组；普通/关闭 → nomal 组（重构#6 钉住、零串档）。
+    # 2026-09-24 动画组D（Plan #24）：组内选择改按「idle权重」表加权随机（nomal-1 为主、其他低频），不再均匀概览。
     "idle": [
         ("happy-1", [("Default/Happy/1", None, None)]),
         ("happy-2", [("Default/Happy/2", None, None)]),

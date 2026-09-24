@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using desktop.script.Logic;
 using desktop.script.State;
 using desktop.script.UX;
@@ -13,6 +15,8 @@ namespace desktop.tests;
 /// ③ 降级链：档位素材缺失 → 相邻档兜底（say 池无档位素材 → 无档基名；walk poor→nomal 方向）；
 /// ④ 段排除：拆段池（fidget/sleep）择档不挑 -a/-c 过渡段；
 /// ⑤ Ill 不引入：降级链里没有任何 ill 档。
+/// ⑧ idle 变体加权（动画组D / Plan #24）：三档关全落 nomal；同档组内按「idle权重」加权随机
+/// （大样本分布；0 权重排除、全名键、三档开档内加权与零串档）。
 /// Godot_v4.7.2-stable_mono_win64_console.exe --headless --path D:/Games/Github/AIPet res://tests/GradeProbe.tscn
 /// </summary>
 public partial class GradeProbe : Node
@@ -161,6 +165,70 @@ public partial class GradeProbe : Node
                     $"不良档 greet → greet-poor-*（实际 {g名2}）");
                 StateMachine.设置.三档状态启用 = false;
                 StateMachine.设置.状态档位 = "普通";
+                break;
+
+            // ── ⑧ idle 变体加权（2026-09-24 动画组D / Plan #24：同档内加权随机，不再均匀概览）──
+            //   口径：主人口径「idle 变体不要均匀随机——要有主次/权重（比如 nomal 晃头为主，其他低频）」；
+            //   审视野「我们默认为普通级，切换要留」——档的选择不动（降级链），权重只在同档组内生效。
+            case 30:
+                StateMachine.设置.三档状态启用 = false;   // 关 = nomal 绝对为主
+                StateMachine.设置.状态档位 = "普通";
+                const int 样本 = 3000;
+                var 计数 = new Dictionary<string, int>();
+                for (var i = 0; i < 样本; i++)
+                {
+                    var 名 = StateMachine.挑主名("idle") ?? "(null)";
+                    计数[名] = 计数.GetValueOrDefault(名) + 1;
+                }
+                var nomal数 = 计数.Where(kv => kv.Key.Contains("-nomal-", StringComparison.Ordinal)).Sum(kv => kv.Value);
+                断言(nomal数 * 2 > 样本, $"三档关：idle {样本} 次选择 nomal 系占比 > 50%（实际 {nomal数 * 100.0 / 样本:F1}%）");
+                断言(nomal数 == 样本, $"三档关：idle 全落 nomal 组、零串档（实际落别组 {样本 - nomal数} 次）");
+                var 主次 = 计数.Where(kv => kv.Key.Contains("-nomal-", StringComparison.Ordinal))
+                    .OrderByDescending(kv => kv.Value).ToList();
+                var 主名0 = 主次.Count > 0 ? 主次[0].Key : "无";
+                var 主数0 = 主次.Count > 0 ? 主次[0].Value : 0;
+                断言(主数0 > 0.4 * 样本, $"idle 加权「主次」生效：最高占比变体 > 40%（出货表 nomal-1 ≈ 50%；均匀随机约 33%）——实际 {主名0} {主数0 * 100.0 / 样本:F1}%");
+
+                // 机制自证（不依赖出货权重值）：临时换已知表 → 0 权重排除 + 全名键 + 段内分布
+                var 旧表 = StateMachine.设置.idle权重;
+                StateMachine.设置.idle权重 = new Dictionary<string, int> { ["nomal-1"] = 0, ["nomal-2"] = 1, ["nomal-3"] = 1 };
+                var 计数2 = new Dictionary<string, int>();
+                for (var i = 0; i < 样本; i++)
+                {
+                    var 名 = StateMachine.挑主名("idle") ?? "(null)";
+                    计数2[名] = 计数2.GetValueOrDefault(名) + 1;
+                }
+                var n1 = 计数2.GetValueOrDefault("idle-nomal-1");
+                var n2 = 计数2.GetValueOrDefault("idle-nomal-2");
+                var n3 = 计数2.GetValueOrDefault("idle-nomal-3");
+                断言(n1 == 0, $"权重 0 = 该变体不参与（nomal-1 置 0 → {样本} 次 0 出现；实际 {n1}）");
+                断言(n2 + n3 == 样本 && n2 > 0.4 * 样本 && n3 > 0.4 * 样本,
+                    $"权重 1:1 组内≈均匀且无串档（nomal-2 {n2} / nomal-3 {n3}）");
+                StateMachine.设置.idle权重 = new Dictionary<string, int> { ["idle-nomal-3"] = 9 };   // 全名键 + 其余缺省 1
+                var 计数3 = new Dictionary<string, int>();
+                for (var i = 0; i < 样本; i++)
+                {
+                    var 名 = StateMachine.挑主名("idle") ?? "(null)";
+                    计数3[名] = 计数3.GetValueOrDefault(名) + 1;
+                }
+                var m3 = 计数3.GetValueOrDefault("idle-nomal-3");
+                断言(m3 > 0.7 * 样本, $"全名键 + 缺省权重 1：idle-nomal-3=9 占比 ≈ 82%（实际 {m3 * 100.0 / 样本:F1}%）");
+                StateMachine.设置.idle权重 = 旧表;   // 还原（后续/实机口径以配置为准）
+
+                StateMachine.设置.三档状态启用 = true;   // 开 = 按心情档内加权（同样零串档）
+                StateMachine.设置.状态档位 = "开心";
+                var 串 = 0;
+                for (var i = 0; i < 样本; i++)
+                {
+                    var 名 = StateMachine.挑主名("idle") ?? "";
+                    if (!名.StartsWith("idle-happy-", StringComparison.Ordinal)) 串++;
+                }
+                断言(串 == 0, $"三档开（开心）：idle {样本} 次全落 happy 组（按心情档内加权；实际串档 {串}）");
+                StateMachine.设置.三档状态启用 = false;
+                StateMachine.设置.状态档位 = "普通";
+                break;
+
+            case 32:
                 GD.Print($"[GRADE] ===== 失败数 = {_失败} =====");
                 GD.Print(_失败 == 0 ? "[GRADE] PASS" : "[GRADE] FAIL");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);

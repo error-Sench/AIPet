@@ -1212,7 +1212,7 @@ public partial class StateMachine : Node
                     // 单条精确（think-nomal）或组变体（idle-nomal-1/2/3）一并收
                     var 命中 = 候选.FindAll(x => x.name == 精确
                         || x.name.StartsWith($"{精确}-", StringComparison.Ordinal));
-                    if (命中.Count > 0) return 命中.列表随机项().name;
+                    if (命中.Count > 0) return (挑同档变体(池, 命中) ?? 命中.列表随机项()).name;
                     // 无档基名（sleep-loop / say-smile：从 Nomal 素材导入、名字里不带档位）——
                     // 它是「普通档」的实际落点，必须先于升到别的档位试（否则 sleep 会被迫演 sleep-happy）。
                     if (档 == 变体)
@@ -1228,6 +1228,28 @@ public partial class StateMachine : Node
         {
             return null;   // 人物数据未就绪（同 选择池 的惯例）：交给应用表现的兜底
         }
+    }
+
+    /// <summary>同档内变体选择（动画组D / Plan #24，2026-09-24）：**档的选择不动**——仍由上面的降级链决定
+    /// （三档关 = 命中组恒为 nomal，零串档、GradeProbe 口径不破）；只在**命中组内部**按 `设置.idle权重`
+    /// 加权随机，不再均匀概览。主人口径：「idle 变体不要均匀随机——要有主次/权重（比如 nomal 晃头为主，
+    /// 其他低频）」（document/VPet动画系统分析.md §9 Default 行；2026-09-24 确认原文）。目前只作用于
+    /// `idle` 池（其他池保持原样均匀随机——将来别的池要做主次，在这里加池名即可）。</summary>
+    private static 动画信息 挑同档变体(string 池, List<动画信息> 组)
+    {
+        if (组 is not { Count: > 0 }) return null;
+        if (池 != "idle" || 组.Count == 1) return 组.列表随机项();
+        var 总权重 = 0;
+        foreach (var x in 组) 总权重 += Math.Max(0, 设置.idle权重值(x.name));
+        if (总权重 <= 0) return 组.列表随机项();   // 全 0 / 表坏 = 防呆回退均匀（惯例同 ModModels 招呼加权随机）
+        var 骰 = Random.Shared.Next(总权重);
+        foreach (var x in 组)
+        {
+            var 权重 = Math.Max(0, 设置.idle权重值(x.name));
+            if (骰 < 权重) return x;
+            骰 -= 权重;
+        }
+        return 组.列表随机项();   // 理论上到不了（浮点/空表边界兜底）
     }
 
     /// <summary>名字里不带任何档位标记（happy/nomal/poor）= 「无档基名」。
@@ -1345,6 +1367,36 @@ public partial class StateMachine : Node
         public static (int 最小, int 最大) fidget单段区间(string 变体)
             => fidget单段循环.TryGetValue(变体, out var v) && v is { Length: 2 } ? (v[0], v[1]) : (1, 1);
 
+        // —— 动画组D（2026-09-24）idle 变体加权（Plan #24 口径） ——
+        /// <summary>idle 池「同档内变体选择」的权重表（变体名或档位 → 权重）。主人口径：「idle 变体不要
+        /// 均匀随机——要有主次/权重（比如 nomal 晃头为主，其他低频）」（document/VPet动画系统分析.md
+        /// §9 Default 行；2026-09-24 确认原文）+ 审视野「我们默认为普通级，切换要留」——**档的选择不动**
+        /// （降级链照旧：三档关 = nomal 绝对为主、零串档），权重只在挑中的同档组内生效（见 挑同档变体）。
+        /// 键三种写法都认：变体短名（nomal-1）/ 全名（idle-nomal-1）/ 档位（happy——该档里没单列的变体用它的值）。
+        /// 值 clamp 0..20；0 = 不参与（整组全 0 防呆回退均匀）。出货表：nomal-1 为主（4/8 = 50%）、
+        /// nomal-2/3 各 2；happy/poor 的 1 只在三档开（开心/不良）时用到。想回「均匀随机」：config 里把
+        /// 表设成 {}（空表 = 全部缺省 1）；删掉整个键 = 用这里的代码内置表（同出货表）。</summary>
+        public static Dictionary<string, int> idle权重 = new()
+        {
+            ["nomal-1"] = 4,
+            ["nomal-2"] = 2,
+            ["nomal-3"] = 2,
+            ["happy"] = 1,
+            ["poor"] = 1,
+        };
+
+        /// <summary>取某 idle 变体（全名，如 idle-nomal-1）的有效权重：全名 → 短名 → 档位键 → 缺省 1。</summary>
+        public static int idle权重值(string 全名)
+        {
+            if (string.IsNullOrEmpty(全名)) return 1;
+            if (idle权重.TryGetValue(全名, out var w)) return w;
+            var 短 = 全名.StartsWith("idle-", StringComparison.Ordinal) ? 全名["idle-".Length..] : 全名;
+            if (短 != 全名 && idle权重.TryGetValue(短, out var w2)) return w2;
+            var 断 = 短.IndexOf('-');
+            var 档 = 断 > 0 ? 短[..断] : 短;
+            return idle权重.TryGetValue(档, out var w3) ? w3 : 1;
+        }
+
         // —— P6 环境感知（**默认关**：主人不开，它就一次也不查） ——
         public static bool 环境感知启用 = false;
         public static float 离开阈值秒 = 300f;
@@ -1445,6 +1497,7 @@ public partial class StateMachine : Node
                     fidget循环L = Math.Clamp(取整数(根, "fidget循环L", fidget循环L), 0, 20);
                     fidget循环L覆盖 = 取整数表(根, "fidget循环L覆盖", fidget循环L覆盖);
                     fidget单段循环 = 取区间表(根, "fidget单段循环", fidget单段循环);
+                    idle权重 = 取整数表(根, "idle权重", idle权重);   // 动画组D/#24：idle 同档内变体权重（缺键 = 内置表）
                     环境感知启用 = 取布尔(根, "环境感知启用", 环境感知启用);
                     离开阈值秒 = 取浮点(根, "离开阈值秒", 离开阈值秒);
                     全屏静默 = 取布尔(根, "全屏静默", 全屏静默);
