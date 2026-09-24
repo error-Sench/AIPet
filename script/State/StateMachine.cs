@@ -172,6 +172,9 @@ public partial class StateMachine : Node
 
     // ── 包裹段（组①）：think / sleep / 说话类的「进入 A → 循环 B → 退出 C」会话状态 ──
     private static string _包裹主名;      // 本会话钉死的主段动画名（如 think-happy / say-shining / sleep-loop）；会话结束清空
+    /// <summary>动画组I：下一次进入 working 会话要钉的主段名（`开始干活(类型)` 解析写入；空 = 照旧随机）。
+    /// **只在 working 的包裹入场消费**（别的池/别的状态绝不消费——防跨池串台）；进入其它状态即作废。</summary>
+    private static string _待用干活主名;
     private static bool _进入段中;        // 正在播 A 段（播完接主段）
     private static bool _退出段中;        // 正在播 C 段（播完落地 _退出目标 的切换）
     private static string _退出目标;      // 退出段播完后要切到的状态
@@ -292,6 +295,9 @@ public partial class StateMachine : Node
         // 坐卧会话同理（重构#9）：别人抢状态 → 会话作废（表现交给新状态；回 idle 不算「别人抢」）
         if (state != Idle && CharAnim.坐卧会话中) CharAnim.作废坐卧会话();
 
+        // 动画组I：待用干活主名 只跟着 WorkIn/Working 活——切到别的状态就作废（防串台；消费点在下方包裹入场）
+        if (state != WorkIn && state != Working) _待用干活主名 = null;
+
         var 变化 = CurrentState != state;
 
         // ── 包裹段（组①）：think / sleep / 说话类的「进入 A → 循环 B → 退出 C」──
@@ -366,7 +372,16 @@ public partial class StateMachine : Node
         else if (效果.包裹 && !探针_禁用包裹)
         {
             // 包裹态进入：挑一个主名钉住本次会话（变体不再随机换）；池里有 A 段就先播 A，播完接主段
-            _包裹主名 = string.IsNullOrEmpty(包裹主名指定) ? 挑主名(选择池(效果)) : 包裹主名指定;
+            // 动画组I：working 入场优先吃「待用干活主名」（`开始干活(类型)` 钉的指定类型；别的池不吃——防串台）
+            if (state == Working && !string.IsNullOrEmpty(_待用干活主名))
+            {
+                _包裹主名 = _待用干活主名;
+                _待用干活主名 = null;
+            }
+            else
+            {
+                _包裹主名 = string.IsNullOrEmpty(包裹主名指定) ? 挑主名(选择池(效果)) : 包裹主名指定;
+            }
             包裹主名指定 = null;
             var 进入段 = _包裹主名 != null ? 段名(_包裹主名, "a") : null;
             if (进入段 != null)
@@ -606,8 +621,15 @@ public partial class StateMachine : Node
         本地说话("被摸", 15f);
     }
 
-    /// <summary>开工（P10）：先播「起身」（VPet `Switch_Up`，到点自动落到 `working`）；素材缺就直接进 working。</summary>
-    public static void 开始干活() => SetState(CharAnim.有动画("switch-up") ? WorkIn : Working);
+    /// <summary>开工（P10）：先播「起身」（VPet `Switch_Up`，到点自动落到 `working`）；素材缺就直接进 working。
+    /// <para>动画组I（2026-09-24）：可选 `类型` = 中文工作类型名（创作/计算机/美食/游戏/写作/其他/资料/绘图/清理/声音，
+    /// 映射表 = `设置.工作类型映射`；主人口径见 `document/VPet动画系统分析.md` §9.3）——干活期间**固定播该类型**
+    /// 的素材（B 循环；a/c 包裹段照旧）；没给 / 没映射到 / 该类型素材缺 = 照旧随机（13 种里挑）。</para></summary>
+    public static void 开始干活(string 类型 = null)
+    {
+        _待用干活主名 = 挑干活主名(类型);   // null = 不钉（随机）；正常路径在 working 入场消费
+        SetState(CharAnim.有动画("switch-up") ? WorkIn : Working);
+    }
 
     /// <summary>
     /// 收工（P10）：先播「坐下」（VPet `Switch_Down`，到点自动回 idle）；素材缺就直接回 idle。
@@ -1231,6 +1253,48 @@ public partial class StateMachine : Node
         }
     }
 
+    // ── 动画组I（2026-09-24）：WORK 语义映射——「工作类型 → 素材类型段」与指定类型的挑名 ──
+
+    /// <summary>查工作类型映射（动画组I）：中文工作类型名（创作/计算机/美食/游戏/写作/其他/资料/绘图/清理/声音）
+    /// → work 池素材类型段列表（同义多素材；「写作」= remove/write、「资料」= read/study2）。没给 / 没映射到返回 null。</summary>
+    public static string[] 工作素材(string 类型)
+        => !string.IsNullOrWhiteSpace(类型) && 设置.工作类型映射.TryGetValue(类型.Trim(), out var 素材) && 素材 is { Length: > 0 }
+            ? 素材
+            : null;
+
+    /// <summary>挑「指定工作类型」的干活主名（动画组I；`开始干活(类型)` 与命令通道共用）：中文类型名 → 映射素材
+    /// （同义多素材随机取一）→ 挑素材主名。返回 null = 没给 / 没映射 / 该类型素材缺（调用方回退现状随机）。</summary>
+    public static string 挑干活主名(string 类型)
+    {
+        var 素材 = 工作素材(类型);
+        if (素材 == null) return null;
+        return 挑素材主名(素材.Length == 1 ? 素材[0] : 素材[Random.Shared.Next(素材.Length)]);
+    }
+
+    /// <summary>挑「指定素材类型段」的干活主名（动画组I）：按当前档位降级链在 work 池找 `work-{档}-{素材}`；
+    /// 到「普通」档退**无档基名** `work-{素材}`（= Nomal 素材的落点，与 挑主名 同口径）——所以
+    /// 「声音」（WorkTWO 无 Happy 源）在开心档也退 `work-pc`、「资料」的 read（Study 无档位源）同理。
+    /// 找不到返回 null（调用方回退现状随机）。</summary>
+    private static string 挑素材主名(string 素材)
+    {
+        try
+        {
+            var 列表 = Main.显示人物?.动画池字典.GetValueOrDefault("work");
+            if (列表 is not { Count: > 0 }) return null;
+            foreach (var 档 in 降级链(情绪变体("work")))
+            {
+                var 精确 = $"work-{档}-{素材}";
+                if (列表.Exists(x => x.name == 精确)) return 精确;
+                if (档 == "nomal" && 列表.Exists(x => x.name == $"work-{素材}")) return $"work-{素材}";
+            }
+            return null;
+        }
+        catch (Exception)
+        {
+            return null;   // 人物数据未就绪（同 挑主名 的惯例）
+        }
+    }
+
     /// <summary>同档内变体选择（动画组D / Plan #24，2026-09-24）：**档的选择不动**——仍由上面的降级链决定
     /// （三档关 = 命中组恒为 nomal，零串档、GradeProbe 口径不破）；只在**命中组内部**按 `设置.idle权重`
     /// 加权随机，不再均匀概览。主人口径：「idle 变体不要均匀随机——要有主次/权重（比如 nomal 晃头为主，
@@ -1412,6 +1476,27 @@ public partial class StateMachine : Node
             return idle权重.TryGetValue(档, out var w3) ? w3 : 1;
         }
 
+        // —— 动画组I（2026-09-24）WORK 语义映射（Agent/命令通道指定工作类型 → 干活会话固定播该类型） ——
+        /// <summary>工作类型映射表（中文类型名 → work 池素材类型段列表；同义多素材 = 进会话时随机取一）。
+        /// 主人口径 = `document/VPet动画系统分析.md` §9.3（主人目检 13 种 WORK 素材的语义映射）。
+        /// 消费方：`StateMachine.开始干活(类型)` / 命令通道 `set_state state=working type=…`（PetCommands）。
+        /// 配置：behavior.json「工作类型映射」（值可写字符串或字符串数组；**删掉整个键 = 用本内置表**；
+        /// 空表 = 全部类型都不映射 → 全走随机）。PlayWater（water）无合适场景 → 刻意不映射
+        /// （只能被常规随机抽到，不会被任何类型名指定）。</summary>
+        public static Dictionary<string, string[]> 工作类型映射 = new()
+        {
+            ["创作"] = new[] { "calligraphy" },     // Calligraphy 书法写字
+            ["计算机"] = new[] { "fixmenu" },       // FixMenu 修理屏幕线路
+            ["美食"] = new[] { "sausage" },         // GrilledSausage 烧烤香肠
+            ["游戏"] = new[] { "game" },            // PlayONE 玩手柄游戏
+            ["写作"] = new[] { "remove", "write" }, // RemoveObject 钢笔写字 / WorkONE 写字（同「写正文」）
+            ["其他"] = new[] { "rope" },            // RopeSkipping 跳绳
+            ["资料"] = new[] { "read", "study2" },  // Study / StudyTWO 读书（浏览网页、资料收集整理）
+            ["绘图"] = new[] { "paint" },           // StudyPaint 绘画（素材、图片生成）
+            ["清理"] = new[] { "clean" },           // WorkClean 屏幕清洁
+            ["声音"] = new[] { "pc" },              // WorkTWO 连麦互动
+        };
+
         // —— P6 环境感知（**默认关**：主人不开，它就一次也不查） ——
         public static bool 环境感知启用 = false;
         public static float 离开阈值秒 = 300f;
@@ -1516,6 +1601,7 @@ public partial class StateMachine : Node
                     fidget循环L覆盖 = 取整数表(根, "fidget循环L覆盖", fidget循环L覆盖);
                     fidget单段循环 = 取区间表(根, "fidget单段循环", fidget单段循环);
                     idle权重 = 取整数表(根, "idle权重", idle权重);   // 动画组D/#24：idle 同档内变体权重（缺键 = 内置表）
+                    工作类型映射 = 取文本表(根, "工作类型映射", 工作类型映射);   // 动画组I：WORK 语义映射（缺键 = 内置表）
                     环境感知启用 = 取布尔(根, "环境感知启用", 环境感知启用);
                     离开阈值秒 = 取浮点(根, "离开阈值秒", 离开阈值秒);
                     全屏静默 = 取布尔(根, "全屏静默", 全屏静默);
@@ -1679,6 +1765,35 @@ public partial class StateMachine : Node
                 if (!都是整数) continue;
                 if (值[0] > 值[1]) 值[1] = 值[0];
                 表[项.Name] = 值;
+            }
+            return 表;
+        }
+
+        /// <summary>读「名字 → 文本 或 文本数组」表（动画组I：工作类型映射）。字符串与字符串数组都收
+        /// （数组 = 同义多值）；空串 / 空数组 / 非字符串项跳过不整表作废；键缺失/不是对象 → 用兜底。
+        /// **空对象 {} 是合法值**（= 全部不映射，全走随机）——想回内置表就删掉整个键。</summary>
+        private static Dictionary<string, string[]> 取文本表(JsonElement 根, string 键, Dictionary<string, string[]> 兜底)
+        {
+            if (!根.TryGetProperty(键, out var v) || v.ValueKind != JsonValueKind.Object) return 兜底;
+            var 表 = new Dictionary<string, string[]>();
+            foreach (var 项 in v.EnumerateObject())
+            {
+                if (项.Value.ValueKind == JsonValueKind.String)
+                {
+                    var s = 项.Value.GetString();
+                    if (!string.IsNullOrWhiteSpace(s)) 表[项.Name] = new[] { s.Trim() };
+                }
+                else if (项.Value.ValueKind == JsonValueKind.Array)
+                {
+                    var 值 = new List<string>();
+                    foreach (var e in 项.Value.EnumerateArray())
+                    {
+                        if (e.ValueKind != JsonValueKind.String) continue;
+                        var s = e.GetString();
+                        if (!string.IsNullOrWhiteSpace(s)) 值.Add(s.Trim());
+                    }
+                    if (值.Count > 0) 表[项.Name] = 值.ToArray();
+                }
             }
             return 表;
         }

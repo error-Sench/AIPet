@@ -155,6 +155,23 @@ public partial class CommandProbe : Node
         断言(n14 == 0 && log14[0].Contains("只允许 http/https"), $"B14 激进模式下非 http(s) 仍被拒（{log14[0]}）");
         AgentBridge.Options.AggressiveMode = false;
 
+        // B15 动画组I：set_state working 带 type = 透传「工作类型」→ 走「开工」入口（起身过渡 + 固定类型）
+        var (_, c15) = PetCommands.解析("```pet\n{\"cmd\":\"set_state\",\"state\":\"working\",\"type\":\"创作\"}\n```");
+        var n15 = PetCommands.执行(c15, out var log15);
+        断言(n15 == 1 && StateMachine.CurrentState == StateMachine.WorkIn,
+            $"B15a set_state working type=创作 走「开工」入口（当前 {StateMachine.CurrentState}；{log15[0]}）");
+
+        // B16 未知工作类型被拒（不假装成功；状态不变）
+        var (_, c16) = PetCommands.解析("```pet\n{\"cmd\":\"set_state\",\"state\":\"working\",\"type\":\"不存在的类型\"}\n```");
+        var n16 = PetCommands.执行(c16, out var log16);
+        断言(n16 == 0 && log16[0].Contains("未知工作类型") && StateMachine.CurrentState == StateMachine.WorkIn,
+            $"B16 未知工作类型被拒、状态不变（{log16[0]}）");
+
+        // B17 键别名：中文「类型」也认（归位到 type）
+        var (_, c17) = PetCommands.解析("```pet\n{\"cmd\":\"set_state\",\"state\":\"working\",\"类型\":\"声音\"}\n```");
+        var n17 = PetCommands.执行(c17, out var log17);
+        断言(n17 == 1, $"B17 键别名「类型」→ type 生效（{log17[0]}）");
+
         // B3 play_anim 合法 —— **必须放在 B 组最末**：状态机是动画的「所有者」，
         // 之后若再有任何 set_state 切换，都会合法地把 walk-left 顶掉（这条踩过一次）。
         StateMachine.SetState(StateMachine.Sleep); // sleep 池是循环动画 → 不产生「播完」事件 → 不会触发重播覆盖

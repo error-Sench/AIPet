@@ -88,6 +88,7 @@ public static class PetCommands
     {
         ["command"] = "cmd", ["命令"] = "cmd", ["op"] = "cmd", ["action"] = "cmd",
         ["状态"] = "state",
+        ["类型"] = "type", ["工作类型"] = "type",   // 动画组I：working 的工作类型（set_state 用）
         ["文本"] = "text", ["say"] = "text", ["msg"] = "text", ["message"] = "text", ["说话"] = "text",
         ["animation"] = "anim", ["动画"] = "anim",
         ["模式"] = "mode",
@@ -244,6 +245,20 @@ public static class PetCommands
                 {
                     var s = c.取值("state");
                     if (!StateMachine.状态有效(s)) { 结果 = $"未知状态「{s}」"; break; }
+                    // 动画组I（2026-09-24）：working 可带可选 type（中文工作类型）——透传给「开工」入口
+                    // （起身过渡 + 干活期间固定该类型的素材）。类型必须能查到，查不到拒绝（不假装成功）；
+                    // 别的状态带 type 跟别的多余参数一样忽略（现状宽松口径）。
+                    var t = c.取值("type");
+                    if (!string.IsNullOrWhiteSpace(t) && s == StateMachine.Working)
+                    {
+                        if (StateMachine.工作素材(t) == null)
+                        {
+                            结果 = $"未知工作类型「{t}」（可用：{string.Join("/", StateMachine.设置.工作类型映射.Keys)}）";
+                            break;
+                        }
+                        StateMachine.开始干活(t);
+                        break;
+                    }
                     StateMachine.SetState(s);
                     break;
                 }

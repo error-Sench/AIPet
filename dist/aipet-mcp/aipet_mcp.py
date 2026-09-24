@@ -192,7 +192,7 @@ def build_context():
     out.append("## 你能指挥桌宠做什么（指令通道）")
     out.append("**首选：调工具 `pet_command`** —— 一次一条、正文保持干净，还会拿到真实回执（成功 / 被拒 + 原因）。")
     out.append("没有 MCP 时（兼容通道）：在回复文本里内嵌一个 pet 围栏块（三个反引号 + 语言标记 pet），块内每行一条 JSON 指令，桌宠会执行并把围栏块从聊天里隐藏：")
-    out.append("- `{\"cmd\":\"set_state\",\"state\":\"think|idle|sleep|working|speak…\"}` —— 切状态（10 个合法值，详见 skill）")
+    out.append("- `{\"cmd\":\"set_state\",\"state\":\"think|idle|sleep|working|speak…\"}` —— 切状态（10 个合法值，详见 skill）；`working` 可加 `\"type\":\"创作|计算机|美食|游戏|写作|其他|资料|绘图|清理|声音\"` 指定干活类型")
     out.append("- `{\"cmd\":\"speak\",\"text\":\"…\"}` —— 让它冒个气泡（≤200 字，别复述正文）")
     out.append("- `{\"cmd\":\"play_anim\",\"anim\":\"…\"}` —— 播指定动画（键名是 **anim**，不是 name）")
     out.append("- `{\"cmd\":\"set_mood\",\"mood\":65}` —— 写入主人情绪读数（0–100，50=中性；或 happy / sad / tired… 关键词）")
@@ -279,7 +279,8 @@ TOOLS = [
             "给桌宠下一条指令并拿到真实回执（✓ 已执行 / ✗ 被拒 + 原因）。这是指令通道的**首选**："
             "正文保持干净，不要往回复文本里嵌指令块（那是没有 MCP 时的兼容通道）。一次一条；"
             "大多数回复**不要**调用它——只在真有表达价值时用。可用 cmd："
-            "set_state（state：idle/interact/drag/think/speak/listen/working/sleep/greet/edge_hide）、"
+            "set_state（state：idle/interact/drag/think/speak/listen/working/sleep/greet/edge_hide；"
+            "working 可加 type：创作/计算机/美食/游戏/写作/其他/资料/绘图/清理/声音 —— 指定干活类型）、"
             "speak（text：短气泡，≤200 字，别复述正文）、play_anim（anim：如 walk-left）、"
             "set_mood（mood：0-100 或 happy/tired/sad 等）、queue_chain（steps：如 greet:3,think:10,idle:0，≤5 步）、"
             "set_mode（mode：office/game）、open_url（url：仅主人开启了 aggressiveMode 时可用）。"
@@ -291,6 +292,8 @@ TOOLS = [
                         "enum": ["set_state", "speak", "play_anim", "set_mood", "queue_chain", "set_mode", "open_url"],
                         "description": "指令名（白名单内）"},
                 "state": {"type": "string", "description": "set_state 用：10 个合法值之一"},
+                "type": {"type": "string",
+                         "description": "set_state 用（可选，仅 state=working）：工作类型 —— 创作/计算机/美食/游戏/写作/其他/资料/绘图/清理/声音；带上就走「开工」过渡（起身动作）并固定该类型的干活动画，不填 = 随机"},
                 "text": {"type": "string", "description": "speak 用：要冒的短气泡（≤200 字）"},
                 "anim": {"type": "string", "description": "play_anim 用：动画名（池-变体，如 walk-left；不确定就别用）"},
                 "mood": {"type": ["string", "number"], "description": "set_mood 用：0-100 或关键词（happy/tired/sad 等）"},
