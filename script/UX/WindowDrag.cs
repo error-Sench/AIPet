@@ -51,6 +51,29 @@ public partial class WindowDrag : Node
 
     private const float DragThreshold = 5.0f;
 
+    // ── 动画组H（2026-09-24）拖拽计时：满「拖拽静止秒」→ 静态挂起（draghold，VPet rasetype 语义）──
+    private double _拖拽秒;      // 本次拖拽已持续秒数（从「正式拖拽」起算；松手清零）
+    private bool _曾进静态;      // 本次拖拽是否已切过挂起态（决定松手播 draghold-c 还是旧 dragdown 路径）
+
+    /// <summary>探针：拖拽静止秒覆盖（null = 用 `StateMachine.设置.拖拽静止秒`）——headless 把阈值压小/调大。</summary>
+    public static float? 探针_拖拽秒数覆盖;
+
+    /// <summary>本次拖拽的静止阈值（探针覆盖优先；配置默认 4 秒）。</summary>
+    private static float 静止阈值() => 探针_拖拽秒数覆盖 ?? StateMachine.设置.拖拽静止秒;
+
+    /// <summary>纯函数：累计秒是否已满阈值（≥ 判定——恰好到点即算满；阈值边界从这里走）。</summary>
+    public static bool 够进静态(double 累计秒, float 阈值) => 累计秒 >= 阈值;
+
+    /// <summary>推进一步拖拽计时（_Process 每帧调；探针手动推进走**同一函数**——同一路径可测）。
+    /// 到阈值 → 切挂起态（只切一次）；素材缺失（开始挂起 返回 false）→ 保持动态，下次继续尝试。</summary>
+    private void 推进拖拽计时(double 秒)
+    {
+        if (!_dragging || _曾进静态) return;
+        _拖拽秒 += 秒;
+        if (!够进静态(_拖拽秒, 静止阈值())) return;
+        _曾进静态 = CharAnim.开始挂起();
+    }
+
     /// <summary>探针只读：是否已进入「按下待拖拽」状态（判定拖拽能否起手）。</summary>
     public static bool 探针_准备中 { get; private set; }
 
@@ -89,17 +112,21 @@ public partial class WindowDrag : Node
     /// <summary>游戏模式中：指针全交给游戏（拖拽 / 摸摸 / 捏脸都不响应；见 script/Game/）。</summary>
     private static bool 游戏模式中 => Mode.ModeManager.CurrentMode == Mode.ModeManager.Mode.Game;
 
-    /// <summary>清除桌宠拖拽的残留状态；若已经开始拖动，补播原有的落下动画。</summary>
+    /// <summary>清除桌宠拖拽的残留状态；若已经开始拖动，补播原有的落下动画。
+    /// 动画组H：拖满过静止阈值（挂起态）→ 松手播 `draghold-{档}-c` 放下落地；未满 → 旧的 dragdown 快速落下。</summary>
     private void 取消桌宠拖拽()
     {
         if (_dragging)
         {
-            CharAnim.结束拖拽();
+            if (_曾进静态) CharAnim.结束挂起();
+            else CharAnim.结束拖拽();
             // dragup/dragdown 的表现在 CharAnim 内已处理，这里只同步逻辑状态，避免同一帧两次 Play
             StateMachine.标记状态(StateMachine.Idle);
         }
         _dragging = false;
         _isPreparing = false;
+        _拖拽秒 = 0;
+        _曾进静态 = false;
     }
 
     private void OnDragStart()
@@ -195,6 +222,7 @@ public partial class WindowDrag : Node
             if (_dragging)
             {
                 DisplayServer.WindowSetPosition(currentMousePos - _dragOffset);
+                推进拖拽计时(delta);   // 动画组H：满「拖拽静止秒」→ 挂起态（只切一次）
             }
         }
         else
@@ -227,4 +255,39 @@ public partial class WindowDrag : Node
         探针_准备中 = _isPreparing;
         探针_拖拽中 = _dragging;
     }
+
+    // ── 探针接口（动画组H）──────────────────────────────────────────────────────
+    private static WindowDrag _实例;
+
+    public override void _Ready() => _实例 = this;
+
+    /// <summary>探针：场景实例是否就绪（headless 驱动前先断言它）。</summary>
+    public static bool 探针_实例已就绪 => _实例 != null;
+
+    /// <summary>探针：模拟「拖拽起手」——与真实起拖同一内核（字段 + OnDragStart），供 headless 无光标驱动。
+    /// ⚠ 模拟拖拽的**整个场景必须在一帧内跑完**：下一帧 _Process 的松手分支（isLeftPressed=false）
+    /// 会兜底取消这次模拟拖拽（那正好 = 模拟「松手」，但我们不想它半路插进来）。</summary>
+    public static void 探针_开始拖拽()
+    {
+        if (_实例 == null) return;
+        _实例._dragging = true;
+        _实例._isPreparing = false;
+        _实例._拖拽秒 = 0;
+        _实例._曾进静态 = false;
+        _实例.OnDragStart();
+    }
+
+    /// <summary>探针：推进拖拽计时（与 _Process 同一函数——同一路径可测）。</summary>
+    public static void 探针_推进拖拽计时(double 秒) => _实例?.推进拖拽计时(秒);
+
+    /// <summary>探针：模拟「松手」（与真实松手同内核：取消桌宠拖拽；不含贴边/摸摸分支）。</summary>
+    public static void 探针_松手() => _实例?.取消桌宠拖拽();
+
+    /// <summary>探针只读：本次拖拽已持续秒数 / 是否已进过挂起态。</summary>
+    public static double 探针_拖拽秒 => _实例?._拖拽秒 ?? 0;
+    public static bool 探针_曾进静态 => _实例?._曾进静态 ?? false;
+
+    /// <summary>探针只读（**即时**）：当前是否在拖拽——`探针_拖拽中` 在 _Process 末尾才刷新，
+    /// 模拟场景中途读它拿到的是上一帧值（同帧场景必须用本项）。</summary>
+    public static bool 探针_拖拽中_即时 => _实例 != null && _实例._dragging;
 }

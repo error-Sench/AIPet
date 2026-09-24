@@ -29,6 +29,9 @@ public partial class CharAnim : AnimatedSprite2D
     // 次数表在 behavior.json「fidget单段循环」（变体 → [最小,最大]；缺省无条目 = 一次过，向后兼容）。
     private static string _fidget单段名;   // 当前单段循环会话名（如 fidget-amuse）；null = 无会话（一次过）
     private static int _fidget单段剩余;    // 还需重播的次数（0 = 本遍播完即回 idle）
+    // ── 动画组H（2026-09-24）拖拽形态：动态一次锁定 + draghold 静态挂起（VPet rasetype 语义）──
+    private static string _拖拽主名;       // 本次拖拽锁定的动态段名（dragup 播完挑一次；拖拽中档位变化不重挑）
+    private static string _挂起主名;       // 挂起会话主名（`draghold-{档}`）；null = 未挂起（A/B/C 段由它拼）
     private static readonly Random _骰子 = new Random();   // fidget 骰子专用（与 工具库.DefaultRand 分开，互不扰流）
     private static readonly List<string> 内置动画组 =
         ["idle", "celerate", "drag", "dragup", "dragdown", "fidget",
@@ -61,8 +64,9 @@ public partial class CharAnim : AnimatedSprite2D
          "draghold"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。
-    /// fall 同理：`-b`（横着下落）在智能移动与游戏模式的空中段都当持续姿态用（`-a`/`-c` 段仍被排除，见加载处）。</summary>
-    private static readonly List<string> 循环动画组 = ["walk", "sleep", "fall"];
+    /// fall 同理：`-b`（横着下落）在智能移动与游戏模式的空中段都当持续姿态用（`-a`/`-c` 段仍被排除，见加载处）。
+    /// draghold（动画组H）同理：`-b` = 挂起循环（拎着不动的稳定态），`-a`/`-c` 靠段名排除自动非循环。</summary>
+    private static readonly List<string> 循环动画组 = ["walk", "sleep", "fall", "draghold"];
     public override void _Ready()
     {
         // 直接给自己的 AnimationFinished 信号绑定方法
@@ -146,7 +150,12 @@ public partial class CharAnim : AnimatedSprite2D
                 break;
             case "drag":
             case "dragup":
-                进入状态("drag");
+                // 动画组H：动态段**只挑一次**（拖拽中档位变化不重挑）——首圈锁定主段名，之后每圈重播锁定名。
+                推进拖拽动态();
+                break;
+            case "draghold":
+                // 动画组H：挂起三段推进——A 拎定播完 → B 循环挂起；c/c2 放下落地播完 → idle。
+                推进挂起(Animation.ToString());
                 break;
             case "celerate":
             case "dragdown":
@@ -233,6 +242,21 @@ public partial class CharAnim : AnimatedSprite2D
     /// <summary>该池是否已登记为可播放（见 内置动画组）。未登记的池不会被预载，播放会失败。</summary>
     public static bool 池已注册(string id) => 内置动画组.Contains(id);
 
+    /// <summary>过渡段名判定（`-a`/`-c` 收尾即段；`-c` 允许带编号后缀——`draghold-happy-c2`「英雄落地」
+    /// 也算 c 段，动画组H）。段**不能**按循环加载（循环动画不回「播完」信号，进入/退出段会永远卡住）；
+    /// 挑主名 也要把段排除在普通随机外。StateMachine.是段名 复用本判定（单一实现，别各写一份）。</summary>
+    public static bool 是过渡段名(string 名)
+    {
+        foreach (var 尾 in new[] { "-a", "-c" })
+        {
+            var i = 名.LastIndexOf(尾, StringComparison.Ordinal);
+            if (i < 0) continue;
+            var 后 = 名[(i + 尾.Length)..];
+            if (后.Length == 0 || 后.All(char.IsAsciiDigit)) return true;
+        }
+        return false;
+    }
+
     /// <summary>该动画名是否已载入（可播放）。</summary>
     public static bool 有动画(string 动画名) =>
         !string.IsNullOrEmpty(动画名) && _单例?.SpriteFrames?.HasAnimation(动画名) == true;
@@ -273,6 +297,10 @@ public partial class CharAnim : AnimatedSprite2D
     public static string fidget单段会话_只读 => _fidget单段名;
     public static int fidget单段剩余_只读 => _fidget单段剩余;
 
+    /// <summary>探针用（动画组H）：拖拽动态锁主名 / 挂起会话主名——验证「档位变化不重挑」与挂起链路。</summary>
+    public static string 拖拽锁_只读 => _拖拽主名;
+    public static string 挂起会话_只读 => _挂起主名;
+
     /// <summary>探针用：以指定随机源掷单段次数（大样本验证区间 [2,5]）。</summary>
     public static int 探针_掷单段次数(string 主段名, Random 随机) => 掷单段次数(主段名, 随机);
 
@@ -310,6 +338,71 @@ public partial class CharAnim : AnimatedSprite2D
     public static void 开始拖拽()=>进入状态("dragup");
     public static void 结束拖拽()=>进入状态("dragdown");
 
+    // ── 动画组H（2026-09-24）：拖拽静态挂起（draghold，VPet rasetype 语义）──────────────────
+    // 语义：拖满「拖拽静止秒」（config/behavior.json，默认 4）→ A 拎定过渡（非循环）→ B 循环挂起；
+    // 松手 → `{档}-c` 放下落地 → idle。触发时机由 WindowDrag 计时（探针走 WindowDrag.探针_*）。
+    // 素材缺失 = 返回 false / 直回 idle（降级安全，不崩）。
+
+    /// <summary>切挂起态（拖拽满「拖拽静止秒」时由 WindowDrag 调）：按当前档挑 draghold 主名一次。
+    /// 返回 false = draghold 素材缺失/未就绪（调用方保持动态，不切）。</summary>
+    public static bool 开始挂起()
+    {
+        if (_单例 == null) return false;
+        var 主名 = StateMachine.档名("draghold");
+        if (主名 == null || !有动画(主名 + "-b")) return false;
+        _拖拽主名 = null;              // 动态段退出（挂起态接管）
+        _挂起主名 = 主名;
+        _单例.Play(有动画(主名 + "-a") ? 主名 + "-a" : 主名 + "-b");
+        return true;
+    }
+
+    /// <summary>挂起态松手（WindowDrag 调）：播 `{主名}-c` 放下落地（happy 有 c/c2 两版随机）→ 回 idle。
+    /// 未在挂起态时回落 idle（脏状态保护，同坐卧会话）。</summary>
+    public static void 结束挂起()
+    {
+        if (_单例 == null) return;
+        if (_挂起主名 == null) { _idle循环次数 = 0; 进入状态("idle"); return; }
+        var 主名 = _挂起主名;
+        _挂起主名 = null;
+        var 段 = 选挂起落地段(主名);
+        if (段 != null) _单例.Play(段);
+        else { _idle循环次数 = 0; 进入状态("idle"); }   // 无 c 段兜底：直回 idle
+    }
+
+    /// <summary>挂起落地段挑选：`{主名}-c` 起头顺延（-c、-c2…）里随机一个；都没有返回 null。
+    /// 不要求编号连续或从 1 起——c2 是 happy 的「英雄落地」第二条，独立于 c 存在。</summary>
+    private static string 选挂起落地段(string 主名)
+    {
+        var 候选 = new List<string>();
+        if (有动画(主名 + "-c")) 候选.Add(主名 + "-c");
+        for (var i = 2; i <= 4; i++) if (有动画($"{主名}-c{i}")) 候选.Add($"{主名}-c{i}");
+        return 候选.Count == 0 ? null : 候选[Random.Shared.Next(候选.Count)];
+    }
+
+    /// <summary>挂起段推进（OnAnimationFinished，case "draghold"）：A → B（循环挂起）；B 若未按循环
+    /// 加载（兜底）→ 重播 B；其余（c/c2 放下落地播完）→ 回 idle。会话丢失 = 脏状态 → 直回 idle。</summary>
+    private static void 推进挂起(string 当前名)
+    {
+        if (_挂起主名 == null) { _idle循环次数 = 0; 进入状态("idle"); return; }
+        if (当前名.EndsWith("-a", StringComparison.Ordinal) || 当前名.EndsWith("-b", StringComparison.Ordinal))
+        {
+            _单例.Play(_挂起主名 + "-b");
+            return;
+        }
+        _idle循环次数 = 0;
+        进入状态("idle");
+    }
+
+    /// <summary>拖拽动态段推进（OnAnimationFinished，case "dragup"/"drag"）：主段名**只锁定一次**
+    /// （「拖拽中档位变化不重挑」——动画组H）；无锁/素材缺失 → 退回池内择档（进入状态，自身兜底）。</summary>
+    private static void 推进拖拽动态()
+    {
+        _拖拽主名 ??= StateMachine.挑主名("drag");
+        if (_拖拽主名 != null && 有动画(_拖拽主名)) { _单例.Play(_拖拽主名); return; }
+        _拖拽主名 = null;
+        进入状态("drag");
+    }
+
     /// <summary>按状态名播放动画（身体层状态机统一入口）。未知状态自动回退 idle。可跨线程调用。</summary>
     public static void PlayState(string state)
     {
@@ -323,6 +416,8 @@ public partial class CharAnim : AnimatedSprite2D
     {
         // 换到别的状态：作废未完成的 fidget 会话（拖拽/气泡等硬切时不留脏状态）
         if (id != "fidget") { _fidget主名 = null; _fidget单段名 = null; _fidget单段剩余 = 0; }
+        // 拖拽动态锁同理（动画组H）：只有 drag/dragup 自己的播完回调续锁（重播锁定名），别的状态一律退锁
+        if (id != "drag" && id != "dragup") _拖拽主名 = null;
         // 重构#9：坐卧会话同理——任何「按池进入」的状态都代表别人接管了表现（sit/lie 段是直接 Play 的，
         // 不会走到这里；会话本身只在 结束坐卧会话 里回 idle）
         _坐卧主名 = null; _坐卧场 = null; _坐卧圈数 = 0; _坐卧次数 = 0;
@@ -581,7 +676,8 @@ public partial class CharAnim : AnimatedSprite2D
         状态机.SetAnimationSpeed(动画名, 帧率);
         // 包裹段（组①）的 A/C 段**不能**按循环加载：循环动画不回「播完」信号，进入/退出段会永远卡住。
         // 段名约定 = `-a` / `-c` 结尾（sleep-a / sleep-happy-c / think-nomal-a …）——见 StateMachine 包裹段。
-        var 是段 = 动画名.EndsWith("-a", StringComparison.Ordinal) || 动画名.EndsWith("-c", StringComparison.Ordinal);
+        // 动画组H：`-c` 允许带编号后缀（draghold-happy-c2「英雄落地」也算 c 段）——判定共用 是过渡段名。
+        var 是段 = 是过渡段名(动画名);
         状态机.SetAnimationLoop(动画名, 池 != null && 循环动画组.Contains(池) && !是段);
 
         // 3. 获取所有 PNG 文件

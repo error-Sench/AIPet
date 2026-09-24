@@ -944,7 +944,7 @@ public partial class StateMachine : Node
     /// </summary>
     private static string 情绪变体(string 池)
     {
-        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle" or "sit" or "lie" or "greet" or "enter" or "exit")) return "";
+        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle" or "sit" or "lie" or "greet" or "enter" or "exit" or "drag" or "draghold")) return "";
         // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
         // 重构#6：三档关闭 / 档位=普通 → 返回 "nomal"（而非旧的空串）——真正落实主人「默认普通」口径：
         // 钉普通档演，不再整池随机串到 happy/poor 变体；精确档缺失由 挑主名 的降级链兜（相邻档 → 随机）。
@@ -1185,9 +1185,9 @@ public partial class StateMachine : Node
     /// <summary>有 A/C 过渡段的池（包裹段机制）：挑主名从这里挑随机时要把段本身排除掉（别把 sleep-a 当主段）。</summary>
     private static readonly string[] 包裹池 = { "think", "say", "sleep", "music", "work" };
 
-    /// <summary>是不是 A/C 过渡段变体（`-a` / `-c` 结尾）。</summary>
-    private static bool 是段名(string 名)
-        => 名.EndsWith("-a", StringComparison.Ordinal) || 名.EndsWith("-c", StringComparison.Ordinal);
+    /// <summary>是不是 A/C 过渡段变体（`-a` / `-c` 结尾；`-c` 允许带编号后缀——`draghold-happy-c2`「英雄落地」
+    /// 也算 c 段，动画组H）。判定实现在 CharAnim.是过渡段名（加载动画也用它排除循环；单一实现，别各写一份）。</summary>
+    private static bool 是段名(string 名) => CharAnim.是过渡段名(名);
 
     /// <summary>按三档/组变体规则从池里挑一条主段动画名（不播放）；池不存在或为空返回 null。与包裹段共用同一套挑法。
     /// 重构#6：择档走 VPet 式降级链（精确档 → 无档基名 → 相邻档），不再「精确档缺失就整池随机」。</summary>
@@ -1435,6 +1435,9 @@ public partial class StateMachine : Node
         public static float[] 捏脸命中区;               // null = 用 FacePinch 默认（窗口比例 x0,y0,x1,y1）
         /// <summary>拖拽命中区（窗口比例 x0,y0,x1,y1）；null = 用 WindowDrag 默认（窗口顶部 40% = 头部）。</summary>
         public static float[] 拖拽命中区;
+        /// <summary>拖拽静止秒（动画组H，2026-09-24）：拖起来满这么久 → 静态挂起（draghold A 拎定→B 循环）；
+        /// 松手播 c 放下落地回 idle。WindowDrag 计时、CharAnim 切态（同一帧读本值，改配置即生效）。</summary>
+        public static float 拖拽静止秒 = 4f;
 
         // —— P10 摸身体 / 三档状态 ——
         /// <summary>摸身体命中区（窗口比例 x0,y0,x1,y1）；null = 用 WindowDrag 默认。</summary>
@@ -1531,6 +1534,7 @@ public partial class StateMachine : Node
                     捏脸长按秒 = 取浮点(根, "捏脸长按秒", 捏脸长按秒);
                     捏脸命中区 = 取矩形(根, "捏脸命中区", 捏脸命中区);
                     拖拽命中区 = 取矩形(根, "拖拽命中区", 拖拽命中区);
+                    拖拽静止秒 = Math.Clamp(取浮点(根, "拖拽静止秒", 拖拽静止秒), 0.5f, 60f);
                     摸身体命中区 = 取矩形(根, "摸身体命中区", 摸身体命中区);
                     三档状态启用 = 取布尔(根, "三档状态启用", 三档状态启用);
                     状态档位 = 取文本(根, "状态档位", 状态档位);
