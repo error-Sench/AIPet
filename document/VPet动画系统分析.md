@@ -348,7 +348,7 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 | **Think** | **全是挠头动画，当思考动画使用也行**（2026-09-24 改口） | A/B/C，数字=变体 | `think` 池维持现状（挠头当思考用）；源里 B_2..B_5 未导，本次不扩 |
 | **Touch_Body** | 身体互动；**开心档和普通档共用 happy**；Happy_Turn=转圈圈 | A/B/C，数字=线程 | `interact_body`（取 Happy）+ `turn`（Happy_Turn）已导入 |
 | **Touch_Head** | 摸头；**除 Ill 档都能用** | A/B/C | `interact` 池已对齐 |
-| **WORK** | 13 种，逐一点评见下（语义映射到工作类型） | A/B/C，数字=变体 | `work` 池 107 变体（3 档全）；**补：按主人语义把 13 类映射到「工作类型」**（Agent 指定类型→选对应动画） |
+| **WORK** | 13 种，逐一点评见下（语义映射到工作类型） | A/B/C，数字=变体 | `work` 池 107 变体（3 档全）；**✅ 补：按主人语义把 13 类映射到「工作类型」**（2026-09-24 动画组I 落地：`工作类型映射` 配置 + `开始干活(类型)` + 命令 `set_state … type=`；见 §9.3） |
 
 ### 9.1 IDEL 10 种逐一点评（主人目检）
 
@@ -392,6 +392,8 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 | WorkClean | 屏幕清洁 | 清理类 |
 | WorkONE | 写字 | 同 RemoveObject |
 | WorkTWO | 连麦互动 | 声音类 |
+
+**已落地（2026-09-24 动画组I）**：上表落成 `config/behavior.json` 的 `工作类型映射` —— 键 = 中文工作类型名（创作/计算机/美食/游戏/写作/其他/资料/绘图/清理/声音，10 个），值 = work 池变体的类型段（`写作` = remove·write、`资料` = read·study2，同义多素材进会话时随机取一；**PlayWater 不映射**）。入口：`StateMachine.开始干活(类型)`（没给/没映射到 → 照旧随机）；命令通道：`set_state state=working type=…`（Agent 桥，未知类型拒绝）。挑名走档位降级链（开心 → `work-happy-*`；无该档源的素材退无档基名）。验证：`tests/WorkMapProbe`（+ `CommandProbe` B15-B17）。
 
 ## 8. 索引（源码快照文件名速查）
 

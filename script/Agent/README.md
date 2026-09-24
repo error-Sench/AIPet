@@ -94,7 +94,7 @@ ACP 的 `session/prompt` 响应只有 `stopReason`、没有自定义字段通道
 
 | cmd | 参数 | 用途 | 实现状态 |
 |---|---|---|---|
-| `set_state` | state | 切身体层状态（StateMachine.SetState） | ✅ 已实现（校验状态有效性） |
+| `set_state` | state；`type`（可选，仅 working） | 切身体层状态（StateMachine.SetState）。**动画组I**：`state=working` 可带 `type` = 工作类型（创作/计算机/美食/游戏/写作/其他/资料/绘图/清理/声音）——走「开工」入口（起身过渡）并固定该类型的干活动画；未知类型拒绝 | ✅ 已实现（校验状态有效性；类型查 `工作类型映射`） |
 | `speak` | text | 气泡（Dialogue） | ✅ 已实现（≤200 字 + BBCode 转义） |
 | `play_anim` | anim | 播放指定动画（CharAnim） | ✅ 已实现（校验动画存在） |
 | `set_mode` | mode | 切办公/游戏模式（ModeManager.SwitchMode） | ✅ 已实现（office/game） |

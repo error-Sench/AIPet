@@ -81,7 +81,7 @@ StateMachine.EnqueueChain(
 | `walk` | left / right + `-a`/`-c` 起步/停步段 | 6+6 + 段 3+3/6+6 = 共 30 | VPet `MOVE/walk.*`；**循环**（段非循环）。**2026-09-20**：走链三段分播（`-a` 起步 / 循环 / `-c` 停步），阶段时长按素材帧数算、位移只在循环段推进。**2026-09-24（Plan #22）**：只做普通档——快/慢变体（`faster`=Happy / `slow`=PoorCondition）已删，不按心情分快慢 |
 | `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
 | `say` | self / self-smile / self-tease / serious / shining / shining-excited / shining-calm / shy / shy-wry（+各感情 a/c 过渡段） | 15/15/14/4/7/6/7/5/5 + 段共 41 | VPet `Say/Self·Serious·Shining·Shy`（P10 补害羞档）。**2026-09-24 动画组E**：补 5 条 B 变体（4 感情细分）、主名 `smile`→`shining` 统一感情前缀；同感情共用一份**感情级** a/c 段（段名解析前缀递减回退：`say-self-smile` → `say-self-a`）|
-| `work` | 13 种 × {Nomal + happy/poor 档} + 每项 `-a`/`-c` 段（包裹段）| 共 1369 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`；**2026-09-22 重构#7**：补 Happy/PoorCondition 档素材（`{档}-{类型}` 命名，`挑主名` 按前缀收组；12/13 种有源，降级链兜底）|
+| `work` | 13 种 × {Nomal + happy/poor 档} + 每项 `-a`/`-c` 段（包裹段）| 共 1369 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`；**2026-09-22 重构#7**：补 Happy/PoorCondition 档素材（`{档}-{类型}` 命名，`挑主名` 按前缀收组；12/13 种有源，降级链兜底）；**2026-09-24 动画组I**：WORK 语义映射——Agent/命令通道可指定「工作类型」→ 会话固定播对应素材（`开始干活(类型)` + `工作类型映射` 配置，见下配置表）；`PlayWater`（water）无合适场景、不映射，只能被常规随机抽到）|
 | `sleep` | loop / happy | 6+6 | VPet `Sleep/B_Nomal·B_Happy`；**循环** |
 | `greet` | {happy,nomal,poor}-1..3 | 共 157 | VPet `IDEL/Meow`（手敲屏幕）9 变体三档——2026-09-24 动画组A **整池重构**（主人口径：非常适合做问候语动画、不做空闲动画；命名 `{档}-{n}` 对齐 idle 口径，旧 amuse/meow 已删） |
 | `interact` | a / b / c + happy-a / happy-b / happy-c | 2/11/2 + 3/12/2 | VPet `Touch_Head/{Nomal,Happy}/{A,B,C}`（**三段序列**；P10 补高兴档）|
@@ -154,6 +154,7 @@ StateMachine.EnqueueChain(
 | `fidget循环L覆盖` | `{"squat":4}` | **动画组B**：B 循环 L 的每变体覆盖表（变体短名 → L；缺省全用全局）——主人口径「蹲下看着主人，B 段循环可以做久一点，增加萌点」（`document/VPet动画系统分析.md` §9.1 Squat 行）；squat 4 ≈ 平均 8.2 圈 × 3.0 秒/圈 ≈ 25 秒。机制不变（概率递减退出），只换 L |
 | `fidget单段循环` | `{"amuse":[2,5]}` | **动画组B**：单段变体的循环次数表（变体短名 → [最小,最大]；缺省无条目 = 一次过，向后兼容）——amuse 是循环动画（退出帧=首帧，播完直接重播同名即无缝），每次触发随机循环 2~5 遍（每遍 1.375 秒 ≈ 一次 2.8~6.9 秒）；其余单段（spin/bubble/doze/happy520/meowlook/yawning）仍一次过 |
 | `idle权重` | `{"nomal-1":4,"nomal-2":2,"nomal-3":2,"happy":1,"poor":1}` | **动画组D（Plan #24）**：idle 池**同档内变体选择**的权重表（变体短名/全名或档位 → 权重）——主人口径「idle 变体不要均匀随机——要有主次/权重（比如 nomal 晃头为主，其他低频）」（`document/VPet动画系统分析.md` §9 Default 行 + 2026-09-24 确认），审视野「我们默认为普通级，切换要留」。**档的选择不动**（降级链照旧：三档关 = nomal 绝对为主、零串档），权重只在挑中的同档组内生效。出货表：nomal-1 为主（50%）、nomal-2/3 各 25%；happy/poor 的 1 只在三档开（开心/不良）时用到。值 0~20，**0 = 该变体不参与**（整组全 0 防呆回退均匀）；想回均匀随机把表设成 `{}`；删键 = 内置表（同出货表） |
+| `工作类型映射` | `{"创作":"calligraphy","计算机":"fixmenu","美食":"sausage","游戏":"game","写作":["remove","write"],"其他":"rope","资料":["read","study2"],"绘图":"paint","清理":"clean","声音":"pc"}` | **动画组I（2026-09-24）**：WORK 语义映射（主人口径 = `document/VPet动画系统分析.md` §9.3）——Agent/命令通道指定「工作类型」→ 干活会话**固定播**对应素材（B 循环；a/c 包裹段照旧）。键 = 中文工作类型名（10 个）；值 = work 池变体的**类型段**（字符串或字符串数组都收；数组 = 同义多素材、进会话时随机取一）：「写作」= remove（钢笔写字）/ write（写字），「资料」= read（Study 读书）/ study2（StudyTWO 读书）。对应：创作=calligraphy 计算机=fixmenu 美食=sausage 游戏=game 其他=rope 绘图=paint 清理=clean 声音=pc。**PlayWater（water）无合适场景、不映射**（只能被常规随机抽到）。没给类型/没映射到 = 照旧随机（13 种里挑）；类型素材缺 = 降级链兜底。入口 = `StateMachine.开始干活(类型)`；命令通道 = `set_state state=working type=…`（PetCommands，未知类型拒绝）；删键 = 内置表（同表）、空表 `{}` = 全部不映射 |
 | —— | —— | 逐条移动的触发/检查/速度/距离骰在 **`config/moves.json`**（加新移动 = 加一条数据，不用改代码） |
 | `每小时主动上限` | 8 | 主动行为（walk/greet）滑动 1 小时窗口预算；设 0 只关主动行为 |
 | `持续态兜底秒` | 120 | Agent 不回 `end_turn` 时防止永远卡在 think/speak |
@@ -395,10 +396,11 @@ StateMachine.EnqueueChain(
 - **退出是延迟的**：切别的状态先播 C，播完才落地（`_退出目标`）；C 期间逻辑状态仍是原状态。**硬接管例外**（拖拽 / 捏脸 / 贴边）跳过 C —— 用户上手要立刻响应。
 - 段名解析 `段名(主名, "a"/"c")`：① 精确 `{主名}-{段}`（`think-happy-a`）；② **同类无档** `{池}-{去档前缀}-{段}`（`work-happy-study2-c` → `work-study2-c`，源缺该档段时退 Nomal 素材——重构#7）；③ 池级 `{池}-{段}`（`sleep-loop` → `sleep-a`）。
 - `挑主名()` 对包裹池（think/say/sleep/music/work）随机时**排除段本身**（`-a`/`-c` 结尾），否则 `sleep-a` 会被当主段抽到。
+- **干活类型指定（动画组I，2026-09-24）**：`开始干活(类型)` 先解析「中文工作类型 → 素材类型段 → 档位降级挑名」写入 `_待用干活主名`；**只在 working 的包裹入场消费**（别的池/别的状态绝不消费——防跨池串台），进入其它状态即作废。类型没给/没映射到/素材缺 → 不钉，照旧随机。名保留的 `包裹主名指定`（MusicSense 用）语义不变。
 - 重播门：`CharAnim.OnAnimationFinished` 派发条件加 `|| StateMachine.包裹中`（非锁定态如 bubble_talk 的段推进也归状态机管）；`标记状态`（拖拽）/ 链节 / `准备退出` 清包裹会话。
 - **探针要「即时切换」语义时置 `StateMachine.探针_禁用包裹`**（StateProbe / PoolProbe 已置；包裹段专测 = WrapProbe）。
 
-**验证**：`tests/PoolProbe`（新素材 12 个存在性）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle 全链路）+ `tests/WrapProbe`（包裹段机制专测）。
+**验证**：`tests/PoolProbe`（新素材 12 个存在性）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle 全链路）+ `tests/WrapProbe`（包裹段机制专测）+ `tests/WorkMapProbe`（动画组I：映射表/指定类型挑名/三档降级/包裹流程/回退随机 12 轮采样；命令通道断言在 `tests/CommandProbe` B15-B17）。
 
 ### 2026-09-22 重构#4：智能移动（**抄 VPet 原库的移动方式**：Move 表 + 兼容接力）
 
