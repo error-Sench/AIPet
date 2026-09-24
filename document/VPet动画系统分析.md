@@ -10,12 +10,12 @@
 
 | | VPet 原版 | AIPet 现状 | 差距 |
 |---|---|---|---|
-| 素材规模 | **609 个帧目录 / 6181 帧 / 25 大类** | 26 池 / 191 变体 / 2099 帧 | 帧数只有 1/3 |
+| 素材规模 | **609 个帧目录 / 6181 帧 / 25 大类** | 31 池 / 310 变体 / 3412 帧 | 帧数约 55%（3412/6181） |
 | 状态档 | **4 档**（Happy/Nomal/PoorCondition/**Ill 生病**；WORK 素材只有前 3 档） | 3 档（无 Ill） | 少一档 |
-| 待机场 | Idel 类 **10 种动画名 / 73 目录 849 帧**（Tennis/Meow/aside/Squat/meowlook/Bubbles/yawning/happy_like520/Boring/amusement_B——**10 种我们全导了**：Meow → `greet`（9 变体三档，2026-09-24 动画组A）、amusement_B → fidget 的 `amuse`，其余作 fidget 变体） | fidget 14 变体 340 帧 | 种数齐；缺 Happy/Poor 档位变体与冗余 B 变体（849→340 帧） |
+| 待机场 | Idel 类 **10 种动画名 / 73 目录 849 帧**（Tennis/Meow/aside/Squat/meowlook/Bubbles/yawning/happy_like520/Boring/amusement_B——**10 种我们全导了**：Meow → `greet`（9 变体三档，2026-09-24 动画组A）、amusement_B → fidget 的 `amuse`，其余作 fidget 变体） | fidget 12 变体 287 帧 | 种数齐；缺 Happy/Poor 档位变体与冗余 B 变体（849→287 帧） |
 | 干活 | WORK **13 种 × A/B/C × 3 档（Happy 58/Nomal 49/Poor 57 目录）× 多 B 变体 = 180 目录 2214 帧** | **107 变体 1369 帧**（3 档全；每类型每档取单个 B） | 档位齐（重构#7）；余「多 B 变体」维度 |
-| 帧时长 | **每帧独立 ms**（文件名尾数），主力 125ms=8fps，但 250/375/500 大量存在 | 每池统一 rate（8fps） | 节奏细节丢失 |
-| B 循环圈数 | lps `duration:` 表（squat#20 boring#20 sleep#20，默认 10）+ **概率递减退出** | 状态机定时/包裹段播完即切 | 机制不同 |
+| 帧时长 | **每帧独立 ms**（文件名尾数），主力 125ms=8fps，但 250/375/500 大量存在 | 逐帧时长已补（重构#1：info.json `durations` + `AddFrame` 逐帧带上；基准 rate 仍 8fps） | ~~节奏细节丢失~~ 2026-09-22 重构#1 已补（见 §7.1） |
+| B 循环圈数 | lps `duration:` 表（squat#20 boring#20 sleep#20，默认 10）+ **概率递减退出** | 待机场（fidget/sit/lie）已抄**概率递减退出**（重构#2/#9，L 按观感重定标）；持续态（think/say/work/sleep/music）= 强制循环（VPet `DisplayBLoopingForce` 语义） | ~~机制不同~~ 2026-09-22 重构#2/#9 已对齐（见 §7.2/§7.9） |
 | 渲染 | **双 Grid 交替缓冲**（无缝切换）+ 运行时拼图缓存（cache/） | AnimatedSprite2D 单节点（启动全量预载） | ~~切换有黑帧风险~~ 2026-09-22 BufferProbe 实证零空窗——VPet 双缓冲是 WPF 异步读盘的补丁，预载架构不需要（见 §7.8） |
 
 ## 1. 数据模型：一条动画 = 四元组（GraphInfo）
@@ -319,6 +319,8 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 7. ✅ **档位补全：WORK Happy/Poor**（2026-09-22 完成）：13 类型里 12 个补 Happy/PoorCondition（WorkTWO 无 Happy 源、Study 无档位源 → 降级链兜底，开心/不良档里不出现）；命名 `{档}-{类型}`（与 idle/music 的 `{档}-{n}` 同口径，`挑主名` 按 `-happy-`/`-poor-` 前缀收组）；新增 **876 帧 / 68 变体**（work 池 39→107 变体、493→1369 帧；B 取与 Nomal 同名的那条 = 跨档「同一动作换表情」）。`段名` 加「**同类无档**」降级（`work-happy-study2-c` → `work-study2-c`——study2 的 Happy 源就没有 C 段，VPet 自己留白；对齐 VPet「每段动画各自找档」语义，不补假素材）。验证：PoolProbe 新增 12 必存在 + GradeProbe ⑥ 组 6 断言（档位择档/精确段命中/同类降级/既有段不受影响）全 PASS。余下：IDEL 各 B 变体维度（原版每圈换花样，我们钉死一个——低优先，见 #9 行下注）。
 8. ✅ **双缓冲渲染——判定：不需要**（2026-09-22，BufferProbe 实证）。VPet 的双 Grid 交替（MainDisplay.cs:556-608 `petgridcrlf` 翻转）是给 WPF 打的补丁：新动画要**运行时异步读盘+拼图**（cache/），加载期间旧 Grid 已 Stop → 不交替就会黑帧。我们启动时把全部纹理预载进 SpriteFrames（AddFrame(ImageTexture)），`Play(新名)` 同帧生效、不存在加载空窗。实证：BufferProbe 模拟段切换风暴（每 3 帧跨池换名 ~136 次），390+ 帧全程断言「当前动画存在且帧数 ≥1」——**零空窗帧**。单节点架构已覆盖该问题，不引入第二个 AnimatedSprite2D（省一半 draw call 与状态同步复杂度）。
 9. ✅ **StateONE/TWO 嵌套待机场**（2026-09-22 完成，重构#9）：State 素材 22 目录 116 帧导入为 `sit`/`lie` 两池（旧 `fidget-state-one/two` 拼接变体删除）；CharAnim 加**嵌套会话**——`sit.A → sit.B 每圈随机换 B 变体 + 掷 Rnd.Next(圈数) > 坐卧循环L → 1/(躺下基数+已躺次数) 进 lie → lie.A→B 同款 → lie.C 起身回 sit 的 B 判定（可再躺）→ …→ sit.C → idle`（`MainDisplay.cs:207-266` 照抄：looptimes 三处清零、CountNomal 进 sit 清零/进 lie +1、A 只播一次）。调度 = 爬坡骰子从「移动 3 槽」扩成「移动 3 槽 + 坐卧 2 槽 + 其余无操作」（`爬坡掷槽`/`掷爬坡一次`，心跳与探针同一路径；VPet 1 槽/200 = 分钟级，我们 2 槽按观感重定标）。闸门 = 会话期间不入睡/不掷移动骰子（原版 IsIdel=false → 显示骰子整块跳过）、别的状态接管 → 会话作废。配置 = `坐卧启用/坐卧槽/坐卧循环L/躺下基数`。验证：SitProbe 36 断言（嵌套全流程 + 接管作废 + 分派集成 + 槽位分布）全 PASS；FidgetProbe/PoolProbe 随素材迁移更新。（导入器顺带修一处 rate 退化 bug：时长档无真众数 → 退回 125ms 基准，否则 rate=1 时长塌缩；影响面 7 个变体重写。）
+
+10. ✅ **动画重构批次（组A~K）**（2026-09-24 完成，主人逐素材审视驱动；各类目口径见 §9 对照表）：一批十个方向——① **greet 池重构**（组A）：`IDEL/Meow` 手敲屏幕 9 变体三档（`{档}-{n}`）整池换入，旧 `amuse`/`meow` 删除、amusement_B 回归 fidget 作 `amuse`，`情绪变体` 白名单 +greet；② **循环节奏**（组B）：amuse 单段循环 2~5 次（`fidget单段循环`）、squat 的 B 循环调长（`fidget循环L覆盖`=4）、坐卧 `坐卧循环L` 2→4；③ **walk 快慢删除**（组C，Plan #22）：`moves.json` 16→12 条、12 个素材目录删除，档位放开三档通用（走路与心情解耦）；④ **idle 加权**（组D，Plan #24）：`idle权重`（nomal-1:4/nomal-2:2/nomal-3:2/happy:1/poor:1）+ `挑同档变体`（档选择仍走降级链）；⑤ **say 变体补全**（组E）：5 条 B 变体（self-smile/self-tease/shining-excited/shining-calm/shy-wry）、主名 `smile`→`shining`，`段名` 加「同感情前缀递减」层；⑥ **enter/exit 整池重导**（组G）：StartUP/Shutdown 除 Ill 全档（enter 4 条 / exit 7 条），导入器新增**固定画布映射池**（转场特效铺满画布，不做逐段 union 对齐）；⑦ **Raise 拖拽全套**（组H）：`drag` 补三档动态 + 新池 `draghold`（拎起满 `拖拽静止秒`=4 → 静态挂起 A/B；松手 C 落地），原画布口径；⑧ **WORK 语义映射**（组I，§9.3 落地）：`工作类型映射` 10 键 + `开始干活(类型)` + 命令 `set_state state=working type=…`；⑨ **杂项**（组J）：磁盘余量提醒整套删除（Plan #16）、`移动启用` 进配置窗（Plan #21）；⑩ **感知**（组K）：`事件记录启用`（Plan #20，关=一条也不写）、键鼠空闲口径进配置窗（Plan #19）。验证：各组定向探针全绿（Pool/Grade/Fidget/Sit/Wrap/Move/WorkMap/Command/DragHold/Event/Env/Panel/Settings + EnterProbe〔非 headless〕）；收口全量回归 **35/35 headless + 10/10 窗口**。
 
 ## 9. 主人逐素材审视对照表（2026-09-24，重构施工依据）
 
