@@ -102,8 +102,12 @@ public partial class WalkProbe : Node
             GD.Print($"[WK] 移动期间动画集=[{string.Join(", ", _移动中动画集)}]");
             断言(StateMachine.移动次数_只读 >= 1, "发生了自主移动");
             断言(末X != _起始X, "桌宠窗口 X 真的移动了");
-            断言(_移动中动画集.Exists(n => n.StartsWith("walk-", StringComparison.Ordinal) || n.StartsWith("crawl-", StringComparison.Ordinal)),
-                "移动用的是走/趴资产（不是 drag 占位）");
+            // 2026-09-24 修（动画组C 验收时发现）：断言原来只认 walk-/crawl-——但窗口起始靠近屏幕边时
+            // 骰子完全可能命中爬边族（climb，触发近 ≤64px），那是合法移动资产不是失败。
+            // 本断言的原意 = 「用的是移动表资产，不是 drag 占位」→ 收全四个移动族。
+            断言(_移动中动画集.Exists(n => n.StartsWith("walk-", StringComparison.Ordinal) || n.StartsWith("crawl-", StringComparison.Ordinal)
+                || n.StartsWith("climb", StringComparison.Ordinal) || n.StartsWith("fall-", StringComparison.Ordinal)),
+                "移动用的是走/趴/爬/落资产（不是 drag 占位）");
             断言(_移动中动画集.Exists(n => n.EndsWith("-a", StringComparison.Ordinal)),
                 "进入段 *-a 出现过（A→B 段推进生效）");
             if (_停过)
