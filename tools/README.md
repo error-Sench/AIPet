@@ -34,6 +34,7 @@
 | **固定缩放 `485/948`** | 不要「按每段动画各自的包围盒高度」反推缩放：躺姿包围盒本来就矮，会被放大（实测 `sleep` 被放大 1.021 倍）；含道具的 work 动画又会因道具进包围盒让角色缩水 |
 | **底边对齐** | 包围盒**底边**对齐参考帧底边（地面线）——躺姿也躺在这条线上；若居中则躺下的宠物会浮空 |
 | **固定画布映射（转场池）** | **特效画满整张画布**的转场动画（`enter`=StartUP 门板、`exit`=Shutdown 故障方块）**不做逐段 union 对齐**——union 被特效带偏，角色站立帧脚线会落到 483（idle 是 500，衔接跳位）。它们在 `固定映射池` 里，改用 idle 源（`Default/Happy/1`）推出的画布偏移，全池统一（= 与 idle 逐像素同站位；特效超出 512 的部分按窗口边裁，与 VPet 窗口观感一致）。**新增这类池照此入列** |
+| **原画布口径（拖拽系 Raise）** | 拖拽/拎起姿态（`drag`/`dragup`/`dragdown`/`draghold`）沿用**原项目旧导入口径**：整张 1000 画布缩到 512（`512/1000`、BILINEAR）、**零偏移**——不做角色包围盒基线对齐。VPet 的 raise 姿态是作者按 `raisepoint`（抓握点）画的，「被拎起来」的站位就在画布原位；union 对齐会把角色整体下拉 ~81px → 与旧变体切换时跳位。2026-09-24 实测旧产物与该口径**像素级一致**（alpha 平均差 ≤0.07）。见 `原画布池` |
 | **基线快照 `baseline.json`** | 站位锚点（底边 500 / 中心 x 270.5 / 高 489）冻结在 `tools/anim/baseline.json`——**不要**每轮从导入产物现场算：旧实现拿 `idle/happy-1`（导入器自己的输出）当基准，全量重导自反馈、每轮漂移 +8px（已修）。删快照文件才会从 REF 重建 |
 | **按帧序号排序** | 帧名是 `<前缀>_<序号>_<时长>.png`；**必须按序号排**，不能按文件名 |
 | **丢遮罩层** | `mode` 为 `1`/`L`/`LA` 的是灰度/1bit 遮罩，丢弃 |
@@ -94,5 +95,8 @@ VPet 里真实存在**帧名拼写不一致**：`SideHide_Right_Main/Nomal/A/` �
 | `music` | a / c / {nomal,happy,poor}-1..n / single-{档} | 1 / 6 / 16~30 / 14 | **组③ 音乐反应**（VPet `Music/*`）：A 起跳 → 舞蹈循环（三档，Happy>Nomal>Poor 欢快度，带音符特效）→ C 收尾；`single-*` = 嗨档（音量超刺激阈值时 MusicSense 显式指定，不进普通随机）。运行时 = 包裹段（music 已入包裹池）|
 | `enter` | happy-1 / happy-2 / nomal / poor | 14 / 10 / 14 / 18 | **登场**（2026-09-24 动画组G **整池重导**：VPet `StartUP` 除 Ill 全档——happy-1=Happy、happy-2=Happy_1、nomal=Nomal、poor=PoorCondition；newyear 节日皮肤暂缓。**固定画布映射**池。旧 `enter/1-2`（原项目遗留、未基线对齐）已删。选名 = `挑登场退场`（挑主名/降级链；三档关闭钉 nomal）。注：源 11 帧里 `_001` 是 LA 落地扬尘特效帧，按「丢遮罩层」规则丢弃（与 `fidget-tennis-c` 同口径））|
 | `exit` | happy-1 / nomal-1 / poor-1 / happy-2 / nomal-2 / nomal-3 / poor-2 | 32 / 32 / 32 / 15 / 12 / 12 / 12 | **退场**（动画组G **整池重导**：VPet `Shutdown` 除 Ill 全档——happy-1=2/Happy、nomal-1=2/Nomal、poor-1=2/Poor、happy-2=Happy_1、nomal-2=Nomal_1、nomal-3=Nomal_2、poor-2=Poor；**固定画布映射**池。旧 `exit/1-4` 已删。故障方块擦除 + 收尾星闪；末帧全透明。源 4 个 1bit 空白帧（`_032`/`_012`）按「丢遮罩层」规则丢弃）|
+
+| `drag` | 1 / nomal-1..2 / poor | 22 / 8 / 11 / 11 | **拖拽动态**（VPet `Raise/Raised_Dynamic`，动画组H 补三档：nomal-1 摇晃 / nomal-2 狗刨 / poor；旧 `1`=Happy 保留作开心档的无档基名落点）。**原画布口径**（见导入规则表）|
+| `draghold` | {happy,nomal,poor} 各 a/b/c（+ happy-c2） | 6/6/23/21 + 6/5/21 + 3/9/21 = 121 | **拖拽静态挂起**（VPet `Raise/Raised_Static`，动画组H）：拎起满「拖拽静止秒」→ A 拎定过渡 → B 循环挂起；松手 → c 放下落地回 idle（`c2`=C_Happy_2 英雄落地，原 `dragdown/2` 迁移；C 段 FLA+FLB 拆片拼接）。挂起会话见 `script/UX/README.md`，验证 `tests/DragHoldProbe` |
 
 **验证**：`tests/PoolProbe`（各池真的播出对应动画）+ `tests/EdgeHideProbe`（12 段全部载入可播）+ `tests/BirthdayProbe`（生日命中 → 三段 → 回 idle）+ `tests/WrapProbe` / `MoveProbe` / `MusicProbe`（组①~③ 机制专测，其中组② 智能移动 = MoveProbe）。

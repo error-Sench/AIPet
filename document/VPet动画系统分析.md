@@ -336,7 +336,7 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 | **MOVE** | 各位移（垂直爬/横爬/就地爬/行走，前三不受边框限制）；**行走快慢原版由心情决定，我们只做普通档** | A/B/C | `move` 池 + MoveRunner；**#22：删 walk 的 fast/slow 变体**（不按 happy/poor 分快慢，变体只跟配置心情档） |
 | **Music** | 音乐动画；**暂定随机抽取，后续考虑按音量变动画** | A/B/C + Single | `music` 池已对齐（happy/nomal/poor × B 变体 + single 高潮 + a/c）；音量驱动列后续 |
 | **Pinch** | 捏脸，萌点十足；**我们没接入玩法系统** | A/B/C | `pinch` 池已导入（FacePinch 三段自管）；玩法不接 |
-| **Raise** | 拖拽；**动态+静态两种：刚拖=动态，挂 4 秒→静止态循环** | 动态 Single / 静态 A/B/C | `drag/dragup/dragdown` 仅 Happy；**补：动态 3 档 + 新建 `draghold` 静态挂起池 + 代码接「拖拽满 4 秒切静态循环」** |
+| **Raise** | 拖拽；**动态+静态两种：刚拖=动态，挂 4 秒→静止态循环** | 动态 Single / 静态 A/B/C | ✅ 2026-09-24 动画组H：`drag` 补三档动态（nomal-1/2、poor）+ 新池 `draghold` 三档 A/B/C（happy-c2=C_Happy_2 英雄落地，原 `dragdown/2` 迁移）+ 代码接「拖拽满「拖拽静止秒」（默认 4）切静态循环、松手 c 落地」。拖拽系走**原画布口径**（见 `tools/README.md` 导入规则表）。验证：`DragHoldProbe` |
 | **Say** | 说话，4 感情细分（见下） | A/B/C，数字=B 变体 | `say` 池 9 主变体（4 感情）+ 4 份感情级 a/c 段——**2026-09-24 动画组E 完成**：self-smile(B_2)/self-tease(B_3)/shining-excited(B_1)/shining-calm(B_3)/shy-wry(B_3) 已导；主名 `smile`→`shining`（同感情统一前缀）；同感情共用一份 A/C（段名解析前缀递减）；Shy/B_2 与 B 近同未导 |
 | **Shutdown** | 退出；**除 Ill 外全可用，心情分档作用不明显** | Single | **`exit` 池已建（2026-09-24 动画组G）**：7 条 `{档}-{n}`——happy-1=2/Happy、nomal-1=2/Nomal、poor-1=2/Poor、happy-2=Happy_1、nomal-2=Nomal_1、nomal-3=Nomal_2、poor-2=Poor（除 Ill）；**固定画布映射**（故障方块画满画布，逐段 union 对齐会被带偏）；旧 exit/1-4 已删。选名 = 挑主名/降级链 |
 | **SideHide_Left/Right_Main** | 左/右贴边隐藏 | A/B/C | `edge_hide` 池已导入 |
