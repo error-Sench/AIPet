@@ -96,20 +96,32 @@ SPEC = {
         ("poor-2", [("IDEL/Meow/PoorCondition/2", None, None)]),
         ("poor-3", [("IDEL/Meow/PoorCondition/3", None, None)]),
     ],
+    # 说话：4 感情（Self 侧耳 / Serious 双手交叉 / Shining 手指舞动 / Shy 托腮）——主人逐素材审视见
+    # document/VPet动画系统分析.md §9.2。变体命名 = `{感情}`（该感情主变体）+ `{感情}-{描述}`（同感情细分）；
+    # A/C 过渡段是**感情级**（`say-{感情}-a/c`），同感情的多个 B 变体共用——StateMachine.段名 按前缀递减回退
+    # （say-self-smile → say-self-a）。
+    # 2026-09-24 动画组E：补 5 条 B 变体（self-smile/self-tease/shining-excited/shining-calm/shy-wry）；
+    # 旧主名 `smile`（Shining/B_2）改名 `shining`——统一前缀让同感情可归组（self-* / shining-* / shy-*），
+    # 消费方（PoolProbe/BufferProbe/README）同步。Shy/B_2 与 B 近同（主人：变体1、2 相同＝普通可爱）不导。
     "say": [
-        ("smile", [("Say/Shining/B_2", None, None)]),
-        ("self", [("Say/Self/B_1", None, None)]),
-        ("serious", [("Say/Serious/B", None, None)]),
-        ("shy", [("Say/Shy/B", None, None)]),        # P10：VPet 的害羞档（说话池第 4 个变体）
+        ("self",            [("Say/Self/B_1", None, None)]),        # 变体1 普通
+        ("self-smile",      [("Say/Self/B_2", None, None)]),        # 变体2 微笑侧耳（高兴）
+        ("self-tease",      [("Say/Self/B_3", None, None)]),        # 变体3 眯眼侧耳（吐槽态）
+        ("serious",         [("Say/Serious/B", None, None)]),       # 仅 B（警示、教育意味）
+        ("shining",         [("Say/Shining/B_2", None, None)]),     # 变体2 普通略高兴（原主名 smile）
+        ("shining-excited", [("Say/Shining/B_1", None, None)]),     # 变体1 兴奋
+        ("shining-calm",    [("Say/Shining/B_3", None, None)]),     # 变体3 眯眼平静
+        ("shy",             [("Say/Shy/B", None, None)]),           # 变体1、2 相同（普通可爱；B_2 不导）
+        ("shy-wry",         [("Say/Shy/B_3", None, None)]),         # 变体3 略无奈
         # 2026-09-20 组①·过渡段：A=进入说话姿态 / C=退出（与站姿衔接，逐帧看图核对过）。
-        ("smile-a", [("Say/Shining/A", None, None)]),
-        ("smile-c", [("Say/Shining/C", None, None)]),
-        ("self-a", [("Say/Self/A", None, None)]),
-        ("self-c", [("Say/Self/C", None, None)]),
-        ("serious-a", [("Say/Serious/A", None, None)]),
-        ("serious-c", [("Say/Serious/C", None, None)]),
-        ("shy-a", [("Say/Shy/A", None, None)]),
-        ("shy-c", [("Say/Shy/C", None, None)]),
+        ("self-a",          [("Say/Self/A", None, None)]),
+        ("self-c",          [("Say/Self/C", None, None)]),
+        ("serious-a",       [("Say/Serious/A", None, None)]),
+        ("serious-c",       [("Say/Serious/C", None, None)]),
+        ("shining-a",       [("Say/Shining/A", None, None)]),
+        ("shining-c",       [("Say/Shining/C", None, None)]),
+        ("shy-a",           [("Say/Shy/A", None, None)]),
+        ("shy-c",           [("Say/Shy/C", None, None)]),
     ],
     # 干活：VPet 的 WORK 图共 13 种—— 2026-09-20 细节打磨：**改为包裹段结构**（A 进入 → B 干活
     # 循环 → C 收尾）。VPet 语义：干活期间 B 循环、停止时播 `C_End` 回常态（WorkTimer.Stop）。

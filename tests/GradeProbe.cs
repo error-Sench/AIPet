@@ -17,6 +17,7 @@ namespace desktop.tests;
 /// ⑤ Ill 不引入：降级链里没有任何 ill 档。
 /// ⑧ idle 变体加权（动画组D / Plan #24）：三档关全落 nomal；同档组内按「idle权重」加权随机
 /// （大样本分布；0 权重排除、全名键、三档开档内加权与零串档）。
+/// ⑨ say 感情级段名（动画组E）：同感情多变体共用一份 A/C 段（前缀递减回退：say-self-smile → say-self-a）。
 /// Godot_v4.7.2-stable_mono_win64_console.exe --headless --path D:/Games/Github/AIPet res://tests/GradeProbe.tscn
 /// </summary>
 public partial class GradeProbe : Node
@@ -78,7 +79,7 @@ public partial class GradeProbe : Node
                 断言(StateMachine.挑主名("think") == "think-nomal", $"普通档 → think-nomal（实际 {StateMachine.挑主名("think")}）");
                 break;
 
-            // ── ③ 降级：say 池没有档位素材 → 无档基名（self/serious/shy/smile）兜底 ──
+            // ── ③ 降级：say 池没有档位素材 → 无档基名（self/serious/shy/shining）兜底 ──
             case 16:
                 StateMachine.设置.状态档位 = "开心";   // 要 happy，但 say 只有无档名
                 var say名 = StateMachine.挑主名("say");
@@ -226,6 +227,20 @@ public partial class GradeProbe : Node
                 断言(串 == 0, $"三档开（开心）：idle {样本} 次全落 happy 组（按心情档内加权；实际串档 {串}）");
                 StateMachine.设置.三档状态启用 = false;
                 StateMachine.设置.状态档位 = "普通";
+                break;
+
+            // ── ⑨ say 感情级段名（2026-09-24 动画组E）：同感情多变体共用一份 A/C 段——前缀递减回退 ──
+            case 31:
+                断言(StateMachine.探针_段名("say-self-smile", "a") == "say-self-a"
+                        && StateMachine.探针_段名("say-self-tease", "c") == "say-self-c",
+                    "say 感情级段：self-smile / self-tease → say-self-a/c（前缀递减）");
+                断言(StateMachine.探针_段名("say-shining-excited", "a") == "say-shining-a"
+                        && StateMachine.探针_段名("say-shining-calm", "c") == "say-shining-c",
+                    "say 感情级段：shining-* → say-shining-a/c（改名前的 say-smile-a/c）");
+                断言(StateMachine.探针_段名("say-shy-wry", "a") == "say-shy-a",
+                    "say 感情级段：shy-wry → say-shy-a");
+                断言(StateMachine.探针_段名("say-shining", "a") == "say-shining-a",
+                    "主名精确段不受前缀递减影响（say-shining-a 精确命中）");
                 break;
 
             case 32:

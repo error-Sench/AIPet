@@ -59,8 +59,13 @@ public partial class PoolProbe : Node
         "lie-poor-a", "lie-poor-b1", "lie-poor-b2", "lie-poor-c",
         // 2026-09-20 组①·过渡段（包裹段 A/C；挑主名要排除它们、段名解析要能找到它们）
         "think-nomal-a", "think-nomal-c", "think-happy-a", "think-happy-c", "think-poor-a", "think-poor-c",
-        "say-smile-a", "say-smile-c", "say-self-a", "say-self-c",
+        "say-shining-a", "say-shining-c", "say-self-a", "say-self-c",
         "say-serious-a", "say-serious-c", "say-shy-a", "say-shy-c",
+        // 2026-09-24 动画组E：say 池 4 感情 × 变体（主名 smile→shining 统一前缀；同感情共用感情级 a/c 段）。
+        // （say-shy 在 P10 组已断言，这里不重复。）
+        "say-self", "say-self-smile", "say-self-tease",
+        "say-serious", "say-shining", "say-shining-excited", "say-shining-calm",
+        "say-shy-wry",
         "sleep-a", "sleep-c", "sleep-happy-a", "sleep-happy-c",
         // 2026-09-24 动画组A：greet 整池换 VPet `IDEL/Meow`（手敲屏幕）9 变体三档
         // （主人口径见 document/VPet动画系统分析.md §9.1「非常适合做问候语动画（因此最好不做空闲动画）」）
@@ -87,6 +92,8 @@ public partial class PoolProbe : Node
         "walk-left-fast", "walk-right-fast", "walk-left-slow", "walk-right-slow",
         "walk-left-fast-a", "walk-left-fast-c", "walk-right-fast-a", "walk-right-fast-c",
         "walk-left-slow-a", "walk-left-slow-c", "walk-right-slow-a", "walk-right-slow-c",
+        // 2026-09-24 动画组E：say 主名 smile（Shining/B_2）改名 shining（同感情统一前缀）——旧名必须真不在
+        "say-smile", "say-smile-a", "say-smile-c",
     ];
 
     public override void _Ready()
@@ -116,6 +123,30 @@ public partial class PoolProbe : Node
             foreach (var 名 in 必不存在动画) if (CharAnim.有动画(名)) 残留.Add(名);
             if (残留.Count == 0) GD.Print($"[PL] PASS  已删素材确实不在（{必不存在动画.Length} 个）");
             else { _失败++; GD.PrintErr($"[PL] FAIL  应删素材仍在：{string.Join(", ", 残留)}"); }
+
+            // 2026-09-24 动画组E：say 池选名断言——挑主名 400 次：① 只出 9 条主名（不挑 a/c 段、不串旧 smile）；
+            // ② 5 条新变体都能被抽到（同感情的多个 B 变体确实进了池内随机）。
+            var say期望 = new System.Collections.Generic.HashSet<string>
+            {
+                "say-self", "say-self-smile", "say-self-tease", "say-serious", "say-shining",
+                "say-shining-excited", "say-shining-calm", "say-shy", "say-shy-wry",
+            };
+            var say抽到 = new System.Collections.Generic.HashSet<string>();
+            var say越界 = new System.Collections.Generic.List<string>();
+            for (var 抽样 = 0; 抽样 < 400; 抽样++)
+            {
+                var 名 = StateMachine.挑主名("say");
+                if (名 == null) { say越界.Add("(null)"); break; }
+                if (!say期望.Contains(名)) say越界.Add(名);
+                say抽到.Add(名);
+            }
+            if (say越界.Count == 0) GD.Print($"[PL] PASS  say 池 400 次选名全在 9 条主名内（实际出现 {say抽到.Count} 种）");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  say 池选名越界（段名/旧名漏出）：{string.Join(", ", say越界)}"); }
+            var say缺 = new System.Collections.Generic.List<string>();
+            foreach (var 名 in new[] { "say-self-smile", "say-self-tease", "say-shining-excited", "say-shining-calm", "say-shy-wry" })
+                if (!say抽到.Contains(名)) say缺.Add(名);
+            if (say缺.Count == 0) GD.Print("[PL] PASS  say 5 条新变体 400 次内均可被随机选中");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  say 新变体 400 次未被抽到：{string.Join(", ", say缺)}"); }
 
             // 2026-09-22 逐帧时长：info.json 的 durations 必须真的进了 SpriteFrames——
             // fidget-squat（重构#2 拆段后主段 = 纯 B 段 8 帧）源带 1000ms/875ms 长定格（相对时长 8/7），

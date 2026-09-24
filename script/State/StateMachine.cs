@@ -171,7 +171,7 @@ public partial class StateMachine : Node
     private static float _排队兜底剩余;  // 防止动画不回完成信号导致排队状态永远不生效
 
     // ── 包裹段（组①）：think / sleep / 说话类的「进入 A → 循环 B → 退出 C」会话状态 ──
-    private static string _包裹主名;      // 本会话钉死的主段动画名（如 think-happy / say-smile / sleep-loop）；会话结束清空
+    private static string _包裹主名;      // 本会话钉死的主段动画名（如 think-happy / say-shining / sleep-loop）；会话结束清空
     private static bool _进入段中;        // 正在播 A 段（播完接主段）
     private static bool _退出段中;        // 正在播 C 段（播完落地 _退出目标 的切换）
     private static string _退出目标;      // 退出段播完后要切到的状态
@@ -1213,7 +1213,7 @@ public partial class StateMachine : Node
                     var 命中 = 候选.FindAll(x => x.name == 精确
                         || x.name.StartsWith($"{精确}-", StringComparison.Ordinal));
                     if (命中.Count > 0) return (挑同档变体(池, 命中) ?? 命中.列表随机项()).name;
-                    // 无档基名（sleep-loop / say-smile：从 Nomal 素材导入、名字里不带档位）——
+                    // 无档基名（sleep-loop / say-shining：从 Nomal 素材导入、名字里不带档位）——
                     // 它是「普通档」的实际落点，必须先于升到别的档位试（否则 sleep 会被迫演 sleep-happy）。
                     if (档 == 变体)
                     {
@@ -1253,7 +1253,7 @@ public partial class StateMachine : Node
     }
 
     /// <summary>名字里不带任何档位标记（happy/nomal/poor）= 「无档基名」。
-    /// 我们的导入约定：VPet 的 Nomal 档素材多数落成无档名（sleep-loop / say-smile / interact-a），
+    /// 我们的导入约定：VPet 的 Nomal 档素材多数落成无档名（sleep-loop / say-shining / interact-a），
     /// 只有部分池显式写了 `-nomal`（think/idle/music）。（2026-09-24 Plan #22：walk 的 fast/slow 变体已删，标记表不再含它们。）</summary>
     private static bool 无档名(string 名, string 池)
     {
@@ -1268,7 +1268,9 @@ public partial class StateMachine : Node
 
     /// <summary>包裹段解析：① 精确 `{主名}-{段}`（think-nomal-a / work-happy-calligraphy-c）；
     /// ② 同类无档 `{池}-{去掉档位前缀}-{段}`（work-happy-study2-c → work-study2-c；VPet 每段动画各自找档，
-    /// Happy 源缺 C 时退 Nomal 素材——重构#7）；③ 池级 `{池}-{段}`（sleep-a）；都没有返回 null。</summary>
+    /// Happy 源缺 C 时退 Nomal 素材——重构#7）；③ 池级 `{池}-{段}`（sleep-a）；
+    /// ④ 同感情前缀递减（动画组E）：主名带描述后缀时退到感情级段名（say-self-smile → say-self-a、
+    /// say-shining-calm → say-shining-c——同感情的多个 B 变体共用同一份 A/C 段）；都没有返回 null。</summary>
     private static string 段名(string 主名, string 段)
     {
         if (string.IsNullOrEmpty(主名)) return null;
@@ -1286,7 +1288,19 @@ public partial class StateMachine : Node
             break;
         }
         var 池段 = $"{池}-{段}";
-        return CharAnim.有动画(池段) ? 池段 : null;
+        if (CharAnim.有动画(池段)) return 池段;
+        // ④ 同感情前缀递减：逐级剥掉尾部 `-组件` 再试（剥到「池名 + 1 段」为止——池级段 ③ 已试过）。
+        // 目前实际生效的是 say 的感情级段（say-self-smile / say-shining-calm）；其他池的多段名
+        // （work-happy-* 之类）在 ② 就命中，不受影响。
+        var 前缀 = 主名;
+        while (true)
+        {
+            var 断 = 前缀.LastIndexOf('-');
+            if (断 <= 池.Length) break;
+            前缀 = 前缀[..断];
+            if (CharAnim.有动画($"{前缀}-{段}")) return $"{前缀}-{段}";
+        }
+        return null;
     }
 
     /// <summary>探针：段名解析（GradeProbe 校验档位段降级链）。</summary>

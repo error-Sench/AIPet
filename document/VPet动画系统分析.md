@@ -337,7 +337,7 @@ duration: state#10 squat#20 boring#20 sleep#20  ← B 循环期望圈数上限�
 | **Music** | 音乐动画；**暂定随机抽取，后续考虑按音量变动画** | A/B/C + Single | `music` 池已对齐（happy/nomal/poor × B 变体 + single 高潮 + a/c）；音量驱动列后续 |
 | **Pinch** | 捏脸，萌点十足；**我们没接入玩法系统** | A/B/C | `pinch` 池已导入（FacePinch 三段自管）；玩法不接 |
 | **Raise** | 拖拽；**动态+静态两种：刚拖=动态，挂 4 秒→静止态循环** | 动态 Single / 静态 A/B/C | `drag/dragup/dragdown` 仅 Happy；**补：动态 3 档 + 新建 `draghold` 静态挂起池 + 代码接「拖拽满 4 秒切静态循环」** |
-| **Say** | 说话，4 感情细分（见下） | A/B/C，数字=B 变体 | `say` 池已导 4 主变体+a/c；**补 5 条 B 变体**：self-smile(B_2)/self-tease(B_3)/shining-excited(B_1)/shining-calm(B_3)/shy-wry(B_3) |
+| **Say** | 说话，4 感情细分（见下） | A/B/C，数字=B 变体 | `say` 池 9 主变体（4 感情）+ 4 份感情级 a/c 段——**2026-09-24 动画组E 完成**：self-smile(B_2)/self-tease(B_3)/shining-excited(B_1)/shining-calm(B_3)/shy-wry(B_3) 已导；主名 `smile`→`shining`（同感情统一前缀）；同感情共用一份 A/C（段名解析前缀递减）；Shy/B_2 与 B 近同未导 |
 | **Shutdown** | 退出；**除 Ill 外全可用，心情分档作用不明显** | Single | **新建 `exit` 池**（7 条：2/{Happy,Nomal,Poor}+Happy_1/Nomal_1/Nomal_2/Poor，除 Ill） |
 | **SideHide_Left/Right_Main** | 左/右贴边隐藏 | A/B/C | `edge_hide` 池已导入 |
 | **SideHide_Left/Right_Rise** | 左/右隐藏鼠标悬浮探头 | A/B/C | 探头表现（EdgeHide 自管）；素材随 edge_hide |

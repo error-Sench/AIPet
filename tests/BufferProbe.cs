@@ -26,7 +26,7 @@ public partial class BufferProbe : Node
     [
         "idle-nomal-1", "fidget-squat-a", "fidget-squat", "fidget-squat-c",
         "think-nomal-a", "think-nomal", "walk-right-a", "walk-right", "walk-right-c",
-        "say-smile-a", "say-smile", "work-calligraphy-a", "music-nomal-1", "sleep-loop",
+        "say-shining-a", "say-shining", "work-calligraphy-a", "music-nomal-1", "sleep-loop",
         "idle-happy-1", "fidget-tennis", "climb-left-b", "interact-a",
     ];
 

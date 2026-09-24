@@ -80,7 +80,7 @@ StateMachine.EnqueueChain(
 |---|---|---|---|
 | `walk` | left / right + `-a`/`-c` 起步/停步段 | 6+6 + 段 3+3/6+6 = 共 30 | VPet `MOVE/walk.*`；**循环**（段非循环）。**2026-09-20**：走链三段分播（`-a` 起步 / 循环 / `-c` 停步），阶段时长按素材帧数算、位移只在循环段推进。**2026-09-24（Plan #22）**：只做普通档——快/慢变体（`faster`=Happy / `slow`=PoorCondition）已删，不按心情分快慢 |
 | `think` | nomal / happy / poor | 9×3 | VPet `Think/*/B` |
-| `say` | smile / self / serious / shy | 7/15/4/5 | VPet `Say/Shining·Self·Serious·Shy`（P10 补害羞档）|
+| `say` | self / self-smile / self-tease / serious / shining / shining-excited / shining-calm / shy / shy-wry（+各感情 a/c 过渡段） | 15/15/14/4/7/6/7/5/5 + 段共 41 | VPet `Say/Self·Serious·Shining·Shy`（P10 补害羞档）。**2026-09-24 动画组E**：补 5 条 B 变体（4 感情细分）、主名 `smile`→`shining` 统一感情前缀；同感情共用一份**感情级** a/c 段（段名解析前缀递减回退：`say-self-smile` → `say-self-a`）|
 | `work` | 13 种 × {Nomal + happy/poor 档} + 每项 `-a`/`-c` 段（包裹段）| 共 1369 | VPet `WORK/*`（2026-09-20 打磨：**包裹段**——A 进入 → B 干活循环（取最丰富变体、钉死）→ C 收尾；语义 = VPet WorkTimer：干活期间 B 循环、停止播 `C_End`；**2026-09-22 重构#7**：补 Happy/PoorCondition 档素材（`{档}-{类型}` 命名，`挑主名` 按前缀收组；12/13 种有源，降级链兜底）|
 | `sleep` | loop / happy | 6+6 | VPet `Sleep/B_Nomal·B_Happy`；**循环** |
 | `greet` | {happy,nomal,poor}-1..3 | 共 157 | VPet `IDEL/Meow`（手敲屏幕）9 变体三档——2026-09-24 动画组A **整池重构**（主人口径：非常适合做问候语动画、不做空闲动画；命名 `{档}-{n}` 对齐 idle 口径，旧 amuse/meow 已删） |
