@@ -19,7 +19,7 @@ namespace desktop.tests;
 /// ⑤ 「办公即游戏」钩子：干完一次活 → 办公星 +1；
 /// ⑥ 二进宫（玩法切片一）：收集星星（回血 + 存档去重）/ 掉落扣血 / 血空「玩累了」回满血原地继续（**不退出**）；
 /// ⑧ 纯键盘（主人 2026-09-22）：游戏内鼠标穿透开/关断言 + Esc 退出 + **失焦变淡**（α≈0.30）+ 失焦不响应操作 + M 键切换（写回配置，探针重定向）；
-/// ⑨ 键位改版（主人 2026-09-22）：方向键移动 / C 跳跃 / X 攻击（真实键注入，G 组）+ 占位符（攻击/起跳）；
+/// ⑨ 键位改版（主人 2026-09-22）：方向键移动 / C 跳跃 / X 攻击（真实键注入，G 组）+ 起跳/攻击**真素材播放**（素材已导入，占位退役）；
 /// ⑦ 截两帧 PNG（站立 / 空中）供视觉复核。
 /// 隔离：游戏存档走临时档（GameSession.探针_覆盖存盘路径），收尾只删临时档。
 /// 用法：Godot_..._console.exe --path &lt;项目&gt; res://tests/GameProbe.tscn
@@ -160,7 +160,8 @@ public partial class GameProbe : Node
                 break;
             case 110:
                 断言(!CharAnim.当前动画名_只读.StartsWith("fall"), $"C5e 上升期不播下坠素材（fall 只在过最高点后，实际 {CharAnim.当前动画名_只读}）");
-                断言(CharAnim.当前动画名_只读 == GamePlayer.起跳占位, $"C5e2 上升期播起跳占位（实际 {CharAnim.当前动画名_只读}）");
+                // 2026-09-22：起跳真素材已导入（jump 池）→ 占位退役；上升期应播 jump-right（朝右）
+                断言(CharAnim.当前动画名_只读 == "jump-right", $"C5e2 上升期播起跳真素材 jump-right（实际 {CharAnim.当前动画名_只读}）");
                 break;
             case 112:
                 玩家.探针_跳 = false;   // 按住 12 帧（0.2s）→ 满跳 ≈128px（可变跳高不截）
@@ -282,7 +283,8 @@ public partial class GameProbe : Node
                 断言(玩家.探针_攻击中_只读, "G1 X 键 → 进入攻击状态");
                 断言(玩家.探针_最近攻击请求 == "attack-right", $"G2 朝右攻击请求 attack-right（实际 {玩家.探针_最近攻击请求}）");
                 断言(CharAnim.池已注册("attack"), "G3 攻击池已登记（素材导入即生效）");
-                断言(CharAnim.当前动画名_只读 == GamePlayer.攻击占位, $"G3b 攻击播占位（实际 {CharAnim.当前动画名_只读}）");
+                // 2026-09-22：攻击真素材已导入（attack 池）→ 占位退役；朝右攻击应播 attack-right
+                断言(CharAnim.当前动画名_只读 == "attack-right", $"G3b 攻击播真素材 attack-right（实际 {CharAnim.当前动画名_只读}）");
                 break;
             case 282:
                 敲键(Key.X, true);   // 冷却内再按：不应刷新时长

@@ -10,7 +10,7 @@ namespace desktop.tests;
 /// 自主移动实证探针（**必须非 headless**，headless 下屏幕/窗口尺寸为 0，移动触发条件全废）：
 ///   ① 把桌宠窗口挪到离鼠标最远的角落（绕开「鼠标悬停在桌宠身上 → 禁止主动行为」闸门）
 ///   ② 临时把节律调快（只改 user://behavior.json，末尾原样还原）
-///   ③ 观察是否真的发生移动（walk/crawl/climb 任一）、窗口 X 是否真的变了
+///   ③ 观察是否真的发生移动（walk/crawl/climb/fall 任一）、窗口位置是否真的变了（X 或 Y 任一）
 /// 重构#4 起：移动 = MoveRunner（VPet Move 模型），段推进归它；本探针只验「真的动了 + 用的是走/趴资产」。
 /// 用法：Godot_..._console.exe --path D:/Games/Github/AIPet res://tests/WalkProbe.tscn
 /// </summary>
@@ -18,6 +18,7 @@ public partial class WalkProbe : Node
 {
     private int _帧;
     private int _起始X;
+    private int _起始Y;
     private int _失败;
     private bool _动过;
     private bool _停过;
@@ -96,12 +97,15 @@ public partial class WalkProbe : Node
         }
         else if (_帧 == 1800) // ≈30s
         {
-            var 末X = DisplayServer.WindowGetPosition().X;
+            var 末位 = DisplayServer.WindowGetPosition();
             GD.Print($"[WK] 移动次数={StateMachine.移动次数_只读} 主动次数={StateMachine.主动次数_只读} 空闲={StateMachine.空闲秒_只读:0.0}s 状态={StateMachine.CurrentState}");
-            GD.Print($"[WK] 窗口 X: 起始={_起始X} 现在={末X}");
+            GD.Print($"[WK] 窗口位置: 起始=({_起始X},{_起始Y}) 现在=({末位.X},{末位.Y})");
             GD.Print($"[WK] 移动期间动画集=[{string.Join(", ", _移动中动画集)}]");
             断言(StateMachine.移动次数_只读 >= 1, "发生了自主移动");
-            断言(末X != _起始X, "桌宠窗口 X 真的移动了");
+            // 2026-09-24 收口修（同 C 卡资产断言的道理）：角落起步时骰子可能命中垂直移动
+            //（climb-*-down / fall-*——重力移动 X 恒定、只夹屏内，见 MoveRunner.推进）→ 合法移动下 X 本就不变，
+            // 判据放宽为「X 或 Y 任一变化」；「真的动了」的原意不变（完全没动仍会挂）。
+            断言(末位.X != _起始X || 末位.Y != _起始Y, "桌宠窗口真的移动了（X 或 Y 任一变化）");
             // 2026-09-24 修（动画组C 验收时发现）：断言原来只认 walk-/crawl-——但窗口起始靠近屏幕边时
             // 骰子完全可能命中爬边族（climb，触发近 ≤64px），那是合法移动资产不是失败。
             // 本断言的原意 = 「用的是移动表资产，不是 drag 占位」→ 收全四个移动族。
@@ -130,6 +134,7 @@ public partial class WalkProbe : Node
         var 新X = 左半 ? 屏.Position.X + 40 : Math.Max(屏.Position.X + 40, 屏.End.X - 犬 - 40);
         DisplayServer.WindowSetPosition(new Vector2I(新X, 屏.Position.Y + 60));
         _起始X = 新X;
+        _起始Y = 屏.Position.Y + 60;
         GD.Print($"[WK] 鼠标=({鼠.X},{鼠.Y}) 桌宠挪到=({新X},{屏.Position.Y + 60}) 角色尺寸={犬}");
 
         // 节律已在 _Ready 前用 user://behavior.json 注入（见 写临时节律），这里不再改内存
