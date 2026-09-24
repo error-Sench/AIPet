@@ -29,8 +29,9 @@ public partial class GamePlayer : CharacterBody2D
     // —— 占位符（主人 2026-09-22「空缺动画用占位符替代」）：真素材到位后自动让位（回退链末位，见 播攻击动画/更新动画） ——
     /// <summary>攻击占位：挥拍暂代挥击（真素材 `attack-left/right` 到位即自动优先）。</summary>
     public const string 攻击占位 = "fidget-tennis";
-    /// <summary>起跳占位：窜入→腾空→落地 暂代起跳（`enter-2` 首帧空白是它自带的出场效果）。</summary>
-    public const string 起跳占位 = "enter-2";
+    /// <summary>起跳占位：窜入→腾空→落地 暂代起跳（`enter-happy-2` 首帧空白是它自带的出场效果；
+    /// 2026-09-24 动画组G：enter 池重导后旧名 `enter-2` → `enter-happy-2`）。</summary>
+    public const string 起跳占位 = "enter-happy-2";
 
     /// <summary>探针注入：非 0 时优先于真实键盘（确定性测试用；±1 = 左/右）。</summary>
     public float 探针_水平输入;

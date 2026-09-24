@@ -24,7 +24,7 @@
 | `sleep` 休眠 | 空闲/深夜 | `Sleep` |
 | `move` 智能移动 | MoveRunner 移动表（走 / 趴行 / 爬墙 / 顶爬 / 掉落；VPet Move 模型，定义在 `config/moves.json`） | `MOVE`（walk / crawl / climb / climb.top / fall 全 16 条定义可用） |
 | `edge_hide` 贴边 | 贴屏幕边缘隐藏 | `SideHide_Left_*`、`SideHide_Right_*` |
-| `startup` / `shutdown` | 启动 / 退出 | `StartUP`、`Shutdown` |
+| `startup` / `shutdown` | 启动 / 退出 | `enter` 池（VPet `StartUP` 除 Ill 全档）/ `exit` 池（`Shutdown`）——2026-09-24 动画组G 整池重导；选名 = `挑主名`/降级链（`CharAnim.挑登场退场`），三档关闭钉 nomal |
 | 节日/成长（被动） | 庆祝等 | `BDay`、`LevelUP`、`Gift`、`Music`、`Drink`、`Eat`、`Switch` |
 
 **行为链（状态序列编排）—— v1 设计**：
@@ -88,6 +88,8 @@ StateMachine.EnqueueChain(
 | `interact_body` | a / b / c | 15/14/3 | VPet `Touch_Body/{A,B,C}_Happy/tb1`（P10 摸身体反应；官方只有 Happy/ill 档 → 取 Happy）|
 | `turn` | a / b / c | 3/15/4 | VPet `Touch_Body/Happy_Turn`（P10 被摸转身）|
 | `switch` | up / down | 13/14 | VPet `Switch/Up·Down/Nomal`（P10 干活进出场过渡）|
+| `enter` | happy-1 / happy-2 / nomal / poor | 14/10/14/18 | VPet `StartUP` 除 Ill 全档——2026-09-24 动画组G **整池重导**（旧 enter/1-2 是原项目遗留、未基线对齐，已删）。命名 `{档}-{n}` 对齐 idle 口径；**固定画布映射**池（门板特效画满画布，不做逐段 union 对齐）。选名 = `CharAnim.挑登场退场` → `挑主名`/降级链（三档关闭钉 nomal） |
+| `exit` | happy-1 / nomal-1 / poor-1 / happy-2 / nomal-2 / nomal-3 / poor-2 | 32/32/32/15/12/12/12 | VPet `Shutdown` 除 Ill 全档——同日**整池重导**（旧 exit/1-4 已删）。故障方块擦除退场；**固定画布映射**池；选名同 `enter` |
 
 > **未导入**：`listen` —— VPet 无对应资产，仍回退 `fidget`。
 
@@ -364,7 +366,7 @@ StateMachine.EnqueueChain(
 | 项 | 做法 |
 |---|---|
 | **摸身体** | 单击部位分流：**脸区优先**（捏脸那套）→ 身体区（`HitRegion` 公共命中判定；比例由官方 `.lps` 的 `touchbody: px166 py206 sw163 sh136` 换算）→ 都不中当摸头。头 = `interact` 序列；身体 = `interact_body` 序列；**30% 概率**改成 `turn`（转身躲一下）|
-| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。`情绪变体()` 手动档位生效（开心→happy / 不良→poor / **普通或关闭→nomal**——重构#6 起普通档钉住 nomal 组，不再整池随机串档）。择档走**降级链**（VPet `GraphCore.FindGraphs` 语义）：精确档 → **无档基名**（Nomal 素材落点）→ 相邻档（happy↔nomal↔poor）→ 候选随机；**Ill 档刻意不引入**（无生病玩法）。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）。**2026-09-20 组①：`idle` 也纳入择档**（`idle-happy-1..3` / `idle-nomal-1..3` / `idle-poor-1..2`——档位对应一组时按 `{池}-{档}-` 前缀随机取一条）。**2026-09-24 动画组D（#24）：idle 的组内选择改按「`idle权重`」加权随机**（nomal-1 为主、不再均匀概览；档的选择仍走降级链——三档关 = nomal 绝对为主、零串档）。**2026-09-24 动画组A：`greet` 也纳入择档**（整池换 `IDEL/Meow` 9 变体 `{档}-{n}`，与 idle 同口径）|
+| **三档状态** | 开心 / 普通 / 不良：`设置.三档状态启用`（**默认关**）+ `设置.状态档位`（默认「普通」，先手动选）。`情绪变体()` 手动档位生效（开心→happy / 不良→poor / **普通或关闭→nomal**——重构#6 起普通档钉住 nomal 组，不再整池随机串档）。择档走**降级链**（VPet `GraphCore.FindGraphs` 语义）：精确档 → **无档基名**（Nomal 素材落点）→ 相邻档（happy↔nomal↔poor）→ 候选随机；**Ill 档刻意不引入**（无生病玩法）。**数值（mood）不参与择档**（2026-09-20 主人定：「心情值只影响回复策略，不加入互动」）。**2026-09-20 组①：`idle` 也纳入择档**（`idle-happy-1..3` / `idle-nomal-1..3` / `idle-poor-1..2`——档位对应一组时按 `{池}-{档}-` 前缀随机取一条）。**2026-09-24 动画组D（#24）：idle 的组内选择改按「`idle权重`」加权随机**（nomal-1 为主、不再均匀概览；档的选择仍走降级链——三档关 = nomal 绝对为主、零串档）。**2026-09-24 动画组A：`greet` 也纳入择档**（整池换 `IDEL/Meow` 9 变体 `{档}-{n}`，与 idle 同口径）；**2026-09-24 动画组G：`enter`/`exit` 也纳入择档**（StartUP/Shutdown 除 Ill 全档整池重导，`{档}-{n}`；`CharAnim.挑登场退场` 用它挑登场/退场动画——注意选名发生在 `StateMachine._Ready`（`设置.加载`）之前，启动档位 = 内置默认「普通」）|
 | **走路快慢**（已删） | ~~快/慢 = 三档档位~~ —— **2026-09-24 Plan #22 整条删除**：快/慢变体（`walk-{方向}-fast/-slow`）与位移倍率（×1.35 / ×0.72）不再存在；走路只做普通档、档位三档通用（主人口径：「行走快慢原版是由心情状态决定的，我们只做普通那一档」）|
 | **干活进出场** | `开始干活()` → `work_in`（`switch-up`）→ **自动回落** working；`结束干活()` → `work_out`（`switch-down`）→ idle。`状态效果` 新增两个字段：`具体动画`（一个池服务多个状态时钉死播哪个）与 `回落`（非持续态到点回落到哪，默认 idle）|
 | **摸头高兴档** | 序列也支持换档：`播放序列段()` 会用 `情绪变体(池)` 把 `interact-a` 换成 `interact-happy-a`（素材在才换，不硬造）|

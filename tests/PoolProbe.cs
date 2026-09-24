@@ -79,6 +79,10 @@ public partial class PoolProbe : Node
         "climb_top-left-a", "climb_top-left-b", "climb_top-left-c", "climb_top-right-a", "climb_top-right-b", "climb_top-right-c",
         "crawl-left", "crawl-right",
         "fall-left-a", "fall-left-b", "fall-left-c", "fall-right-a", "fall-right-b", "fall-right-c",
+        // 2026-09-24 动画组G：enter/exit 整池重导（VPet StartUP/Shutdown 除 Ill 全档）——
+        // enter 4 条 / exit 7 条；选名走 挑主名/降级链（见下方选名断言）。
+        "enter-happy-1", "enter-happy-2", "enter-nomal", "enter-poor",
+        "exit-happy-1", "exit-nomal-1", "exit-poor-1", "exit-happy-2", "exit-nomal-2", "exit-nomal-3", "exit-poor-2",
     ];
 
     /// <summary>已删素材必须真的不在（2026-09-24 动画组A）——还在 = 池目录没删干净，
@@ -94,6 +98,9 @@ public partial class PoolProbe : Node
         "walk-left-slow-a", "walk-left-slow-c", "walk-right-slow-a", "walk-right-slow-c",
         // 2026-09-24 动画组E：say 主名 smile（Shining/B_2）改名 shining（同感情统一前缀）——旧名必须真不在
         "say-smile", "say-smile-a", "say-smile-c",
+        // 2026-09-24 动画组G：enter/exit 整池重导——旧变体名（enter-1/2、exit-1..4）必须真不在
+        // （还在 = 池目录没删干净/重导没生效，`列表随机项` 或降级链会把退役动画悄悄串出来）
+        "enter-1", "enter-2", "exit-1", "exit-2", "exit-3", "exit-4",
     ];
 
     public override void _Ready()
@@ -147,6 +154,28 @@ public partial class PoolProbe : Node
                 if (!say抽到.Contains(名)) say缺.Add(名);
             if (say缺.Count == 0) GD.Print("[PL] PASS  say 5 条新变体 400 次内均可被随机选中");
             else { _失败++; GD.PrintErr($"[PL] FAIL  say 新变体 400 次未被抽到：{string.Join(", ", say缺)}"); }
+
+            // 2026-09-24 动画组G：enter/exit 选名断言——挑主名 必须钉在**当前档位组**内（三档关闭 = 普通档），
+            // 不串档（enter/exit 没进 情绪变体 白名单时 = 整池随机，这里立刻红）；
+            // exit 同档多条（nomal-1/2/3）都要能被抽到（登场退场 是 挑登场退场 的选名依据）。
+            var 档 = StateMachine.当前情绪档;   // happy / nomal / poor（默认 nomal）
+            var 登场越界 = new System.Collections.Generic.List<string>();
+            var 退场越界 = new System.Collections.Generic.List<string>();
+            var 退场抽到 = new System.Collections.Generic.HashSet<string>();
+            for (var 抽样 = 0; 抽样 < 200; 抽样++)
+            {
+                var 登场名 = StateMachine.挑主名("enter");
+                if (登场名 == null || !登场名.StartsWith($"enter-{档}", System.StringComparison.Ordinal)) 登场越界.Add(登场名 ?? "(null)");
+                var 退场名 = StateMachine.挑主名("exit");
+                if (退场名 == null || !退场名.StartsWith($"exit-{档}", System.StringComparison.Ordinal)) 退场越界.Add(退场名 ?? "(null)");
+                else 退场抽到.Add(退场名);
+            }
+            if (登场越界.Count == 0) GD.Print($"[PL] PASS  enter 池 200 次选名全在 enter-{档} 档内（不串档）");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  enter 池选名越界：{string.Join(", ", 登场越界)}"); }
+            if (退场越界.Count == 0) GD.Print($"[PL] PASS  exit 池 200 次选名全在 exit-{档} 档内（实际出现 {退场抽到.Count} 种）");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  exit 池选名越界：{string.Join(", ", 退场越界)}"); }
+            if (退场抽到.Count >= 2) GD.Print($"[PL] PASS  exit 同档 {退场抽到.Count} 条变体 200 次内均可被随机选中");
+            else { _失败++; GD.PrintErr($"[PL] FAIL  exit 同档变体只抽到 {退场抽到.Count} 种（应 ≥2）"); }
 
             // 2026-09-22 逐帧时长：info.json 的 durations 必须真的进了 SpriteFrames——
             // fidget-squat（重构#2 拆段后主段 = 纯 B 段 8 帧）源带 1000ms/875ms 长定格（相对时长 8/7），

@@ -41,6 +41,16 @@ CANVAS = 512
 #   固定缩放 = 所有姿势保持同一角色比例，姿势天然变矮就是变矮。
 固定缩放 = 485 / 948
 
+# ── 固定画布映射池（2026-09-24 动画组G）─────────────────────────────────────────
+# 默认对齐 = 逐段 union 包围盒贴到基线（见 导入一个动画）。但**转场类动画**（StartUP 的门板、
+# Shutdown 的故障方块）把特效画满整张 1000×1000 画布，union 会被特效带偏：实测 StartUP/Happy
+# 的角色站立帧脚线落到 483（idle 是 500）→ 入场接 idle 时跳位 ≈8px（显示缩放 0.5）。
+# 这些池改用「固定画布映射」：以 idle 源（参考画布源）的画布站位推出偏移，全池统一 ——
+# 角色站位与 idle 逐像素一致；特效超出 512 画布的部分按窗口边缘裁掉（观感与 VPet 窗口一致，
+# 那边也是被窗口边裁）。**新增转场类池（特效画满画布）照此入列。**
+固定映射池 = {"enter", "exit"}
+参考画布源 = "Default/Happy/1"   # 与 idle 池同源：union 中心 x=500 / 底边 y=970 = 画布基准站位
+
 # 池 -> [(变体, [片段, ...]), ...]；片段 = (源叶子相对路径, 起帧序号|None, 止帧序号|None)
 # 语义说明：Touch_Head/Touch_Body 是「被摸的反应」→ interact；greet 用 `IDEL/Meow`（手敲屏幕＝问候姿态）
 SPEC = {
@@ -473,6 +483,28 @@ SPEC = {
         ("left",  [("@本地/jump/left",  None, None)]),
         ("right", [("@本地/jump/right", None, None)]),
     ],
+    # ── 动画组G（2026-09-24）：登场/退场**整池重导**——StartUP/Shutdown 除 Ill 外全档（主人审视 §9）──
+    # 旧 enter/1-2、exit/1-4 是原项目遗留导入（两位帧名、未基线对齐）→ 本池重建后 git rm。
+    # 命名对齐 idle 池口径（`{档}-{n}`；单条档用无后缀名）——StateMachine.挑主名 按 `enter-{档}` /
+    # `enter-{档}-` 前缀收组，三档关闭时钉 nomal 档（与全项目「默认普通」一致）。
+    # 注意：这两池**走固定画布映射**（见 固定映射池）——StartUP 的门板 / Shutdown 的故障方块画满整张
+    # 1000×1000 画布，逐段 union 对齐会被特效带偏（角色站立帧脚线落到 483 而不是 500）。
+    "enter": [
+        ("happy-1", [("StartUP/Happy", None, None)]),
+        ("happy-2", [("StartUP/Happy_1", None, None)]),
+        ("nomal",   [("StartUP/Nomal", None, None)]),
+        ("poor",    [("StartUP/PoorCondition", None, None)]),
+        # newyear 节日皮肤（Happy_newyear / Nomal_newyear）暂缓导入；Ill 一律不引入。
+    ],
+    "exit": [
+        ("happy-1", [("Shutdown/2/Happy", None, None)]),
+        ("nomal-1", [("Shutdown/2/Nomal", None, None)]),
+        ("poor-1",  [("Shutdown/2/PoorCondition", None, None)]),
+        ("happy-2", [("Shutdown/Happy_1", None, None)]),
+        ("nomal-2", [("Shutdown/Nomal_1", None, None)]),
+        ("nomal-3", [("Shutdown/Nomal_2", None, None)]),
+        ("poor-2",  [("Shutdown/PoorCondition", None, None)]),
+    ],
 }
 
 
@@ -519,6 +551,15 @@ def 基线():
         json.dump(d, fp, ensure_ascii=False, indent=1)
     print(f"[基线] 首次生成快照 -> {基线快照}（此后不再从 REF 现场计算）")
     return d
+
+
+def 固定映射(基线值):
+    """固定画布映射池（enter/exit）用的对齐锚点 = **参考画布站位包围盒**（= idle 导入时的对齐结果）：
+    从参考画布源（Default/Happy/1）现场算画布站位（union 中心 x / 底边），全池共用同一偏移——
+    角色站位与 idle 逐像素一致（不逐段对齐，特效随画布一起走、超出即被窗口边裁）。"""
+    d = os.path.join(VPET, 参考画布源.replace("\\", "/"))
+    frames = sorted(f for f in os.listdir(d) if f.lower().endswith(".png"))
+    return union_bbox([os.path.join(d, f) for f in frames])
 
 
 def 收集片段(片段列表, 报告):
@@ -580,7 +621,7 @@ def 收集片段(片段列表, 报告):
     return 结果
 
 
-def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
+def 导入一个动画(池, 变体, 片段列表, 基线值, 报告, 锚定=None):
     frames = 收集片段(片段列表, 报告)
     if not frames:
         报告.append(f"  [跳过] {池}/{变体}: 无有效帧")
@@ -593,8 +634,10 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
         return 0
     # 本地新画素材已是最终比例：scale=1（只对齐，不缩放）；VPet 源用固定缩放。
     scale = 1.0 if all(片段[0].startswith("@本地/") for 片段 in 片段列表) else 固定缩放
-    off_x = 基线值["cx"] - ((ub[0] + ub[2]) / 2) * scale
-    off_y = 基线值["bottom"] - ub[3] * scale
+    # 对齐锚点：默认 = 本段 union；固定映射池（enter/exit）传 锚定 = 参考画布站位（见 固定映射池）。
+    锚 = 锚定 if 锚定 is not None else ub
+    off_x = 基线值["cx"] - ((锚[0] + 锚[2]) / 2) * scale
+    off_y = 基线值["bottom"] - 锚[3] * scale
 
     out = os.path.join(DST_ROOT, 池, 变体)
     os.makedirs(out, exist_ok=True)
@@ -630,7 +673,8 @@ def 导入一个动画(池, 变体, 片段列表, 基线值, 报告):
 
     bb = Image.open(os.path.join(out, "000.png")).convert("RGBA").getchannel("A").getbbox()
     报告.append(f"  [完成] {池}/{变体}: {len(frames)}帧 源包围盒={ub[2]-ub[0]}x{ub[3]-ub[1]} scale={scale:.4f} rate={rate} "
-              f"-> 角色高={bb[3]-bb[1]} 底边={bb[3]}")
+              f"-> 角色高={bb[3]-bb[1]} 底边={bb[3]}"
+              + ("（固定映射：对齐用参考画布，不看本段 union）" if 锚定 is not None else ""))
     return len(frames)
 
 
@@ -640,6 +684,7 @@ def main():
     print(f"参考基线: 底边={基线值['bottom']} 中心x={基线值['cx']} 角色高={基线值['h']}")
     报告 = []
     总帧 = 0
+    固定 = None   # 惰性：只有真导到固定映射池（enter/exit）才算一次
     for 池原始, 项列表 in SPEC.items():
         # 池名末尾 `+` = **追加模式**：只补变体、不清空池目录。
         # 用在「池里混着非 VPet 来源的变体」时（如 fidget/interact 里有原项目素材）——整池重导会误删它们。
@@ -647,13 +692,21 @@ def main():
         池 = 池原始.rstrip("+")
         if only and 池 not in only and 池原始 not in only:
             continue
+        锚定 = None
+        if 池 in 固定映射池:
+            if 固定 is None:
+                固定 = 固定映射(基线值)
+                print(f"[固定映射] 参考画布 {参考画布源} 包围盒={固定} → 画布偏移 "
+                      f"({基线值['cx'] - ((固定[0] + 固定[2]) / 2) * 固定缩放:.1f}, {基线值['bottom'] - 固定[3] * 固定缩放:.1f})"
+                      f"—— {'/'.join(sorted(固定映射池))} 不逐段 union 对齐（特效画满画布，见 固定映射池）")
+            锚定 = 固定
         池目录 = os.path.join(DST_ROOT, 池)
         if not 追加 and os.path.isdir(池目录):
             # 整池重导：先清空池目录，避免旧变体残留（`进入状态` 是池内随机取一项）
             shutil.rmtree(池目录)
         报告.append(f"### {池}{'（追加）' if 追加 else ''}")
         for 变体, 片段列表 in 项列表:
-            总帧 += 导入一个动画(池, 变体, 片段列表, 基线值, 报告)
+            总帧 += 导入一个动画(池, 变体, 片段列表, 基线值, 报告, 锚定)
     print("\n".join(报告))
     print(f"\n共导入 {总帧} 帧")
 

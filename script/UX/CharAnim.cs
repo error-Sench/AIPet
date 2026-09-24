@@ -53,7 +53,8 @@ public partial class CharAnim : AnimatedSprite2D
          "attack",
          // 音乐反应（2026-09-20 组③：VPet Music；包裹段 + MusicSense）
          "music",
-         // 登场/退场（2026-09-22：游戏起跳占位用 `enter-2`；两池原本只随机载 1 条，登记后全变体常驻）
+         // 登场/退场（2026-09-22 登记全变体；2026-09-24 动画组G 整池重导为 StartUP/Shutdown 三档素材——
+         // 选名走 挑主名/降级链（挑登场退场），游戏起跳占位用 `enter-happy-2`）
          "enter", "exit"];
 
     /// <summary>以「循环模式」加载的池：走动 6 帧（0.75s）而一次位移约 1s；睡觉是持续态，循环比「播完重播」更顺滑。
@@ -520,8 +521,14 @@ public partial class CharAnim : AnimatedSprite2D
     {
         var 人物 = 显示人物;
         var 状态机 = _单例.SpriteFrames;
-        var 进入动画 = 人物.动画池字典["enter"].列表随机项();
-        var 退出动画 = 人物.动画池字典["exit"].列表随机项();
+        var 进入动画 = 挑登场退场(人物, "enter");
+        var 退出动画 = 挑登场退场(人物, "exit");
+        if (进入动画 == null || 退出动画 == null)
+        {
+            GD.PrintErr("[CharAnim] enter/exit 池缺失（mods/main_anim 不完整？）——跳过登场/退场");
+            初始化窗口尺寸();
+            return;
+        }
         加载动画(状态机,进入动画);
         _单例.Play(进入动画.name);//先显示,再加载后面动画
         foreach (var 动画组 in 内置动画组)
@@ -531,6 +538,17 @@ public partial class CharAnim : AnimatedSprite2D
         加载动画(状态机,退出动画);
         _退出动画名 = 退出动画.name;
         初始化窗口尺寸(); // 动画就绪 -> 窗口收缩到正好套住角色
+    }
+
+    /// <summary>登场/退场选名（动画组G，2026-09-24）：**按三档/降级链口径挑**（`StateMachine.挑主名`），
+    /// 不再池内均匀随机——两池已整池重导为 `{档}-{n}`（StartUP/Shutdown 除 Ill 全档；缺档由降级链兜底，
+    /// 主人口径「心情分档在此处作用不明显」）。同档多条（enter-happy-1/2、exit-nomal-1/2/3）在池内随机。
+    /// 注：本方法在 `StateMachine._Ready`（设置.加载）之前跑 → 启动档位 = 内置默认「普通」（nomal 档）。</summary>
+    private static 动画信息 挑登场退场(人物数据 人物, string 池)
+    {
+        if (!人物.动画池字典.TryGetValue(池, out var 列表) || 列表.Count == 0) return null;
+        var 名 = StateMachine.挑主名(池) ?? 列表.列表随机项()?.name;
+        return 名 != null && 人物.动画信息映射.TryGetValue(名, out var 动画) ? 动画 : 列表.列表随机项();
     }
     private static void 加载动画组(人物数据 人物,string id)
     {
