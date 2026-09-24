@@ -1533,6 +1533,9 @@ public partial class StateMachine : Node
         public static string 状态档位 = "普通";
         public static float 久坐提醒分钟 = 90f;      // 连续活跃多久提醒休息（程序侧事件）；0 = 关
         public static float 久坐提醒冷却分钟 = 90f;  // 两次提醒的最小间隔
+        /// <summary>Plan #20（2026-09-24）：事件记录开关——关 = **一条也不写** events.jsonl（更多隐私）；
+        /// 开 = 照常记录（默认）。配置窗「行为」页「隐私」分区也有开关（改完立即生效）。</summary>
+        public static bool 事件记录启用 = true;
 
         // —— Plan #11 时间驱动主动行为（问候；实现见 DailyRoutine.cs） ——
         // 取舍原则：**只提醒主人自己不容易察觉的事**（久坐忘时间）；喝水/该睡了这类「主人自己知道的事」一律不做。
@@ -1625,6 +1628,7 @@ public partial class StateMachine : Node
                     状态档位 = 取文本(根, "状态档位", 状态档位);
                     久坐提醒分钟 = 取浮点(根, "久坐提醒分钟", 久坐提醒分钟);
                     久坐提醒冷却分钟 = 取浮点(根, "久坐提醒冷却分钟", 久坐提醒冷却分钟);
+                    事件记录启用 = 取布尔(根, "事件记录启用", 事件记录启用);   // Plan #20：事件记录开关
                     问候启用 = 取布尔(根, "问候启用", 问候启用);
                     移动启用 = 取布尔(根, "移动启用", 移动启用);
                     接力概率 = Math.Clamp(取浮点(根, "接力概率", 接力概率), 0f, 1f);
@@ -1654,6 +1658,9 @@ public partial class StateMachine : Node
             EnvironmentSense.启用 = 环境感知启用;
             EnvironmentSense.离开阈值秒 = Math.Max(30f, 离开阈值秒);
             EnvironmentSense.全屏静默 = 全屏静默;
+
+            // Plan #20：事件记录开关交给事件池（关 = 一条也不写；读老流水不受影响）
+            EventPool.记录启用 = 事件记录启用;
 
             // 把 P2 贴边隐藏参数交给行为层（含夹取，避免配置写坏导致窗口跑到屏外回不来）
             EdgeHide.启用 = 贴边隐藏启用;

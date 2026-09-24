@@ -45,9 +45,11 @@ public partial class EventProbe : Node
             case 30: C组_隐私边界(); break;
             case 40: D组_久坐提醒(); break;
             case 60: E组_进上下文接口(); break;
+            case 65: F组_记录开关(); break;
             case 70:
                 EventPool.探针_清空();
                 EventPool.探针_路径覆写 = "";
+                EventPool.记录启用 = true;   // 恢复（探针改过开关）
                 EnvironmentSense.启用 = false;
                 GD.Print($"[EV] ===== 失败数 = {_失败} =====");
                 GetTree().Quit(_失败 == 0 ? 0 : 1);
@@ -153,5 +155,32 @@ public partial class EventProbe : Node
         断言(文本.Contains("events.jsonl"), "上下文里给了事件池路径");
         断言(文本.Contains("## 待你处理的事件") && 文本.Contains("久坐超长"),
             "上下文里列出了待 Agent 处理的事件（pull：它读了才知道）");
+    }
+
+    private void F组_记录开关()
+    {
+        GD.Print("--- F 组：记录开关（Plan #20）—— 关 = 一条也不写、开 = 照常记录 ---");
+        EventPool.探针_清空();
+        var 原 = EventPool.记录启用;
+
+        EventPool.记录启用 = true;
+        EventPool.记("测试", EventPool.归属.程序, "开关开 → 应写入");
+        断言(EventPool.读().Count == 1, $"开关开 → 正常写入（{EventPool.读().Count}）");
+
+        EventPool.记录启用 = false;
+        var 大小前 = new FileInfo(_临时池).Length;
+        EventPool.记("测试", EventPool.归属.程序, "开关关 → 不应写入");
+        EventPool.确认程序侧("x", "y");   // ack 行同样不该写（流水停摆是一致的）
+        var 大小后 = new FileInfo(_临时池).Length;
+        断言(大小后 == 大小前, $"开关关 → 文件不增长（{大小前} → {大小后} 字节，一条也不写）");
+        断言(EventPool.读().Count == 1, "开关关 → 池里只有关掉之前的那条（老流水仍可读）");
+        var 上下文 = ContextTable.组装();
+        断言(上下文.Contains("事件记录") && 上下文.Contains("关掉"), "记录关 → 上下文对 Agent 说实话（事件记录关掉了）");
+
+        EventPool.记录启用 = true;
+        EventPool.记("测试", EventPool.归属.程序, "开关再开 → 恢复写入");
+        断言(EventPool.读().Count == 2, $"开关再开 → 恢复写入（{EventPool.读().Count}）");
+
+        EventPool.记录启用 = 原;
     }
 }

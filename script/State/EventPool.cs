@@ -17,8 +17,10 @@ namespace desktop.script.State;
 ///    （上下文接口 `user://context.md` 里会列出未处理事件）；Agent 处理完**追加一条 ack 行**即算清账。
 /// </para>
 /// <para>
-/// **隐私边界（写死的硬约束）**：只记「桌宠自己的观察与行为」——时间、时长、我们自己的状态机事件；
+/// **隐私边界（不记什么，写死）**：只记「桌宠自己的观察与行为」——时间、时长、我们自己的状态机事件；
 /// **不记窗口标题、进程名、键鼠内容、屏幕内容**（与 `EnvironmentSense` 的边界一致）。
+/// **记不记（可选，Plan #20）**：`config/behavior.json` 的 `事件记录启用`（默认开）——
+/// 关掉 = **一条也不写**（文件不再增长，更多隐私）；开着 = 照常记录。这是给主人的选择，不是写死。
 /// </para>
 /// </summary>
 public static class EventPool
@@ -30,6 +32,10 @@ public static class EventPool
     /// <summary>保留策略：最多留这么多行（超出裁掉最旧的）。</summary>
     public static int 上限条数 { get; set; } = 500;
 
+    /// <summary>是否记录事件（由 behavior.json 的 `事件记录启用` 注入；默认 true）。
+    /// 关 = 完全不写 events.jsonl（更多隐私）；开 = 照常记录（Plan #20）。</summary>
+    public static bool 记录启用 { get; set; } = true;
+
     /// <summary>探针用：临时覆写文件路径（不碰真文件）。</summary>
     public static string 探针_路径覆写 { get; set; } = "";
 
@@ -37,9 +43,10 @@ public static class EventPool
 
     // ================= 写 =================
 
-    /// <summary>记一条事件（自动裁剪超限的旧行）。</summary>
+    /// <summary>记一条事件（自动裁剪超限的旧行）。`记录启用=false` 时**一条也不写**（Plan #20）。</summary>
     public static void 记(string 类型, 归属 归属, string 文本)
     {
+        if (!记录启用) return;   // 记录关 → 不写（更多隐私；这是主人自己选的）
         try
         {
             var 行 = new Dictionary<string, object>
@@ -69,6 +76,7 @@ public static class EventPool
 
     private static void 追加(Dictionary<string, object> 行)
     {
+        if (!记录启用) return;   // 记录关 → ack 行同样不写（流水停摆是一致的，不半开半关）
         try
         {
             File.AppendAllText(有效路径,

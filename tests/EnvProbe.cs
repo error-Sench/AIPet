@@ -1,3 +1,4 @@
+using System;
 using desktop.script.State;
 using Godot;
 
@@ -37,7 +38,7 @@ public partial class EnvProbe : Node
         _帧++;
         if (_帧 == 5) { A组(); return; }
         if (_帧 == 20) { B组(); return; }
-        if (_帧 == 25) { C组(); D组(); E组(); 收尾(); return; }
+        if (_帧 == 25) { C组(); D组(); E组(); F组(); 收尾(); return; }
         if (_帧 > 900) { GD.PrintErr("[EV] 超时"); GetTree().Quit(2); }
     }
 
@@ -121,6 +122,18 @@ public partial class EnvProbe : Node
         EnvironmentSense.离开阈值秒 = _原阈值;
         EnvironmentSense.全屏静默 = _原静默;
         GD.Print($"[EV] 已恢复 → {EnvironmentSense.概述}");
+    }
+
+    private void F组()
+    {
+        GD.Print("--- F 组：配置接线（behavior.json → 感知层 / 事件池；Plan #19 阈值 + Plan #20 开关）---");
+        StateMachine.设置.加载();   // 重读真实 behavior.json（只读不写）
+        断言(EnvironmentSense.启用 == StateMachine.设置.环境感知启用,
+            $"「环境感知启用」交给感知层（{EnvironmentSense.启用}）");
+        断言(Math.Abs(EnvironmentSense.离开阈值秒 - Math.Max(30f, StateMachine.设置.离开阈值秒)) < 0.01f,
+            $"「离开阈值秒」（键鼠空闲判据）交给感知层（{EnvironmentSense.离开阈值秒:0}s；下限 30）");
+        断言(EventPool.记录启用 == StateMachine.设置.事件记录启用,
+            $"「事件记录启用」交给事件池（{EventPool.记录启用}）");
     }
 
     private void 收尾()

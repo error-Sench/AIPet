@@ -81,7 +81,9 @@ public static class ContextTable
         sb.AppendLine($"  - 情绪读数 stats.json → `{数值路径}`（程序写；值由你经 set_mood 更新）");
         sb.AppendLine($"  - 用户画像 profile.md → `{画像路径}`（**你写**）");
         sb.AppendLine($"  - 记忆流水 memory.jsonl → `{记忆路径}`（**你写**）");
-        sb.AppendLine($"  - 行为事件 events.jsonl → `{State.EventPool.路径}`（程序写；**归属你的事件在下面等着你**）");
+        sb.AppendLine(State.EventPool.记录启用
+            ? $"  - 行为事件 events.jsonl → `{State.EventPool.路径}`（程序写；**归属你的事件在下面等着你**）"
+            : $"  - 行为事件 events.jsonl → `{State.EventPool.路径}`（程序写；**主人把事件记录关掉了 —— 不会有新事件写进来**）");
         sb.AppendLine();
 
         // —— 数值层：主人情绪读数（唯一数值；只供回复策略参考，不参与互动） ——
@@ -106,6 +108,8 @@ public static class ContextTable
 
         // —— 事件池：等 Agent 处理的（pull；我们不做推送） ——
         sb.AppendLine("## 待你处理的事件（事件池里归属你的事件，处理完请追加一条 ack 行）");
+        if (!State.EventPool.记录启用)
+            sb.AppendLine("（注意：主人把**事件记录**关掉了（Plan #20）——程序不会再写新事件；下面若还有条目，那是关掉之前的旧事件。）");
         sb.AppendLine(State.EventPool.未处理摘要());
         sb.AppendLine();
 
