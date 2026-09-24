@@ -9,11 +9,11 @@ using desktop.script.UX;
 namespace desktop.tests;
 
 /// <summary>
-/// RoutineProbe（headless）：验证 **时间驱动的主动行为**（Plan #11）—— 启动问候 / 磁盘空间低。
-/// <para>问号口径（主人 2026-09-19）：**每次启动打一次招呼**（替换原「当天首次见面」），话来自话语表 `config/phrases.json`。</para>
+/// RoutineProbe（headless）：验证 **时间驱动的主动行为**（Plan #11）—— 启动问候。
+/// <para>问候口径（主人 2026-09-19）：**每次启动打一次招呼**（替换原「当天首次见面」），话来自话语表 `config/phrases.json`。</para>
 /// <para>
-/// 关键手法：**注入时钟与磁盘余量**（`DailyRoutine.时钟` / `探针_磁盘剩余字节`），
-/// 这样「一天一次」「到点提醒」都能在几帧内测完，不用等真实时间；事件池走临时路径，不碰真日志。
+/// 关键手法：**注入时钟**（`DailyRoutine.时钟`），「一次进程一次问候」「换时段也不重复」都能在几帧内测完，不用等真实时间；事件池走临时路径，不碰真日志。
+/// （原「磁盘余量低」提醒按 **Plan #16** 整套删除，旧 F 组随之下线。）
 /// </para>
 /// <para>场景：`tests/RoutineProbe.tscn`。</para>
 /// </summary>
@@ -25,7 +25,6 @@ public partial class RoutineProbe : Node
     private int _原上限;
     private bool _原问候;
     private float _原走动, _原睡眠, _原深夜;
-    private bool _原磁盘提醒;
 
     private void 断言(bool 条件, string 描述)
     {
@@ -50,7 +49,6 @@ public partial class RoutineProbe : Node
             case 25: B组_启动问候(); break;
             case 35: C组_启动问候的闸门(); break;
             case 45: D组_启动问候不占预算(); break;
-            case 70: F组_磁盘空间(); break;
             case 85: 收尾(); break;
         }
     }
@@ -71,13 +69,9 @@ public partial class RoutineProbe : Node
         StateMachine.设置.走动空闲秒 = 1e6f;
         StateMachine.设置.睡眠空闲秒 = 1e6f;
         StateMachine.设置.深夜睡眠秒 = 1e6f;
-        // 隔离被测行为：磁盘提醒留到 F 组单独测（否则真磁盘状态会掺进来）
-        _原磁盘提醒 = StateMachine.设置.磁盘提醒启用;
-        StateMachine.设置.磁盘提醒启用 = false;
-        DailyRoutine.磁盘提醒启用 = false;
     }
 
-    /// <summary>推进时间并压回 idle —— 让「距上次交互 ≥ 60s」这条不被误踩（探针不等真实时间）。</summary>
+    /// <summary>推进时间并压回 idle（探针不等真实时间，用注入时钟 + 手动推拍）。</summary>
     private static void 过一会儿(float 秒 = 120f)
     {
         DailyRoutine.推进(秒);
@@ -89,7 +83,7 @@ public partial class RoutineProbe : Node
 
     private void A组_配置与纯函数()
     {
-        GD.Print("--- A 组：配置读取 + 纯函数（时段 / 磁盘判定）---");
+        GD.Print("--- A 组：配置读取 + 纯函数（时段）---");
         StateMachine.设置.加载();                                   // 显式走一遍配置加载（顺带验证注入 DailyRoutine）
         // 前提：没有 user:// 覆盖（覆盖优先级最高；主人实机联调时会临时放一份同名 JSON，如 user://behavior.json）——
         // 有覆盖时「读到了 config/ 的值」这两条不适用：打印 SKIP 说明原因，不判 FAIL（见 tests/README 踩坑 #27）
@@ -103,10 +97,10 @@ public partial class RoutineProbe : Node
         else
         {
             断言(StateMachine.设置.问候启用, "config/behavior.json 的 问候启用 读到了");
-            断言(StateMachine.设置.磁盘剩余下限GB == 10, $"磁盘剩余下限GB = {StateMachine.设置.磁盘剩余下限GB}（配置值）");
         }
         // 设计回归守卫：管家式提醒（喝水/吃饭/该睡了）是**明确不做**的 —— 只提醒主人自己不容易察觉的事
-        GD.Print("[RT] 设计原则：只提醒「主人自己不容易察觉的事」（磁盘/久坐）；喝水这类生活管家提醒不做");
+        GD.Print("[RT] 设计原则：只提醒「主人自己不容易察觉的事」（久坐）；喝水这类生活管家提醒不做");
+        GD.Print("[RT] Plan #16：原「磁盘余量低」提醒已整套删除（behavior.json 键 / DailyRoutine 逻辑 / 配置窗开关 / 话语表分类）");
         断言(DailyRoutine.问候启用 == StateMachine.设置.问候启用, "配置已注入行为层（DailyRoutine）");
 
         断言(DailyRoutine.问候语(new DateTime(2026, 9, 19, 8, 0, 0)).时段 == "早上", "08:00 → 早上");
@@ -117,10 +111,6 @@ public partial class RoutineProbe : Node
         var 深夜样例 = Enumerable.Range(0, 20).Select(_ => DailyRoutine.问候语(new DateTime(2026, 9, 19, 2, 0, 0)).语句).ToList();
         断言(深夜样例.All(s => s.Contains("陪") || s.Contains("睡") || s.Contains("休息") || s.Contains("夜深") || s.Contains("这么晚")),
             $"深夜语句都是「我注意到你还在」的陪伴口吻（样例「{深夜样例[0]}」；共 {深夜样例.Distinct().Count()} 种）");
-
-        断言(DailyRoutine.磁盘算低(5L * 1024 * 1024 * 1024), "5 GB < 10 GB → 算低");
-        断言(!DailyRoutine.磁盘算低(50L * 1024 * 1024 * 1024), "50 GB → 不算低");
-        断言(!DailyRoutine.磁盘算低(10L * 1024 * 1024 * 1024), "正好 10 GB → 不算低（边界用 <）");
     }
 
     private void B组_启动问候()
@@ -208,45 +198,6 @@ public partial class RoutineProbe : Node
         StateMachine.设置.每小时主动上限 = 100;
     }
 
-    private void F组_磁盘空间()
-    {
-        GD.Print("--- F 组：磁盘空间低（每天一次；闸门关着先记下、开了再补报）---");
-        EventPool.探针_清空();
-        DailyRoutine.探针_重置();
-        StateMachine.设置.磁盘提醒启用 = true; DailyRoutine.磁盘提醒启用 = true;
-        StateMachine.设置.磁盘剩余下限GB = 10; DailyRoutine.磁盘剩余下限GB = 10;
-        DailyRoutine.时钟 = () => new DateTime(2026, 9, 25, 10, 0, 0);
-        DailyRoutine.探针_磁盘剩余字节 = () => 5L * 1024 * 1024 * 1024;      // 5 GB（低于 10 GB）
-        StateMachine.SetState(StateMachine.Idle);
-
-        DailyRoutine.推进(1f);
-        断言(DailyRoutine.探针_磁盘提醒次数 == 1, $"低余量 → 提醒一次（{DailyRoutine.探针_磁盘提醒次数}）");
-        断言(DailyRoutine.探针_最近语句.Contains("只剩"), $"语句带上了余量（「{DailyRoutine.探针_最近语句}」）");
-        断言(EventPool.读().Count > 0 && EventPool.读()[^1]["kind"] == "磁盘空间低", "事件池记了一条「磁盘空间低」");
-
-        StateMachine.SetState(StateMachine.Idle);
-        DailyRoutine.推进(1f);
-        断言(DailyRoutine.探针_磁盘提醒次数 == 1, "同一天不重复（每天最多一次）");
-
-        // 闸门关着（忙态）→ 只记下，不硬闯；闸门开了补报
-        DailyRoutine.时钟 = () => new DateTime(2026, 9, 26, 10, 0, 0);        // 换一天
-        StateMachine.SetState(StateMachine.Think);
-        DailyRoutine.推进(1f);
-        断言(DailyRoutine.探针_磁盘提醒次数 == 1, "闸门关着（忙态）时不硬闯");
-        断言(DailyRoutine.探针_磁盘待提醒, "但已经记下「该提醒」，等窗口");
-        StateMachine.SetState(StateMachine.Idle);
-        DailyRoutine.推进(1f);
-        断言(DailyRoutine.探针_磁盘提醒次数 == 2, $"闸门开了 → 补报（{DailyRoutine.探针_磁盘提醒次数}）");
-        断言(!DailyRoutine.探针_磁盘待提醒, "补报后清掉待办标记");
-
-        // 余量正常 → 不打扰
-        DailyRoutine.探针_磁盘剩余字节 = () => 100L * 1024 * 1024 * 1024;     // 100 GB
-        DailyRoutine.时钟 = () => new DateTime(2026, 9, 27, 10, 0, 0);
-        StateMachine.SetState(StateMachine.Idle);
-        DailyRoutine.推进(1f);
-        断言(DailyRoutine.探针_磁盘提醒次数 == 2, "余量充足 → 不提醒");
-    }
-
     private void 收尾()
     {
         StateMachine.设置.每小时主动上限 = _原上限;
@@ -254,8 +205,6 @@ public partial class RoutineProbe : Node
         StateMachine.设置.走动空闲秒 = _原走动;
         StateMachine.设置.睡眠空闲秒 = _原睡眠;
         StateMachine.设置.深夜睡眠秒 = _原深夜;
-        StateMachine.设置.磁盘提醒启用 = _原磁盘提醒;
-        DailyRoutine.磁盘提醒启用 = _原磁盘提醒;
         DailyRoutine.问候启用 = _原问候;
         DailyRoutine.探针_重置();
         EventPool.探针_清空();

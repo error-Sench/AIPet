@@ -41,7 +41,7 @@ public partial class WorkMapProbe : Node
     public override void _Ready()
     {
         Main.探针_禁首启提示 = true;                       // 与首启提示互不打扰
-        // 隔离「时间驱动」（问候/磁盘/音乐）——与其它探针同规矩（共享存档下问候气泡会抢状态；
+        // 隔离「时间驱动」（问候/音乐）——与其它探针同规矩（共享存档下问候气泡会抢状态；
         // 本探针要反复在 idle ↔ work 之间走，问候中途插进来会把落地断言顶掉）
         StateMachine.设置.探针_冻结时间驱动开关 = true;
         MusicSense.启用 = false;

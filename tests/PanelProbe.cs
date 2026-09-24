@@ -82,9 +82,11 @@ public partial class PanelProbe : Node
             var 语音键 = desktop.script.UX.SettingsWindow.语音键;
             GD.Print($"[Probe] 行为页开关数 = {行为键.Count}：{string.Join(" / ", 行为键)}");
             GD.Print($"[Probe] 语音页开关数 = {语音键.Count}：{string.Join(" / ", 语音键)}");
-            if (行为键.Count < 6) GD.PrintErr("[Probe] FAIL 行为页开关过少（应含 预算/磁盘/久坐/感知）");
-            if (!行为键.Contains("磁盘提醒启用") || !行为键.Contains("环境感知启用") || !行为键.Contains("全屏静默") || !行为键.Contains("气泡显示秒"))
-                GD.PrintErr("[Probe] FAIL 行为页缺关键开关（磁盘/感知/全屏静默/气泡显示时长）");
+            if (行为键.Count < 6) GD.PrintErr("[Probe] FAIL 行为页开关过少（应含 预算/移动/久坐/感知）");
+            if (!行为键.Contains("移动启用") || !行为键.Contains("环境感知启用") || !行为键.Contains("全屏静默") || !行为键.Contains("气泡显示秒"))
+                GD.PrintErr("[Probe] FAIL 行为页缺关键开关（移动/感知/全屏静默/气泡显示时长）");
+            if (行为键.Contains("磁盘提醒启用") || 行为键.Contains("磁盘剩余下限GB"))
+                GD.PrintErr("[Probe] FAIL 行为页还挂着磁盘提醒开关（Plan #16 已整套删除）");
             if (行为键.Contains("贴边循环次数") || 行为键.Contains("启用"))
                 GD.PrintErr("[Probe] FAIL 行为页又塞回了没必要的开关（主人 2026-09-19：有些开关没必要加进去）");
             if (语音键.Count < 6) GD.PrintErr("[Probe] FAIL 语音页开关过少");

@@ -36,8 +36,6 @@ public partial class BufferProbe : Node
         MusicSense.启用 = false;
         StateMachine.设置.问候启用 = false;
         DailyRoutine.问候启用 = false;
-        StateMachine.设置.磁盘提醒启用 = false;
-        DailyRoutine.磁盘提醒启用 = false;
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());

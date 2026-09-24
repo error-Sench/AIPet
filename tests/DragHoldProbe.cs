@@ -28,7 +28,7 @@ public partial class DragHoldProbe : Node
     public override void _Ready()
     {
         Main.探针_禁首启提示 = true;
-        // 隔离「时间驱动」（问候/磁盘/音乐）——与其它探针同规矩（共享存档下问候气泡会抢状态）
+        // 隔离「时间驱动」（问候/音乐）——与其它探针同规矩（共享存档下问候气泡会抢状态）
         StateMachine.设置.探针_冻结时间驱动开关 = true;
         MusicSense.启用 = false;
         var ps = GD.Load<PackedScene>("res://game.tscn");

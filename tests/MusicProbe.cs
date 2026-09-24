@@ -22,8 +22,6 @@ public partial class MusicProbe : Node
         Main.探针_禁首启提示 = true;
         StateMachine.设置.问候启用 = false;
         DailyRoutine.问候启用 = false;
-        StateMachine.设置.磁盘提醒启用 = false;
-        DailyRoutine.磁盘提醒启用 = false;
         // 探针口径：识别/静音 0.3s、采样 0.05s（真实默认 3s / 6s / 0.5s）
         MusicSense.识别秒 = 0.3f;
         MusicSense.静音秒 = 0.3f;

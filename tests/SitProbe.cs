@@ -58,7 +58,7 @@ public partial class SitProbe : Node
     {
         Main.探针_禁首启提示 = true;
         MusicSense.启用 = false;
-        // 探针隔离：冻结时间驱动（问候/磁盘/音乐），避免全量回归里被别的日程抢状态（顺序相关抖动）
+        // 探针隔离：冻结时间驱动（问候/音乐），避免全量回归里被别的日程抢状态（顺序相关抖动）
         StateMachine.设置.探针_冻结时间驱动开关 = true;
         _有用户覆盖 = Godot.FileAccess.FileExists("user://behavior.json") || Godot.FileAccess.FileExists("user://config/behavior.json");
         var ps = GD.Load<PackedScene>("res://game.tscn");

@@ -29,9 +29,8 @@ public partial class EventProbe : Node
     {
         EventPool.探针_路径覆写 = _临时池;
         EventPool.探针_清空();
-        // 隔离 Plan #11 的时间驱动行为：本探针只测事件池与久坐，磁盘提醒会往池子里插自己的事件
-        StateMachine.设置.磁盘提醒启用 = false;
-        DailyRoutine.磁盘提醒启用 = false;
+        // 隔离 Plan #11 的时间驱动行为：本探针只测事件池与久坐（问候在入场后由 探针_重置 清掉；
+        // 原「磁盘提醒」按 Plan #16 删除，不再需要隔离）
         MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会顶状态）
         GD.Print("=== EventProbe: 场景已实例化 ===");
     }

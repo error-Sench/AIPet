@@ -8,7 +8,7 @@ namespace desktop.tests;
 
 /// <summary>
 /// PhraseProbe（headless）：**本地话语表**（`config/phrases.json` + `PhraseTable`）。
-/// 覆盖：解析（数组类与嵌套的「问候/时段」）/ 随机不连续重复 / 占位符替换 /
+/// 覆盖：解析（数组类与嵌套的「问候/时段」）/ 随机不连续重复 / 占位符替换（合成表） /
 /// 坏数据与缺表的**内置兜底**（不许哑）/ 与启动问候的时段联动。
 /// </summary>
 public partial class PhraseProbe : Node
@@ -44,8 +44,9 @@ public partial class PhraseProbe : Node
         GD.Print("--- A 组：真实 config/phrases.json ---");
         PhraseTable.探针_恢复();
         断言(PhraseTable.已载入, "config/phrases.json 载入成功");
-        断言(PhraseTable.有("被摸") && PhraseTable.有("久坐") && PhraseTable.有("磁盘") && PhraseTable.有("降级"),
-            "程序侧会说话的四个分类都有话（被摸/久坐/磁盘/降级）");
+        断言(PhraseTable.有("被摸") && PhraseTable.有("久坐") && PhraseTable.有("降级"),
+            "程序侧会说话的分类都有话（被摸/久坐/降级）");
+        断言(!PhraseTable.有("磁盘"), "Plan #16：旧「磁盘」分类已随磁盘提醒删除（表里不该再留）");
         foreach (var 段 in new[] { "早上", "中午", "下午", "晚上", "深夜" })
             断言(PhraseTable.有($"问候/{段}"), $"问候/{段} 有话");
         var 句 = PhraseTable.取("久坐");
@@ -53,18 +54,17 @@ public partial class PhraseProbe : Node
 
         var 抽到 = Enumerable.Range(0, 60).Select(_ => PhraseTable.取("久坐")).ToHashSet();
         断言(抽到.Count >= 2, $"同一类多句子都会抽到（抽到 {抽到.Count} 种）");
-
-        var 磁 = PhraseTable.取("磁盘", ("盘", "D:"), ("余量", "3.2"));
-        断言(磁.Contains("D:") && 磁.Contains("3.2"), $"占位符替换（「{磁}」）");
     }
 
     private void 组_探针文本()
     {
         GD.Print("--- B 组：探针文本装表（解析 / 空类 / 不连续重复）---");
-        PhraseTable.探针_载入文本("{\"_comment\":\"x\",\"久坐\":[\"A\",\"B\"],\"问候\":{\"早上\":[\"早呀\"]},\"空\":[]}");
+        PhraseTable.探针_载入文本("{\"_comment\":\"x\",\"久坐\":[\"A\",\"B\"],\"问候\":{\"早上\":[\"早呀\"]},\"测试\":[\"{甲} 与 {乙}\"],\"空\":[]}");
         断言(PhraseTable.行数("久坐") == 2, "数组类读到 2 句");
         断言(PhraseTable.行数("问候/早上") == 1, "嵌套的 问候/早上 读到 1 句");
         断言(!PhraseTable.有("空"), "空数组 = 该类不说话");
+        var 替 = PhraseTable.取("测试", ("甲", "一"), ("乙", "二"));
+        断言(替 == "一 与 二", $"占位符替换（「{替}」；机制保留给自定义句子，内置类别当前没人用）");
 
         var 上次 = "";
         var 连重 = 0;

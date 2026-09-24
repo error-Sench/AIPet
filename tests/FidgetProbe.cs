@@ -31,7 +31,7 @@ public partial class FidgetProbe : Node
     {
         Main.探针_禁首启提示 = true;
         MusicSense.启用 = false;
-        // 探针隔离：冻结时间驱动（问候/磁盘/音乐）——否则共享存档下被每日问候抢状态（全量回归顺序相关抖动，实测）
+        // 探针隔离：冻结时间驱动（问候/音乐）——否则共享存档下被每日问候抢状态（全量回归顺序相关抖动，实测）
         StateMachine.设置.探针_冻结时间驱动开关 = true;
         _有用户覆盖 = Godot.FileAccess.FileExists("user://behavior.json") || Godot.FileAccess.FileExists("user://config/behavior.json");
         var ps = GD.Load<PackedScene>("res://game.tscn");

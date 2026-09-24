@@ -26,7 +26,7 @@ public partial class MoveProbe : Node
     public override void _Ready()
     {
         Main.探针_禁首启提示 = true;
-        // 隔离「时间驱动」（问候/磁盘/音乐）：加载() 会读 behavior.json 覆盖这些开关 →
+        // 隔离「时间驱动」（问候/音乐）：加载() 会读 behavior.json 覆盖这些开关 →
         // 用冻结开关（否则共享存档下问候气泡会在探针中途抢状态，全量回归断言随顺序抖）
         StateMachine.设置.探针_冻结时间驱动开关 = true;
         MusicSense.启用 = false;   // 组③：隔离音乐反应（系统有声就跳舞会顶状态）

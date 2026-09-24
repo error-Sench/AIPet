@@ -49,21 +49,21 @@ public partial class ConfigEditProbe : Node
         const string 相对 = "config/behavior.json";
         var 全 = Path.Combine(_根, "config", "behavior.json");
         Directory.CreateDirectory(Path.GetDirectoryName(全)!);
-        File.WriteAllText(全, "{\n  \"启用\": true,\n  \"问候启用\": true,\n  \"磁盘剩余下限GB\": 10,\n  \"_comment\": \"中文注释要能保留\"\n}\n");
+        File.WriteAllText(全, "{\n  \"启用\": true,\n  \"问候启用\": true,\n  \"测试整数\": 10,\n  \"_comment\": \"中文注释要能保留\"\n}\n");
 
         ConfigEdit.写(相对, "问候启用", false);
-        ConfigEdit.写(相对, "磁盘剩余下限GB", 25);
+        ConfigEdit.写(相对, "测试整数", 25);
         var 文本 = File.ReadAllText(全);
 
         断言(文本.Contains("\"问候启用\": false"), "bool 写入生效");
-        断言(文本.Contains("\"磁盘剩余下限GB\": 25"), "int 写入生效");
+        断言(文本.Contains("\"测试整数\": 25"), "int 写入生效");
         断言(文本.Contains("_comment") && 文本.Contains("中文注释要能保留"), "`_comment` 与中文都保留、未被转义");
         断言(!文本.Contains("\\u"), "没有 \\uXXXX 转义（文件仍可手改）");
         断言(文本.Contains("\"启用\": true"), "没碰的键保持原值（不是整文件重写）");
 
         var 回读 = JsonNode.Parse(文本) as JsonObject;
         断言(回读?["问候启用"]?.GetValue<bool>() == false, "回读值与写入一致");
-        断言(ConfigEdit.读文本(相对, "磁盘剩余下限GB") == "25", $"读文本可用（{ConfigEdit.读文本(相对, "磁盘剩余下限GB")}）");
+        断言(ConfigEdit.读文本(相对, "测试整数") == "25", $"读文本可用（{ConfigEdit.读文本(相对, "测试整数")}）");
         断言(ConfigEdit.读文本(相对, "不存在的键", "兜底") == "兜底", "读不到给兜底");
     }
 

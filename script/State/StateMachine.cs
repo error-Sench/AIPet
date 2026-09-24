@@ -583,7 +583,7 @@ public partial class StateMachine : Node
         _空闲秒 = 0f;
         _爬坡待机秒 = 0f;   // 重构#3：互动后爬坡清零——刚陪过它，不该马上又自主走动（VPet CountNomal = 0）
         _已报可走动 = false;
-        DailyRoutine.交互();   // 时间驱动行为：当天首次见面 → 问个好（Plan #11）
+        DailyRoutine.交互();   // 时间驱动行为：只喂「距上次交互」计时（问候改由入场完成时排上）
         if (CurrentState == Sleep) 唤醒(来源);
     }
 
@@ -670,7 +670,7 @@ public partial class StateMachine : Node
     {
         if (_入场未完成) return; // 入场动画没播完前不调度任何自主行为
 
-        DailyRoutine.推进(设置.心跳秒);   // 时间驱动行为（问候 / 喝水 / 磁盘）：计时始终推进，冒泡另受闸门约束
+        DailyRoutine.推进(设置.心跳秒);   // 时间驱动行为（启动问候）：计时始终推进，冒泡另受闸门约束
 
         // 主人在用面板/鼠标停在桌宠身上 → 视为「正在互动」，不累计空闲
         if (面板可见() || 鼠标悬停桌宠())
@@ -1534,12 +1534,11 @@ public partial class StateMachine : Node
         public static float 久坐提醒分钟 = 90f;      // 连续活跃多久提醒休息（程序侧事件）；0 = 关
         public static float 久坐提醒冷却分钟 = 90f;  // 两次提醒的最小间隔
 
-        // —— Plan #11 时间驱动主动行为（问候 / 磁盘；实现见 DailyRoutine.cs） ——
-        // 取舍原则：**只提醒主人自己不容易察觉的事**（磁盘悄悄变满、久坐忘时间）；喝水/该睡了这类「主人自己知道的事」一律不做。
-        public static bool 问候启用 = true;           // 当天首次见面按时间段问好
-        public static bool 磁盘提醒启用 = true;       // 磁盘余量低 → 每天最多提醒一次
-        public static int 磁盘剩余下限GB = 10;        // 低于这个余量算「快满了」
-        /// <summary>探针用：置 true 后 加载() 强制关闭「时间驱动」开关（问候/磁盘/音乐）——
+        // —— Plan #11 时间驱动主动行为（问候；实现见 DailyRoutine.cs） ——
+        // 取舍原则：**只提醒主人自己不容易察觉的事**（久坐忘时间）；喝水/该睡了这类「主人自己知道的事」一律不做。
+        // （原「磁盘余量低」提醒按 Plan #16 删除——同属管家式提醒，不内置。）
+        public static bool 问候启用 = true;           // 每次启动打一次招呼（按时间段挑话）
+        /// <summary>探针用：置 true 后 加载() 强制关闭「时间驱动」开关（问候/音乐）——
         /// 探针实例化场景前设的隔离值不再被 behavior.json 注入覆盖（否则全量回归里断言随顺序抖）。</summary>
         public static bool 探针_冻结时间驱动开关;
 
@@ -1627,8 +1626,6 @@ public partial class StateMachine : Node
                     久坐提醒分钟 = 取浮点(根, "久坐提醒分钟", 久坐提醒分钟);
                     久坐提醒冷却分钟 = 取浮点(根, "久坐提醒冷却分钟", 久坐提醒冷却分钟);
                     问候启用 = 取布尔(根, "问候启用", 问候启用);
-                    磁盘提醒启用 = 取布尔(根, "磁盘提醒启用", 磁盘提醒启用);
-                    磁盘剩余下限GB = Math.Max(1, 取整数(根, "磁盘剩余下限GB", 磁盘剩余下限GB));
                     移动启用 = 取布尔(根, "移动启用", 移动启用);
                     接力概率 = Math.Clamp(取浮点(根, "接力概率", 接力概率), 0f, 1f);
                     移动冷却秒 = 取浮点(根, "移动冷却秒", 移动冷却秒);
@@ -1688,7 +1685,7 @@ public partial class StateMachine : Node
             // —— 探针隔离（2026-09-22）：探针在**实例化场景前**设的「时间驱动」开关会被上面这批配置注入
             //    （读 behavior.json）覆盖回配置文件值 → 全量回归里问候气泡/音乐反应会在探针中途抢状态，
             //    断言随探针顺序抖（实测 MoveProbe「收步回 idle」被每日问候顶掉）。置冻结开关则强制关闭。
-            if (探针_冻结时间驱动开关) { 问候启用 = false; 磁盘提醒启用 = false; 音乐检测启用 = false; }
+            if (探针_冻结时间驱动开关) { 问候启用 = false; 音乐检测启用 = false; }
             MusicSense.启用 = 音乐检测启用;
             MusicSense.音量阈值 = Math.Clamp(音乐音量阈值, 0.001f, 0.5f);
             MusicSense.刺激阈值 = Math.Clamp(音乐刺激阈值, 0.01f, 1f);
@@ -1704,8 +1701,6 @@ public partial class StateMachine : Node
 
             // 把 Plan #11 的时间驱动行为参数交给 DailyRoutine（含夹取，避免配置写坏）
             DailyRoutine.问候启用 = 问候启用;
-            DailyRoutine.磁盘提醒启用 = 磁盘提醒启用;
-            DailyRoutine.磁盘剩余下限GB = 磁盘剩余下限GB;
         }
 
         /// <summary>读 [x0,y0,x1,y1] 比例数组（长度必须是 4 且都是数字，否则用兜底）。</summary>

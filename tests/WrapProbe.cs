@@ -29,8 +29,6 @@ public partial class WrapProbe : Node
         MusicSense.启用 = false;                           // 组③：隔离音乐反应（系统有声就跳舞会顶状态）
         StateMachine.设置.问候启用 = false;                 // 隔离时间驱动（同 StateProbe 口径）
         DailyRoutine.问候启用 = false;
-        StateMachine.设置.磁盘提醒启用 = false;
-        DailyRoutine.磁盘提醒启用 = false;
         var ps = GD.Load<PackedScene>("res://game.tscn");
         if (ps == null) { GD.PrintErr("game.tscn 加载失败"); GetTree().Quit(1); return; }
         AddChild(ps.Instantiate());
