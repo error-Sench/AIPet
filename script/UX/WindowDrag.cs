@@ -1,3 +1,4 @@
+using System;
 using desktop.script.State;
 using Godot;
 
@@ -43,7 +44,30 @@ public partial class WindowDrag : Node
     public static bool 拖拽区命中(Vector2 局部, Vector2I 窗口尺寸) =>
         desktop.script.Util.HitRegion.命中(拖拽命中区 ?? 默认拖拽命中区, 局部, 窗口尺寸);
 
-    private Vector2I _dragOffset;
+    /// <summary>
+    /// **抓握点**（窗口比例 x,y）：拖拽时鼠标「拎住」角色的定位锚——官方口径 **鼠标位置 − 抓握点 = 窗口位置**
+    /// （`vup.lps:11` `raisepoint: happy_x#290 y#128`，三档同值；换算同命中区：素材×0.5125+(4.2,1.3) → 256 窗口 ≈ (153,67)）。
+    /// 该点正是**拎起姿态的头顶**（draghold 内容顶边 y=128/512 → 窗口 64px）：拖拽时头顶顶在鼠标下、身体自然下垂。
+    /// <para>2026-10-01 修主人实机报的「拎起点和鼠标不重合」：旧实现用**按下时偏移**定位，而拎起动画
+    /// 内容整体比 idle 低 ~103px（原画布口径——源作者按 raisepoint 画的拎起站位，导入器硬规则禁止重对齐），
+    /// 切到拎起姿态后角色坠离鼠标 ~50px、光标悬在头顶上方的空处。改抄官方公式后两者恒重合。</para>
+    /// 微调改 `config/behavior.json` 的 `抓握点`（改完重启生效）。
+    /// </summary>
+    public static float[] 抓握点;
+
+    /// <summary>默认抓握点：官方 raisepoint (290,128)@500 空间 → 窗口比例。</summary>
+    public static readonly float[] 默认抓握点 = [0.597f, 0.261f];
+
+    /// <summary>抓握点（窗口像素）——纯函数，_Process 与探针同一路径。</summary>
+    public static Vector2I 抓握点像素(Vector2I 窗口尺寸)
+    {
+        var 点 = 抓握点 is { Length: 2 } ? 抓握点 : 默认抓握点;
+        return new Vector2I((int)MathF.Round(点[0] * 窗口尺寸.X), (int)MathF.Round(点[1] * 窗口尺寸.Y));
+    }
+
+    /// <summary>拖拽中的窗口位置（官方公式：鼠标 − 抓握点）——纯函数，_Process 与探针同一路径。</summary>
+    public static Vector2I 拖拽窗口位(Vector2I 鼠标, Vector2I 窗口尺寸) => 鼠标 - 抓握点像素(窗口尺寸);
+
     private Vector2I _pressOrigin;
     private bool _脸区起手;      // 本次按压起手在脸区（捏脸优先 → 永不变拖拽）
     private bool _拖拽区起手;    // 本次按压起手在拖拽区（可拖）
@@ -209,8 +233,9 @@ public partial class WindowDrag : Node
                             if (MoveRunner.占用中) MoveRunner.让位();
                             _dragging = true;
                             _isPreparing = false;
-                            // 正式锁定 Offset
-                            _dragOffset = currentMousePos - DisplayServer.WindowGetPosition();
+                            // 2026-10-01 抓握点口径（抄官方 raisepoint）：定位不再锁「按下时偏移」——
+                            // 见 抓握点 注释；进拖拽当帧窗口会跳到「鼠标−抓握点」（头顶上提对齐鼠标）。
+                            DisplayServer.WindowSetPosition(拖拽窗口位(currentMousePos, DisplayServer.WindowGetSize()));
                             OnDragStart();
                         }
                         // else：起手不在拖拽区（身体/脚下/…）→ **不拖**，什么都不做
@@ -221,7 +246,7 @@ public partial class WindowDrag : Node
             // 3. 执行拖拽：一旦进入拖拽状态，无视区域，直到松手
             if (_dragging)
             {
-                DisplayServer.WindowSetPosition(currentMousePos - _dragOffset);
+                DisplayServer.WindowSetPosition(拖拽窗口位(currentMousePos, DisplayServer.WindowGetSize()));
                 推进拖拽计时(delta);   // 动画组H：满「拖拽静止秒」→ 挂起态（只切一次）
             }
         }

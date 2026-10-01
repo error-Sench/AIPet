@@ -77,6 +77,13 @@ public partial class DragProbe : Node
             断言(!WindowDrag.拖拽区命中(new Vector2(128, 128), 窗), "窗口正中不在拖拽区（y=50% > 40%）");
             断言(!WindowDrag.拖拽区命中(new Vector2(128, 160), 窗), "身体点（躯干）不在拖拽区");
             断言(!WindowDrag.拖拽区命中(new Vector2(128, 200), 窗), "下半身不在拖拽区");
+            // 2026-10-01 抓握点纯函数（抄官方 raisepoint (290,128)@500 → 窗口比例）
+            var 抓 = WindowDrag.抓握点像素(窗);
+            GD.Print($"[DR] 抓握点(256 窗口) = {抓}");
+            断言(抓 == new Vector2I(153, 67), $"抓握点 = 官方 raisepoint 换算 (153,67)（实际 {抓}；= draghold 内容顶边，拎起点）");
+            断言(WindowDrag.拖拽窗口位(new Vector2I(500, 300), 窗) == new Vector2I(500 - 抓.X, 300 - 抓.Y),
+                "拖拽窗口位 = 鼠标 − 抓握点（纯函数）");
+            断言(WindowDrag.抓握点像素(new Vector2I(512, 512)) == new Vector2I(306, 134), "抓握点随窗口尺寸等比（512 → (306,134)）");
         }
         else if (_帧 == 60)
         {
@@ -117,6 +124,11 @@ public partial class DragProbe : Node
             var 位移 = 拖后 - _拖前窗口位;
             GD.Print($"[DR] 拖拽中窗口位移 = {位移}（期望 ≈(30,20)）");
             断言(位移.X >= 25 && 位移.Y >= 15, "拖拽时窗口真的跟随光标移动");
+            // 2026-10-01 抓握点口径（抄官方 raisepoint）：窗口位 = 鼠标 − 抓握点（头顶恒对鼠标）
+            var 鼠标 = DisplayServer.MouseGetPosition();
+            var 期望位 = WindowDrag.拖拽窗口位(鼠标, DisplayServer.WindowGetSize());
+            GD.Print($"[DR] 鼠标={鼠标} 窗口={拖后} 期望={期望位} 抓握点={WindowDrag.抓握点像素(DisplayServer.WindowGetSize())}");
+            断言((拖后 - 期望位).Length() <= 2, "抓握点对齐：窗口位 = 鼠标−抓握点（±2px，拎起点和鼠标重合）");
             注入左键(false); // 松手
         }
         else if (_帧 == 145)

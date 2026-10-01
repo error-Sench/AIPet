@@ -262,6 +262,12 @@ rasetype 状态机: 0,1,2 → Raised_Dynamic Single ×3（甩动）
 RaisePoint（lps raisepoint: 按档位的抓握定位点）→ 鼠标位置-定位点 = 窗口偏移
 ```
 
+（2026-10-01 已抄 RaisePoint 口径：`WindowDrag` 拖拽定位 = **鼠标 − 抓握点**（`config/behavior.json`
+`抓握点`，默认 = 官方 `raisepoint (290,128)`@500 空间换算的窗口比例）——修主人实机报的
+「拎起点和鼠标不重合」：旧实现锁按下时偏移，而拎起动画内容比 idle 低 ~103px（原画布口径），
+切拎起姿态后角色坠离鼠标 ~50px。素材站位本就是按 raisepoint 画的（导入器 `原画布池` 规则），
+补上运行期这半截后头顶恒对鼠标、身体自然下垂。探针 `DragProbe` A 组。）
+
 ### 5.8 SideHide 贴边躲藏（MainLogic.cs:540-580）
 
 ```
