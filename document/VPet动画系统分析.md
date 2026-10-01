@@ -287,7 +287,16 @@ MusicTimer(200ms) 检测系统音量 → 超阈值:
     音乐停 → Display("music", C_End) → DisplayToNomal
 ```
 
-（我们已按此抄了 MusicSense，参数一致：3s 识别/6s 收场/0.02 阈值/0.25 嗨档。）
+（我们已按此抄了 MusicSense，参数一致：3s 识别/6s 收场/0.02 阈值/0.25 嗨档。
+**2026-10-01 补抄两半**——主人实机报「音乐动画一直播一段不会变」后对照源码发现我们只抄了触发/收场，漏了：
+① **B 段每圈重掷**：官方 `Display_Music` 是 B 段播完回调，每圈重新 `FindGraph("music", B_Loop, Mode)`
+（`GraphCore.cs:141` 同档列表内 `Rnd.Next` 均匀随机）——`B/Nomal{,/3,/4,/5}`+`Nomal_1`+`Nomal_2` 混播防单调；
+我们旧实现是包裹段通用逻辑「钉死主名重播」→ 一直同一段。现 `重播当前状态` 对 music 每圈调
+`MusicSense.挑歌()` 重掷。② **跳舞期间持续复评档位**：官方 MusicTimer_Elapsed 每 10 次采样（2s）算
+平均音量，`CurrMusicType = ans > MusicMax`，**档位一变立刻 `Display_Music()` 换舞**（含官方 `sum/=4;count/=4`
+衰减惯性）；我们旧实现只在开跳时定一次档。现 `复评档位()` 同款（配置 `音乐复评秒`=2）。
+连带修串档：music 入 `情绪变体` 白名单（此前整池随机，普通档会抽到 happy 舞）。探针 MusicProbe
++7 断言：4 圈 ≥2 种变体 / 中途冲高立刻换 Single / 回落立刻换回 / 按档不串。）
 
 ### 5.10 Say / 说话（MainDisplay.cs + SayRndFunction）
 

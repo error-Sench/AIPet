@@ -183,6 +183,23 @@ public partial class StateMachine : Node
     public static bool 探针_禁用包裹;
     /// <summary>包裹态进入时的「主段指定」（MusicSense 挑歌等用；空 = 交给 挑主名 默认挑）。用后即清。</summary>
     public static string 包裹主名指定;
+
+    /// <summary>
+    /// music 档位中途切换时**立刻换舞**（2026-10-01 照官方 `MusicTimer_Elapsed` 的 `Display_Music()`）：
+    /// 重掷主段名并直接播——不等当前这一圈播完（官方同款：音量冲上二级阈值马上切 Single，回落马上切 B_Loop）。
+    /// 只在包裹会话中（`_包裹主名 != null`）且状态确实是 music 时生效；A/C 段期间（`_进入段中`/`_退出段中`）
+    /// 不打断，改由段播完后的重播路径接手（避免把进入/退出段切掉导致会话卡死）。
+    /// </summary>
+    public static void 重掷music主段()
+    {
+        if (CurrentState != Music || _包裹主名 == null || _进入段中 || _退出段中) return;
+        var 新 = MusicSense.挑歌();
+        if (string.IsNullOrEmpty(新) || !CharAnim.有动画(新)) return;
+        if (新 == _包裹主名) return;                 // 同一段（嗨档钉 single / 常规档随机撞回原段）：不打断当前播放
+        _包裹主名 = 新;
+        GD.Print($"[StateMachine] music 换舞 → {新}");
+        CharAnim.PlayNamed(新);
+    }
     /// <summary>包裹会话进行中（CharAnim 用它把「动画播完」派发给状态机——非锁定态如气泡说话也走重播）。</summary>
     public static bool 包裹中 => _包裹主名 != null;
     private static bool _已报可走动;     // 「空闲达标」日志只报一次，避免刷屏
@@ -439,8 +456,19 @@ public partial class StateMachine : Node
         if (CurrentState == PinchState) { FacePinch.动画播完(); return; }
         // 智能移动：圈推进由 MoveRunner 自管（A 进入 → 吸附 → B 循环 → 接力/收势）
         if (CurrentState == MoveState) { MoveRunner.动画播完(); return; }
-        // 包裹态主段循环：重播钉死的主段（变体不再随机换）
-        if (_包裹主名 != null && CharAnim.有动画(_包裹主名)) { CharAnim.PlayNamed(_包裹主名); return; }
+        // 包裹态主段循环：重播钉死的主段（变体不再随机换）。
+        // **music 例外**（2026-10-01 照官方 Display_Music）：每圈播完**重掷**主段——常规档在同档 B 组内随机换
+        // 变体（官方 B/Nomal{,_1,_2} 混播防单调），嗨档钉 single；修主人实机报的「音乐动画一直播一段不会变」。
+        if (_包裹主名 != null && CharAnim.有动画(_包裹主名))
+        {
+            if (CurrentState == Music)
+            {
+                var 新 = MusicSense.挑歌();
+                if (!string.IsNullOrEmpty(新) && CharAnim.有动画(新)) _包裹主名 = 新;
+            }
+            CharAnim.PlayNamed(_包裹主名);
+            return;
+        }
         if (!_效果表.TryGetValue(CurrentState, out var 效果)) return;
         CharAnim.PlayState(选择池(效果));
     }
@@ -969,7 +997,9 @@ public partial class StateMachine : Node
     /// </summary>
     private static string 情绪变体(string 池)
     {
-        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle" or "sit" or "lie" or "greet" or "enter" or "exit" or "drag" or "draghold")) return "";
+        if (池 is not ("think" or "say" or "sleep" or "interact" or "walk" or "work" or "idle" or "sit" or "lie" or "greet" or "enter" or "exit" or "drag" or "draghold" or "music")) return "";
+        // 2026-10-01：music 入列（两级阈值改造连带）——不入列 = 整池随机串档（普通档也会抽到 happy 舞），
+        // 入列后按档挑同组变体（nomal-1..5 / happy-1..4 / poor-1..4；single-* 由 挑主名 的排除规则留给 MusicSense 点播）。
         // P10 三档状态（开心 / 普通 / 不良）：**开关打开时手动档位生效** —— 默认关（= 一直按「普通」演）。
         // 重构#6：三档关闭 / 档位=普通 → 返回 "nomal"（而非旧的空串）——真正落实主人「默认普通」口径：
         // 钉普通档演，不再整池随机串到 happy/poor 变体；精确档缺失由 挑主名 的降级链兜（相邻档 → 随机）。
@@ -1572,6 +1602,9 @@ public partial class StateMachine : Node
         public static float 音乐刺激阈值 = 0.25f;    // 识别期平均超过算「嗨」→ 换 Single 舞
         public static float 音乐识别秒 = 3f;         // 连续有声多久才开跳
         public static float 音乐静音秒 = 6f;         // 安静多久收场
+        /// <summary>音乐复评秒（2026-10-01 两级阈值改造）：跳舞期间每隔这么久复评一次档位
+        /// （平均音量 vs 二级阈值）→ 档位变了立刻换舞。官方 = MusicTimer 200ms × 10 采样 = 2s。</summary>
+        public static float 音乐复评秒 = 2f;
 
         public static void 加载()
         {
@@ -1654,6 +1687,7 @@ public partial class StateMachine : Node
                     音乐刺激阈值 = 取浮点(根, "音乐刺激阈值", 音乐刺激阈值);
                     音乐识别秒 = 取浮点(根, "音乐识别秒", 音乐识别秒);
                     音乐静音秒 = 取浮点(根, "音乐静音秒", 音乐静音秒);
+                    音乐复评秒 = 取浮点(根, "音乐复评秒", 音乐复评秒);
                     break;
                 }
                 catch (Exception e) { GD.PrintErr($"[StateMachine] 读节律配置失败 {路径}: {e.Message}"); }
@@ -1705,6 +1739,7 @@ public partial class StateMachine : Node
             MusicSense.刺激阈值 = Math.Clamp(音乐刺激阈值, 0.01f, 1f);
             MusicSense.识别秒 = Math.Clamp(音乐识别秒, 0.5f, 30f);
             MusicSense.静音秒 = Math.Clamp(音乐静音秒, 1f, 120f);
+            MusicSense.复评秒 = Math.Clamp(音乐复评秒, 0.2f, 60f);
             // 捏脸（P7）：长按阈值 + 命中区（照 VPet 官方；命中区是窗口宽高的比例）
             FacePinch.长按秒 = Math.Clamp(捏脸长按秒, 0.1f, 3f);
             if (捏脸命中区 is { Length: 4 }) FacePinch.命中区 = 捏脸命中区;

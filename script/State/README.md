@@ -438,7 +438,7 @@ StateMachine.EnqueueChain(
 
 素材 = VPet `Music/*`（A 起跳 1 帧 / B 三档舞蹈循环带音符特效 / C 收尾 / Single 轻快摇摆三表情版）；检测 = `script/Util/AudioMeter.cs`（Windows Core Audio `IAudioMeterInformation` 默认播放设备峰值，**纯 COM 无第三方库；只读峰值，不读音频内容、不落盘、不联网**）；行为 = `script/State/MusicSense.cs`。
 
-- **官方对照**（VPet `MainWindow.cs` Handle_Music / MusicTimer）：音量持续 3 秒 > MusicCatch → 起身跳舞；识别期平均 > MusicMax → 换「Single」嗨档；安静后 C_End 收场。我们同款参数化（`音乐音量阈值/刺激阈值/识别秒/静音秒`）。
+- **官方对照**（VPet `MainWindow.cs` Handle_Music / MusicTimer）：音量持续 3 秒 > MusicCatch → 起身跳舞；识别期平均 > MusicMax → 换「Single」嗨档；安静后 C_End 收场。我们同款参数化（`音乐音量阈值/刺激阈值/识别秒/静音秒`）。**2026-10-01 补抄两级阈值全量**（主人实机报「一直播一段不会变」）：① B 段**每圈重掷变体**（官方 Display_Music 每圈重新 FindGraph 随机；`重播当前状态` 的 music 分支）；② 跳舞期间每 `音乐复评秒`（2s，官方 MusicTimer 200ms×10）复评平均音量，档位一变**立刻换舞**（`MusicSense.复评档位` → `StateMachine.重掷music主段`）；③ music 入 `情绪变体` 白名单修串档（普通档不再抽到 happy 舞）。
 - **状态**：`music` = 包裹段（A → 主段 → C）；主段默认按三档组变体随机（`nomal-1..5` / `happy-1..4` / `poor-1..4`），**嗨档时 MusicSense 用 `包裹主名指定` 钉 `music-single-{档}`**；`single-*` 不进普通随机（挑主名特判）。
 - **闸门**：`StateMachine.演出闸门开放`（空闲 + 环境安静 + 入场完成）——**不吃每小时主动上限**（对声音的反应不是打扰型行为）；面板/悬停/拖拽时不抢。
 - **独有约定**：`_已请求收场` 防重（C 段退出期间状态仍是 music，别每帧重发 SetState——**实机抓到的刷屏 bug**，已修）；读不到音频设备 → AudioMeter 自动停用（不影响其它功能）。
