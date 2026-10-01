@@ -211,9 +211,12 @@ public partial class StateMachine : Node
     {
         if (!_入场未完成) return;
         _入场未完成 = false;
-        GD.Print("[StateMachine] 入场完成 → 启动招呼");
-        启动招呼();
-        DailyRoutine.启动问候();   // 主人定的口径：每次启动打一次招呼（话由 config/phrases.json 定）
+        // 2026-10-01 修 Meow 播两次：入场不再另播一次 启动招呼() 的 greet 姿态——启动问候
+        // （DailyRoutine.启动问候）兑现时会一并播 Greet 姿态 + 问候语，两条链路都 SetState(Greet) = Meow 连播两遍。
+        // 问候被关（问候启用=false 或状态机停用）时回退为只播一次入场姿态（无词），保持「入场有动作」。
+        if (DailyRoutine.问候启用 && 设置.启用) DailyRoutine.启动问候();   // 主人定的口径：每次启动打一次招呼（话由 config/phrases.json 定）
+        else 启动招呼();
+        GD.Print("[StateMachine] 入场完成 → 启动问候");
         入场完成后?.Invoke();
         入场完成后 = null;   // 一次性：入场只完成一次，回调也只用一次
     }

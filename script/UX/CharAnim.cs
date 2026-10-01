@@ -76,6 +76,19 @@ public partial class CharAnim : AnimatedSprite2D
         应用外观配置();
     }
 
+    public override void _ExitTree()
+    {
+        // 2026-10-01 性能改造收尾：_纹理缓存 是静态字典，会把 ImageTexture 的 C# 包装根住——
+        // 进程退出时引擎原生侧先销毁，GC 终结器再摸无效 ghandle → 0xC0000005（探针 Quit 时实测）。
+        // 离树时显式 Dispose 再清缓存（ImageTexture 是 RefCounted，SpriteFrames 持有自己的原生引用，
+        // 释放我们的包装不销毁纹理本体）。
+        // 注意：**不清 _待加载** —— 游戏模式会把 CharAnim 重新挂到物理体上（RemoveChild+AddChild，
+        // 「本体不销毁、只换壳」），本方法会中途触发；队列必须活下来，回树后 _Process 继续消化
+        // （CommandProbe B7 实测：清掉队列 = 未加载动画永久丢失，补载全灭）。
+        foreach (var tex in _纹理缓存.Values) tex?.Dispose();
+        _纹理缓存.Clear();
+    }
+
     /// <summary>从 config/pet.json 应用桌宠默认大小（窗口尺寸随后由 PetWindow 套住角色）。
     /// **大小只在启动时定**：滚轮缩放已删除（主人决策：缩放会破坏动画链 —— 素材偏移/贴边比例都是按固定缩放导入调好的）。</summary>
     private static void 应用外观配置()
@@ -172,7 +185,7 @@ public partial class CharAnim : AnimatedSprite2D
                     if (当前 == _fidget主名 + "-a")
                     {
                         // A 播完 → B 第一圈（首掷 Next(1)=0 恒不过线，见下）
-                        Play(_fidget主名);
+                        播动画(_fidget主名);
                     }
                     else if (当前 == _fidget主名)
                     {
@@ -182,9 +195,9 @@ public partial class CharAnim : AnimatedSprite2D
                         // 动画组B：L 按变体取（「fidget循环L覆盖」优先，缺省全局 fidget循环L）。
                         _fidget圈数++;
                         if (_骰子.Next(_fidget圈数) > StateMachine.设置.fidgetL(变体键(_fidget主名)) && 有动画(_fidget主名 + "-c"))
-                            Play(_fidget主名 + "-c");
+                            播动画(_fidget主名 + "-c");
                         else
-                            Play(_fidget主名);
+                            播动画(_fidget主名);
                     }
                     else
                     {
@@ -198,7 +211,7 @@ public partial class CharAnim : AnimatedSprite2D
                     if (Animation.ToString() == _fidget单段名 && _fidget单段剩余 > 0)
                     {
                         _fidget单段剩余--;
-                        Play(_fidget单段名);
+                        播动画(_fidget单段名);
                     }
                     else
                     {
@@ -236,7 +249,7 @@ public partial class CharAnim : AnimatedSprite2D
     {
         if (_单例 == null) return;
         StateMachine.准备退出(); // 解除状态锁，否则退出动画的播完回调被接管逻辑吞掉 → 关不掉
-        _单例.Play(_退出动画名);
+        播动画(_退出动画名);
     }
 
     /// <summary>该池是否已登记为可播放（见 内置动画组）。未登记的池不会被预载，播放会失败。</summary>
@@ -257,16 +270,49 @@ public partial class CharAnim : AnimatedSprite2D
         return false;
     }
 
-    /// <summary>该动画名是否已载入（可播放）。</summary>
-    public static bool 有动画(string 动画名) =>
-        !string.IsNullOrEmpty(动画名) && _单例?.SpriteFrames?.HasAnimation(动画名) == true;
+    /// <summary>动画是否可播（已加载，或在后台待载队列里**按需补载**成功）。
+    /// 2026-10-01 性能改造后语义升级：启动只同步加载 enter/exit/idle，其余后台分帧——
+    /// 所有「有没有这个动画」的判定点（状态机应用表现/会话入口/探针断言）都走这里，
+    /// 未加载的自动插队补载（一次同步加载该条动画），保证行为与全量预载时代一致。</summary>
+    public static bool 有动画(string 动画名)
+    {
+        if (string.IsNullOrEmpty(动画名) || _单例?.SpriteFrames == null) return false;
+        if (_单例.SpriteFrames.HasAnimation(动画名)) return true;
+        return 补载动画(动画名);
+    }
+
+    /// <summary>按需补载（后台加载期间被提前用到时）：元数据里没有 = 真不存在（false，不扫队列）；
+    /// 队列里找到 → 立即同步加载。幂等：加载过/不在队列 → false。</summary>
+    private static bool 补载动画(string 动画名)
+    {
+        if (_待加载 == null || _待加载.Count == 0) return false;
+        if (!显示人物.动画信息映射.TryGetValue(动画名, out var 信息)) return false;
+        for (var 节点 = _待加载.First; 节点 != null; 节点 = 节点.Next)
+        {
+            if (节点.Value.name != 动画名) continue;
+            _待加载.Remove(节点);
+            加载动画(_单例.SpriteFrames, 信息);
+            return _单例.SpriteFrames.HasAnimation(动画名);
+        }
+        return false;   // 不在队列 = 已被消化过或真不存在
+    }
+
+    /// <summary>安全播放（2026-10-01 懒加载改造）：替代直接 `_单例.Play`——未加载的动画先按需补载再播。
+    /// 后台分帧加载期间，状态机若提前切到某池（如入场还没走完就触发互动），这里保证「点名即有」，
+    /// 与全量预载时代行为一致。全仓 15 处播放点统一走此入口。</summary>
+    private static void 播动画(string 动画名)
+    {
+        if (_单例?.SpriteFrames == null || string.IsNullOrEmpty(动画名)) return;
+        if (_单例.SpriteFrames.HasAnimation(动画名) || 补载动画(动画名)) _单例.Play(动画名);
+        else GD.PrintErr($"[CharAnim] 动画不存在（无法播放）: {动画名}");
+    }
 
     /// <summary>动画时长（秒）= Σ每帧相对时长 ÷ 帧率；未载入返回 0（状态机走链用它对齐起步/停步阶段时长）。
     /// 2026-09-22：按逐帧 duration 求和（有定格帧的动画时长不再被低估）。</summary>
     public static float 动画时长(string 动画名)
     {
         var sf = _单例?.SpriteFrames;
-        if (sf == null || !sf.HasAnimation(动画名)) return 0f;
+        if (sf == null || !有动画(动画名)) return 0f;   // 有动画 = 未加载时按需补载（MoveRunner 走链对齐时长，不能因后台加载返回 0）
         var 帧率 = Math.Max(1.0, sf.GetAnimationSpeed(动画名));
         double 总时长 = 0;
         for (var i = 0; i < sf.GetFrameCount(动画名); i++) 总时长 += sf.GetFrameDuration(动画名, i);
@@ -276,9 +322,10 @@ public partial class CharAnim : AnimatedSprite2D
     /// <summary>当前正在播的动画名（只读，供状态机避免重复重播导致相位重置）。</summary>
     public static string 当前动画名_只读 => _单例?.Animation.ToString() ?? "";
 
-    /// <summary>探针用：查询某动画是否按循环模式加载（包裹段 A/C 必须非循环——循环动画不回「播完」信号）。</summary>
+    /// <summary>探针用：查询某动画是否按循环模式加载（包裹段 A/C 必须非循环——循环动画不回「播完」信号）。
+    /// 2026-10-01：走 有动画（未加载自动补载）——后台分帧加载期间探针点名查询也能拿到真实加载模式。</summary>
     public static bool 动画循环_只读(string 名)
-        => _单例 != null && _单例.SpriteFrames.HasAnimation(名) && _单例.SpriteFrames.GetAnimationLoop(名);
+        => _单例 != null && 有动画(名) && _单例.SpriteFrames.GetAnimationLoop(名);
 
     /// <summary>探针用：当前 fidget 会话主段名（null = 无会话/单段一次过）与已播 B 圈数——验证骰子循环推进。</summary>
     public static string fidget会话_只读 => _fidget主名;
@@ -332,6 +379,7 @@ public partial class CharAnim : AnimatedSprite2D
     private void 单例播放指定动画(string 动画名)
     {
         if (SpriteFrames?.HasAnimation(动画名) == true) Play(动画名);
+        else if (补载动画(动画名)) Play(动画名);   // 后台加载期间被点到 → 插队补载再播
         else GD.PrintErr($"[CharAnim] 动画不存在: {动画名}");
     }
     public static void 开始庆祝() => 进入状态("celerate");
@@ -352,7 +400,7 @@ public partial class CharAnim : AnimatedSprite2D
         if (主名 == null || !有动画(主名 + "-b")) return false;
         _拖拽主名 = null;              // 动态段退出（挂起态接管）
         _挂起主名 = 主名;
-        _单例.Play(有动画(主名 + "-a") ? 主名 + "-a" : 主名 + "-b");
+        播动画(有动画(主名 + "-a") ? 主名 + "-a" : 主名 + "-b");
         return true;
     }
 
@@ -365,7 +413,7 @@ public partial class CharAnim : AnimatedSprite2D
         var 主名 = _挂起主名;
         _挂起主名 = null;
         var 段 = 选挂起落地段(主名);
-        if (段 != null) _单例.Play(段);
+        if (段 != null) 播动画(段);
         else { _idle循环次数 = 0; 进入状态("idle"); }   // 无 c 段兜底：直回 idle
     }
 
@@ -386,7 +434,7 @@ public partial class CharAnim : AnimatedSprite2D
         if (_挂起主名 == null) { _idle循环次数 = 0; 进入状态("idle"); return; }
         if (当前名.EndsWith("-a", StringComparison.Ordinal) || 当前名.EndsWith("-b", StringComparison.Ordinal))
         {
-            _单例.Play(_挂起主名 + "-b");
+            播动画(_挂起主名 + "-b");
             return;
         }
         _idle循环次数 = 0;
@@ -398,7 +446,7 @@ public partial class CharAnim : AnimatedSprite2D
     private static void 推进拖拽动态()
     {
         _拖拽主名 ??= StateMachine.挑主名("drag");
-        if (_拖拽主名 != null && 有动画(_拖拽主名)) { _单例.Play(_拖拽主名); return; }
+        if (_拖拽主名 != null && 有动画(_拖拽主名)) { 播动画(_拖拽主名); return; }
         _拖拽主名 = null;
         进入状态("drag");
     }
@@ -439,7 +487,7 @@ public partial class CharAnim : AnimatedSprite2D
             else 开始fidget单段会话(主名);
             return;
         }
-        _单例.Play(主名);
+        播动画(主名);
     }
 
     /// <summary>开 fidget 会话：钉死主段、圈数清零、先播 A 进场段（播完由 OnAnimationFinished 接 B 循环）。</summary>
@@ -448,7 +496,7 @@ public partial class CharAnim : AnimatedSprite2D
         _fidget主名 = 主名;
         _fidget圈数 = 0;
         _fidget单段名 = null; _fidget单段剩余 = 0;   // 两类会话互斥（新会话开工即作废旧的单段会话）
-        _单例.Play(主名 + "-a");
+        播动画(主名 + "-a");
     }
 
     /// <summary>开单段循环会话（动画组B：amuse 等「一组循环动画」）——按「fidget单段循环」掷次数 N：
@@ -459,7 +507,7 @@ public partial class CharAnim : AnimatedSprite2D
         _fidget主名 = null; _fidget圈数 = 0;         // 两类会话互斥
         _fidget单段名 = 次数 > 1 ? 主名 : null;
         _fidget单段剩余 = 次数 - 1;
-        _单例.Play(主名);
+        播动画(主名);
     }
 
     /// <summary>掷单段循环次数（区间表缺省 [1,1] = 一次过；随机源可注入供探针大样本）。</summary>
@@ -516,7 +564,7 @@ public partial class CharAnim : AnimatedSprite2D
         var 主名 = StateMachine.档名("sit");
         if (主名 == null || !有动画(主名 + "-a")) return false;
         _坐卧主名 = 主名; _坐卧场 = "sit"; _坐卧圈数 = 0; _坐卧次数 = 0;
-        _单例.Play(主名 + "-a");
+        播动画(主名 + "-a");
         return true;
     }
 
@@ -534,7 +582,7 @@ public partial class CharAnim : AnimatedSprite2D
     {
         var 变体 = 坐卧B变体(_坐卧主名);
         if (变体.Count == 0) { 结束坐卧会话(); return; }
-        _单例.Play(变体[_坐卧骰子.Next(变体.Count)]);
+        播动画(变体[_坐卧骰子.Next(变体.Count)]);
     }
 
     /// <summary>会话收尾（sit 的 C 播完）：清会话、重置 idle 计数、回 idle。</summary>
@@ -581,15 +629,15 @@ public partial class CharAnim : AnimatedSprite2D
             if (躺主名 != null && 有动画(躺主名 + "-a"))
             {
                 _坐卧场 = "lie"; _坐卧主名 = 躺主名; _坐卧圈数 = 0; _坐卧次数++;
-                _单例.Play(躺主名 + "-a");
+                播动画(躺主名 + "-a");
                 return;
             }
-            _单例.Play(_坐卧主名 + "-c");   // sit 收场（C 播完 → idle）
+            播动画(_坐卧主名 + "-c");   // sit 收场（C 播完 → idle）
             return;
         }
         // lie 场通过 → C 起身（喂下一段判定的 looptimes 清零）
         _坐卧圈数 = 0;
-        _单例.Play(_坐卧主名 + "-c");
+        播动画(_坐卧主名 + "-c");
     }
 
     /// <summary>探针钩子：强制「退出判定」结果（null = 掷真骰子）——让嵌套全流程可复现。</summary>
@@ -601,7 +649,7 @@ public partial class CharAnim : AnimatedSprite2D
     {
         if (_单例 == null || !有动画(主名 + "-a")) return;
         _坐卧主名 = 主名; _坐卧场 = "sit"; _坐卧圈数 = 0; _坐卧次数 = 0;
-        _单例.Play(主名 + "-a");
+        播动画(主名 + "-a");
     }
     public static string 坐卧会话_只读 => _坐卧主名;
     public static string 坐卧场_只读 => _坐卧场;
@@ -627,15 +675,64 @@ public partial class CharAnim : AnimatedSprite2D
             初始化窗口尺寸();
             return;
         }
+        // 2026-10-01 性能（主人实机反馈「入场久 + 卡顿」）：启动只同步加载**必需三件**——
+        // enter（正在播）、exit（关机要播）、其余全部进后台分帧队列（_Process 按时间预算消化）。
+        // 原实现在 Play(enter) 后同步加载全部 310 变体/3412 帧（≈3.3GB 纹理解码），主线程被占数秒：
+        // enter 播放期间掉帧 = 观感卡顿。分帧后入场即流畅；提前切到未加载的池由 PlayNamed 按需补载兜底。
         加载动画(状态机,进入动画);
-        _单例.Play(进入动画.name);//先显示,再加载后面动画
-        foreach (var 动画组 in 内置动画组)
-        {
-            加载动画组(人物,动画组);
-        }
         加载动画(状态机,退出动画);
         _退出动画名 = 退出动画.name;
+        播动画(进入动画.name);
         初始化窗口尺寸(); // 动画就绪 -> 窗口收缩到正好套住角色
+        // 其余动画按登记顺序入队（idle 排最前：enter 播完立即回 idle，别让它走按需补载）
+        _待加载 = new LinkedList<动画信息>();
+        _全量加载完成 = false;
+        var idle池 = 人物.动画池字典.GetValueOrDefault("idle");
+        if (idle池 != null)
+            foreach (var 动画 in idle池)
+                if (状态机.HasAnimation(动画.name) == false) _待加载.AddLast(动画);
+        foreach (var 动画组 in 内置动画组)
+        {
+            if (!人物.动画池字典.TryGetValue(动画组, out var list)) continue;
+            foreach (var 动画 in list)
+                if (状态机.HasAnimation(动画.name) == false) _待加载.AddLast(动画);
+        }
+        GD.Print($"[CharAnim] 启动必需已加载（enter/exit）；其余 {_待加载.Count} 条动画转后台分帧加载");
+    }
+
+    // ── 2026-10-01 后台分帧加载（性能）────────────────────────────────────────
+    /// <summary>还没轮到加载的动画（载入人物动画 排队；_Process 分帧消化；PlayNamed 可插队补载）。</summary>
+    private static LinkedList<动画信息> _待加载;
+    /// <summary>全部动画加载完成（探针/诊断用）。</summary>
+    public static bool 全量加载完成_只读 => _全量加载完成;
+    private static bool _全量加载完成;
+    /// <summary>每帧花在后台加载上的时间预算（ms）——60fps 一帧 16.7ms，留 6ms 加载不影响渲染。</summary>
+    private const long 加载预算毫秒 = 6;
+
+    public override void _Process(double delta)
+    {
+        if (_待加载 == null || _待加载.Count == 0) return;
+        var 状态机 = SpriteFrames;
+        var 截止 = Time.GetTicksMsec() + 加载预算毫秒;
+        while (_待加载.Count > 0)
+        {
+            var 节点 = _待加载.First;
+            _待加载.RemoveFirst();
+            // 已被 PlayNamed 按需补载过 → 跳过（加载动画 对同名会先删再建，重复加载纯浪费预算）
+            if (状态机.HasAnimation(节点.Value.name)) continue;
+            加载动画(状态机, 节点.Value);
+            if (Time.GetTicksMsec() >= 截止) break;
+        }
+        if (_待加载.Count == 0)
+        {
+            _全量加载完成 = true;
+            // 2026-10-01：纹理包装必须**确定性 Dispose**（不能只 Clear 丢给 GC）——引擎还活着时释放 C# 包装是安全的
+            // （SpriteFrames 自持原生引用，纹理本体不销毁）；若留给终结器，探针/程序在加载刚完成时退出，
+            // 终结器会在原生侧销毁后才跑 → 摸死指针 0xC0000005（BubbleProbe/WrapProbe 实测）。
+            foreach (var tex in _纹理缓存.Values) tex?.Dispose();
+            _纹理缓存.Clear();
+            GD.Print("[CharAnim] 后台分帧加载完成（全量动画就绪）");
+        }
     }
 
     /// <summary>登场/退场选名（动画组G，2026-09-24）：**按三档/降级链口径挑**（`StateMachine.挑主名`），
@@ -648,16 +745,11 @@ public partial class CharAnim : AnimatedSprite2D
         var 名 = StateMachine.挑主名(池) ?? 列表.列表随机项()?.name;
         return 名 != null && 人物.动画信息映射.TryGetValue(名, out var 动画) ? 动画 : 列表.列表随机项();
     }
-    private static void 加载动画组(人物数据 人物,string id)
-    {
-        if (人物.动画池字典.TryGetValue(id,out var list))
-        {
-            foreach (var 动画 in list)
-            {
-                加载动画(_单例.SpriteFrames,动画);
-            }
-        }
-    }
+    /// <summary>2026-10-01 性能：帧纹理共享缓存（内容 MD5 → ImageTexture）。素材里 33% 的帧跨动画逐字节重复，
+    /// 同内容直接复用同一纹理实例，省掉重复的 PNG 解码 + 纹理创建（时间与显存）。`载入人物动画` 全量加载完后清一次
+    /// （纹理仍被各 SpriteFrames 引用，清缓存不会销毁纹理本身）。</summary>
+    private static readonly System.Collections.Generic.Dictionary<string, ImageTexture> _纹理缓存 = new();
+
     private static void 加载动画(SpriteFrames 状态机, 动画信息 动画信息) => 加载动画(状态机,动画信息.name,动画信息.Path,动画信息.rate,动画信息.Type,动画信息.durations);
     private static void 加载动画(SpriteFrames 状态机, string 动画名, string 目录, int 帧率, string 池 = null, List<int> 帧时长 = null)
     {
@@ -711,21 +803,27 @@ public partial class CharAnim : AnimatedSprite2D
             var buffer = FileAccess.GetFileAsBytes(path);
             if (buffer == null || buffer.Length == 0) { 帧序++; continue; }
 
-            // 创建 Image 并加载数据
-            var img = new Image();
-            var err = img.LoadPngFromBuffer(buffer);
-        
-            if (err == Error.Ok)
+            // 2026-10-01 性能：同内容帧共享纹理（实测 33% 帧跨动画逐字节重复）——
+            // 按 MD5 命中缓存就跳过 PNG 解码 + ImageTexture 创建（加载时间与纹理内存双省）。
+            var 哈希 = System.Security.Cryptography.MD5.HashData(buffer);
+            var 键 = Convert.ToHexString(哈希);
+            if (!_纹理缓存.TryGetValue(键, out var texture))
             {
-                // 将 Image 转为 Godot 渲染可用的 ImageTexture
-                var texture = ImageTexture.CreateFromImage(img);
-                var 时长 = 帧时长 != null && 帧序 < 帧时长.Count && 帧时长[帧序] > 0 ? 帧时长[帧序] : 1f;
-                状态机.AddFrame(动画名, texture, 时长);
+                var img = new Image();
+                var err = img.LoadPngFromBuffer(buffer);
+                if (err != Error.Ok)
+                {
+                    img.Dispose();
+                    GD.PrintErr($"[解析失败] 无法加载图片: {path}, 错误代码: {err}");
+                    帧序++; continue;
+                }
+                texture = ImageTexture.CreateFromImage(img);
+                img.Dispose();   // 2026-10-01：纹理已拷走数据，立即确定性释放原生 Image——
+                                 // 等 GC 终结的话，分帧加载贴近退出时终结器会摸到已销毁的原生对象（0xC0000005）
+                _纹理缓存[键] = texture;
             }
-            else
-            {
-                GD.PrintErr($"[解析失败] 无法加载图片: {path}, 错误代码: {err}");
-            }
+            var 时长 = 帧时长 != null && 帧序 < 帧时长.Count && 帧时长[帧序] > 0 ? 帧时长[帧序] : 1f;
+            状态机.AddFrame(动画名, texture, 时长);
             帧序++;
         }
     }

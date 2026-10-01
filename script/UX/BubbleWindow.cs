@@ -43,6 +43,7 @@ public partial class BubbleWindow : Window
     private MarginContainer _边距框;
     private RichTextLabel _文本;
     private Tween _打字;
+    private PropertyTweener _打字进度;   // 与 _打字 同生命周期（显式 Dispose 用，见 打字机）
     private double _剩余秒;
     private string _原文本 = "";
     private bool _已二遍;
@@ -229,8 +230,7 @@ public partial class BubbleWindow : Window
     {
         _原文本 += 块;
         _文本.Text = 装饰后文本(_原文本);
-        _打字?.Kill();                      // 流式不需要打字机：整段直接可见
-        _打字 = null;
+        杀打字机();                         // 流式不需要打字机：整段直接可见
         _文本.VisibleCharacters = -1;
         重算尺寸();
         _剩余秒 = 0;                        // 流式中不自动收（收尾由结束流式统一定时）
@@ -240,10 +240,17 @@ public partial class BubbleWindow : Window
 
     private void 隐藏_立即()
     {
-        _打字?.Kill();
-        _打字 = null;
+        杀打字机();
         _剩余秒 = 0;
         Hide();
+    }
+
+    /// <summary>停掉打字机 tween 并**确定性 Dispose** 包装（Kill 只停原生动画，C# 包装留给 GC 终结器
+    /// 会在引擎退出后摸死指针 → 0xC0000005；见 BubbleProbe 实测）。</summary>
+    private void 杀打字机()
+    {
+        _打字进度?.Dispose(); _打字进度 = null;
+        if (_打字 != null) { _打字.Kill(); _打字.Dispose(); _打字 = null; }
     }
 
     /// <summary>文本 → RichTextLabel 富文本：**先转义**（气泡文本一律当纯文本，见 ChatBox 同款约定），再按需套波浪。</summary>
@@ -253,17 +260,24 @@ public partial class BubbleWindow : Window
         return 波浪效果 ? $"[wave]{转义}[/wave]" : 转义;
     }
 
-    /// <summary>打字机：**必须先 Kill 上一条 tween** —— 连发气泡时两条 tween 会同时改 visible_characters（老代码实测的坑）。</summary>
+    /// <summary>打字机：**必须先 Kill 上一条 tween** —— 连发气泡时两条 tween 会同时改 visible_characters（老代码实测的坑）。
+    /// 2026-10-01：旧 tween/PropertyTweener 的 C# 包装**显式 Dispose**（不留给 GC 终结器）——引擎退出时原生侧先销毁，
+    /// 终结器再摸死指针会 0xC0000005（BubbleProbe/WrapProbe 实测崩溃）。</summary>
     private void 打字机(int 字符数)
     {
-        _打字?.Kill();
-        _打字 = null;
+        杀打字机();
         if (字符数 <= 0) { _文本.VisibleCharacters = -1; return; }
         if (打字速度 <= 0f) { _文本.VisibleCharacters = -1; return; }
         _文本.VisibleCharacters = 0;
         var 时长 = 字符数 / 打字速度;
         _打字 = CreateTween();
-        _打字.TweenProperty(_文本, "visible_characters", 字符数, 时长).SetTrans(Tween.TransitionType.Linear);
+        _打字进度 = _打字.TweenProperty(_文本, "visible_characters", 字符数, 时长).SetTrans(Tween.TransitionType.Linear);
+    }
+
+    public override void _ExitTree()
+    {
+        // 离树 = 绑定 Tween 随节点被引擎销毁 → C# 包装必须当场确定性释放（理由同 杀打字机）
+        杀打字机();
     }
 
     // ================= 自适应大小 =================

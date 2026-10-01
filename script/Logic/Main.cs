@@ -79,6 +79,18 @@ public partial class Main:Node
 		Dialogue.显示临时标题(DialogueLoader.默认对话.入场招呼);
 	}
 	public static bool IgnorePath(string path) => Path.GetFileName(path).StartsWith($"_");
+
+	/// <summary>2026-10-01（懒加载改造连带）：离树时强制一轮 GC + 等终结器跑完——
+	/// 引擎还活着时把「原生侧已销毁、C# 包装还挂着」的对象（GameHost QueueFree 的世界节点等）安全收掉。
+	/// 否则它们拖到进程退出才由 GC.RunFinalizers 处理 → 摸死指针 0xC0000005（CommandProbe 实测；
+	/// 旧全量加载架构靠 3.3GB 纹理的 GC 压力碰巧在运行期收掉了，懒加载后压力骤降、隐患显形）。</summary>
+	public override void _ExitTree()
+	{
+		GC.Collect();
+		GC.WaitForPendingFinalizers();
+		GC.Collect();
+	}
+
 	public static void 游戏结束()
 	{
 		ConfigLoader.CleanupProcesses();

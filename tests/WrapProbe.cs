@@ -49,6 +49,7 @@ public partial class WrapProbe : Node
         {
             case 4:
                 StateMachine.入场完成();   // 解除入场门（包裹机制与入场无关，但让状态可控）
+                DailyRoutine.探针_重置();  // 清掉入场排上的启动问候（2026-10-01：入场不再立即播 greet，问候会在首个 idle 心跳兑现抢状态——同 BubbleProbe/EventProbe 口径）
                 断言(!StateMachine.入场未完成_只读, "入场门已解除");
                 break;
 
